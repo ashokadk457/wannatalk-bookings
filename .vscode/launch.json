@@ -1,0 +1,22 @@
+
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Server (Debug)",
+            "program": "${workspaceFolder}\\public\\backend\\src\\server.js",
+            "cwd": "${workspaceFolder}\\public\\backend",
+            "console": "integratedTerminal",
+            "runtimeArgs": ["-r", "dotenv/config"]
+        },
+        {
+            "type": "node-terminal",
+            "name": "Run Server (Terminal)",
+            "request": "launch",
+            "command": "npm run dev",
+            "cwd": "${workspaceFolder}\\public\\backend"
+        }
+    ]
+}

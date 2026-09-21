@@ -23,7 +23,7 @@ const allowedOrigins = String(process.env.CORS_ORIGIN || '').split(',').map((ori
 
 app.set('trust proxy', 'loopback');
 app.use(helmet());
-app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : true }));
+app.use(cors({ origin: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
