@@ -1204,16 +1204,6 @@
         display: grid;
         grid-template-columns: repeat(7, minmax(140px, 1fr));
       }
-      .month-title {
-        grid-column: 1/-1;
-        padding: 16px 18px;
-        background: linear-gradient(135deg, var(--navy), var(--navy-2));
-        color: #fff;
-        font-size: 18px;
-        font-weight: 900;
-        text-align: center;
-        letter-spacing: -0.02em;
-      }
       .month-head,
       .month-day {
         border-right: 1px solid #dce8f3;
@@ -3747,7 +3737,7 @@
           let src = el.closest(".auth-brand")
             ? brandLogoTransparentData
             : dashboardSidebarLogoPath;
-          el.innerHTML = `<a href="https://louwalbertspsychologist.co.za/" target="_blank" rel="noopener noreferrer" aria-label="Visit Louw Alberts Psychologist"><img class="brand-logo" src="${src}" alt="WannaTalk — You are not alone"></a>`;
+          el.innerHTML = `<img class="brand-logo" src="${src}" alt="WannaTalk — You are not alone">`;
         });
         document.querySelector(".auth-brand").style.backgroundImage =
           `linear-gradient(180deg,rgba(4,18,36,.16),rgba(4,18,36,.7)),url(${welcomeBackgroundData})`;
@@ -5516,11 +5506,7 @@
       function monthCalendarHTML(apps, role = "admin", base = calendarBase()) {
         let baseDate = dtFromISO(base),
           first = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1),
-          start = new Date(first),
-          monthTitle = baseDate.toLocaleDateString("en-ZA", {
-            month: "long",
-            year: "numeric",
-          });
+          start = new Date(first);
         start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
         let labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
           byDate = apps.reduce(
@@ -5539,7 +5525,7 @@
             );
           return `<div class="month-day ${muted ? "muted" : ""}"><div class="month-date"><span>${d.getDate()}</span>${items.length ? `<span class="count">${items.length} booking${items.length === 1 ? "" : "s"}</span>` : ""}</div>${items.map((a) => appointmentEventHTML(a, role, true)).join("")}</div>`;
         }).join("");
-        return `<div class="month-shell"><div class="month-board"><div class="month-title">${monthTitle}</div>${heads}${cells}</div></div>`;
+        return `<div class="month-shell"><div class="month-board">${heads}${cells}</div></div>`;
       }
       function appointmentCalendarHTML(apps, role, base = calendarBase()) {
         if (calendarViewMode === "month")
@@ -6069,42 +6055,6 @@
             `<section id="a-audit" class="section"><div class="section-title"><div><h2>Audit log</h2><p>User, location and action history for booking changes.</p></div></div><article class="card dashboard-table"><div id="auditLogTable"></div></article></section>`,
           );
       }
-      function setupAdminPatientUI() {
-        let nav = document.querySelector("#adminShell .nav"),
-          main = document.querySelector("#adminShell main");
-        if (nav && !nav.querySelector('[data-aview="patients"]'))
-          nav.insertAdjacentHTML(
-            "beforeend",
-            '<button data-aview="patients" onclick="showA(\'patients\',this)">👥 Patients</button>',
-          );
-        if (main && !$("a-patients"))
-          main.insertAdjacentHTML(
-            "beforeend",
-            `<section id="a-patients" class="section"><div class="section-title"><div><h2>Registered patients</h2><p>View, update, deactivate, or reactivate patient accounts.</p></div><span class="pill" id="adminPatientSummary"></span></div><article class="card"><div class="field" style="max-width:420px;margin-bottom:16px"><label for="adminPatientSearch">Search patients</label><input id="adminPatientSearch" type="search" placeholder="Name, email or mobile" oninput="renderAdminPatients()"></div><div id="adminPatientTable" class="dashboard-table"></div></article></section>`,
-          );
-      }
-      function setupAdminBookingUI() {
-        let title = document.querySelector("#a-appointments .section-title");
-        if (title && !$("adminCreateBookingButton"))
-          title.insertAdjacentHTML(
-            "beforeend",
-            '<button id="adminCreateBookingButton" class="btn" onclick="openAdminBookingCreator()">＋ Create booking</button>',
-          );
-      }
-      function setupSystemHealthUI() {
-        let nav = document.querySelector("#adminShell .nav"),
-          main = document.querySelector("#adminShell main");
-        if (nav && !nav.querySelector('[data-aview="health"]'))
-          nav.insertAdjacentHTML(
-            "beforeend",
-            '<button data-aview="health" onclick="showA(\'health\',this)">♥ Health</button>',
-          );
-        if (main && !$("a-health"))
-          main.insertAdjacentHTML(
-            "beforeend",
-            `<section id="a-health" class="section"><div class="section-title"><div><h2>System health</h2><p>Live status for the booking API, database and communication services.</p></div><button class="btn secondary" onclick="renderSystemHealth()">Refresh status</button></div><div id="systemHealthSummary" class="grid stats"></div><div id="systemHealthDetails" class="grid two" style="margin-top:18px"></div></section>`,
-          );
-      }
       function renderAuditLog() {
         ensureAuditLog();
         let rows = data.auditLog.slice(0, 100);
@@ -6129,18 +6079,14 @@
           cancellations: "Cancellations",
           availability: "Provider availability",
           registrations: "Registrations",
-          patients: "Patients",
           audit: "Audit log",
-          health: "System health",
         }[v];
         if (v === "overview") renderAdminOverview();
         if (v === "appointments") renderAdminAppointments();
         if (v === "cancellations") renderAdminCancellations();
         if (v === "availability") renderAdminAvailability();
         if (v === "registrations") renderAdminRegistrationLists();
-        if (v === "patients") renderAdminPatients();
         if (v === "audit") renderAuditLog();
-        if (v === "health") renderSystemHealth();
       }
       function adminAppointmentRows(apps, editable = true) {
         if (!apps.length)
@@ -6534,100 +6480,6 @@
           .join("");
         return `${calendarControlsHTML("Weekly time-slot view", "Past dates and times show in red and cannot be booked.", base)}<div class="week-shell reference-calendar"><div class="week-board">${heads}${rows}</div></div>`;
       }
-      function patientWeekSlotsHTML() {
-        if (!selectedLocation)
-          return '<div class="notice">Choose Centurion, Emalahleni or Online to see the weekly time slots.</div>';
-        let base = calendarBase(),
-          start = startWeek(dtFromISO(base)),
-          week = Array.from({ length: 5 }, (_, i) => addDate(start, i)),
-          times = ["09:00", "10:30", "12:00", "14:00", "15:30", "16:00"];
-        let providers = data.providers.filter(
-          (p) =>
-            (p.locations || ["Online"]).includes(selectedLocation) &&
-            (!selectedProvider || p.id === selectedProvider),
-        );
-        let heads =
-          '<div class="week-cell week-head"></div>' +
-          week
-            .map(
-              (d) =>
-                `<div class="week-cell week-head">${d.toLocaleDateString("en-ZA", { weekday: "short" })}<br>${d.getDate()} ${d.toLocaleDateString("en-ZA", { month: "short" })}</div>`,
-            )
-            .join("");
-        let rows = times
-          .map(
-            (t) =>
-              `<div class="week-cell week-time">${t}</div>` +
-              week
-                .map((d) => {
-                  let iso = isoDate(d),
-                    dow = d.getDay();
-                  let matches = providers
-                    .map((p) => {
-                      let av = p.availability?.[dow],
-                        dur = Number(p.duration || 60),
-                        slotStart = timeToMin(t),
-                        slotEnd = slotStart + dur;
-                      let fits =
-                        av?.on &&
-                        slotStart >= timeToMin(av.start) &&
-                        slotEnd <= timeToMin(av.end);
-                      let taken = (p.busy || []).some(
-                        (busy) =>
-                          busy.date === iso &&
-                          timeToMin(busy.start) < slotEnd &&
-                          timeToMin(busy.end) > slotStart,
-                      );
-                      let blocked = (p.blocks || []).some(
-                        (block) =>
-                          block.date === iso &&
-                          timeToMin(block.start) < slotEnd &&
-                          timeToMin(block.end) > slotStart,
-                      );
-                      return {
-                        p,
-                        dur,
-                        fits,
-                        taken,
-                        blocked,
-                        past: bookingDateTimeInPast(iso, t),
-                      };
-                    })
-                    .filter((x) => x.fits);
-                  if (!matches.length)
-                    return `<div class="week-cell">${bookingDateTimeInPast(iso, "23:59") ? '<div class="notice booking-date-warning" style="margin:0">Past date</div>' : ""}</div>`;
-                  let blocks = matches
-                    .slice(0, 3)
-                    .map((x) => {
-                      let end = minToTime(timeToMin(t) + x.dur),
-                        selected =
-                          selectedProvider === x.p.id &&
-                          selectedTime === t &&
-                          $("bookDate")?.value === iso;
-                      let cls = x.past
-                        ? "past"
-                        : x.taken || x.blocked
-                          ? "unavailable"
-                          : selected
-                            ? "booked"
-                            : "available";
-                      let label = x.past
-                        ? "Past time"
-                        : x.taken || x.blocked
-                          ? "Not available"
-                          : selected
-                            ? "Selected"
-                            : "Available";
-                      return `<button class="week-event ${cls}" ${x.taken || x.blocked || x.past ? "disabled" : `onclick="selectCalendarSlot('${iso}',${x.p.id},'${t}')"`}><span class="event-time">${t} - ${end}</span><span class="event-label">${x.p.name}</span><small class="event-meta">${label} · ${selectedLocation}${providerOnline(x.p) ? "" : " · Provider offline"}</small></button>`;
-                    })
-                    .join("");
-                  return `<div class="week-cell">${blocks}</div>`;
-                })
-                .join(""),
-          )
-          .join("");
-        return `${calendarControlsHTML("Weekly time-slot view", "Past dates, booked appointments and provider blocks cannot be booked.", base)}<div class="week-shell reference-calendar"><div class="week-board">${heads}${rows}</div></div>`;
-      }
       function renderSlots() {
         ensurePatientPastStyles();
         let grid = $("slotGrid"),
@@ -6726,10 +6578,7 @@
       applyBrandLogo();
       setupLocationUI();
       setupAdminRegistrationUI();
-      setupAdminPatientUI();
-      setupAdminBookingUI();
       setupAuditLogUI();
-      setupSystemHealthUI();
       setupProviderStatusUI();
       setupMobileDrawerUI();
       improveAdminRegistrationVisibility();
@@ -6738,12 +6587,10 @@
     <script>
       const apiBase =
         window.WANNATALK_API_BASE ||
-        (location.protocol === "file:" ? "http://localhost:3100/api" : "/api");
+        (location.protocol === "file:" ? "http://127.0.0.1:3100/api" : "/api");
       const apiTokenKey = "wannatalkApiToken";
       let apiToken = localStorage.getItem(apiTokenKey) || "";
       let apiLocations = [];
-      let passwordResetToken = "";
-      let mfaChallenge = null;
       [
         ...(data.admins || []),
         ...(data.providers || []),
@@ -6833,18 +6680,6 @@
             availability: availabilityFromApi(
               availabilityPayloads[index].availability || [],
             ),
-            blocks: (availabilityPayloads[index].blocks || []).map((block) => ({
-              id: block.id,
-              date: apiDate(block.block_date),
-              start: apiTime(block.start_time),
-              end: apiTime(block.end_time),
-              reason: block.reason || "Unavailable",
-            })),
-            busy: (availabilityPayloads[index].busy || []).map((item) => ({
-              date: apiDate(item.appointment_date),
-              start: apiTime(item.appointment_time),
-              end: apiTime(item.end_time),
-            })),
           };
         });
         let patients = patientPayload.patients.map((patient, index) => {
@@ -6856,8 +6691,7 @@
             name: patient.full_name,
             email: patient.email,
             mobile: patient.mobile || "",
-            contact: patient.preferred_contact || "Email",
-            active: patient.is_active !== false,
+            contact: patient.preferred_contact || "WhatsApp",
           };
         });
         let appointments = appointmentPayload.appointments
@@ -6876,7 +6710,6 @@
             payment: appointment.payment_status,
             note: appointment.note || "",
             intakeRequested: Boolean(appointment.intake_requested),
-            meetingUrl: appointment.meeting_url || "",
           }))
           .filter(
             (appointment) => appointment.providerId && appointment.patientId,
@@ -6973,7 +6806,7 @@
             : role === "provider"
               ? "Provider access"
               : "Administrator access";
-        $("registerTab").classList.toggle("hidden", role === "admin");
+        $("registerTab").classList.remove("hidden");
         buildRegister();
         switchMode("login");
         $("demoCreds").textContent =
@@ -6981,11 +6814,6 @@
       };
 
       function setupAccountAccessUI() {
-        let authBackButton = document.querySelector(
-          "#authArea > button.btn.secondary",
-        );
-        if (authBackButton && !authBackButton.id)
-          authBackButton.id = "authBackButton";
         if (!$("forgotPasswordButton"))
           $("loginForm")
             .querySelector("button.btn")
@@ -6998,16 +6826,6 @@
             "afterend",
             `<div id="forgotPasswordForm" class="hidden"><h3 style="margin:8px 0">Reset your password</h3><p class="sub">Enter the email address used for your ${authRole || "WannaTalk"} account.</p><div class="field" style="margin-top:16px"><label>Email</label><input id="forgotEmail" type="email" autocomplete="email"></div><button class="btn" style="width:100%;margin-top:16px" onclick="requestPasswordReset()">Send reset link</button><button class="btn secondary" style="width:100%;margin-top:10px" onclick="switchMode('login')">Back to login</button></div>`,
           );
-        if (!$("resetPasswordForm"))
-          $("forgotPasswordForm").insertAdjacentHTML(
-            "afterend",
-            `<div id="resetPasswordForm" class="hidden"><h3 style="margin:8px 0">Choose a new password</h3><p class="sub">Enter the new password twice to confirm it.</p><div class="field" style="margin-top:16px"><label>New password</label><input id="resetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128"><div class="sub">Use at least 12 characters.</div></div><div class="field" style="margin-top:12px"><label>Confirm new password</label><input id="resetPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128"></div><button class="btn" style="width:100%;margin-top:16px" onclick="submitNewPassword()">Update password</button><button class="btn secondary" style="width:100%;margin-top:10px" onclick="cancelPasswordReset()">Cancel</button></div>`,
-          );
-        if (!$("mfaForm"))
-          $("resetPasswordForm").insertAdjacentHTML(
-            "afterend",
-            `<div id="mfaForm" class="hidden"><h3 style="margin:8px 0">Security verification</h3><p class="sub" id="mfaInstruction">Choose where to receive your one-time verification code.</p><div id="mfaMethodChoices" style="display:grid;gap:10px;margin-top:16px"></div><div id="mfaCodeArea" class="hidden"><div class="notice" id="mfaDeliveryNotice" style="margin-top:16px"></div><div class="field"><label for="mfaCode">Verification code</label><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter 6-digit code"></div><label style="display:flex;align-items:flex-start;gap:9px;margin-top:14px"><input id="mfaTrustDevice" type="checkbox" style="width:auto;margin-top:2px"><span>Trust this device for 14 days</span></label><button class="btn" style="width:100%;margin-top:16px" onclick="submitMfaCode()">Verify and continue</button><button class="btn secondary" style="width:100%;margin-top:10px" onclick="resendMfaCode()">Send another code</button></div><button class="btn secondary" style="width:100%;margin-top:10px" onclick="cancelMfaChallenge()">Cancel</button></div>`,
-          );
         let registerNote = $("registerForm").querySelector(".demo");
         if (registerNote)
           registerNote.textContent =
@@ -7018,9 +6836,6 @@
         mode = nextMode;
         setupAccountAccessUI();
         $("forgotPasswordForm").classList.add("hidden");
-        $("resetPasswordForm").classList.add("hidden");
-        $("mfaForm").classList.add("hidden");
-        $("authBackButton")?.classList.remove("hidden");
         document.querySelector("#authArea .tabs").classList.remove("hidden");
         $("loginForm").classList.toggle("hidden", nextMode !== "login");
         $("registerForm").classList.toggle("hidden", nextMode !== "register");
@@ -7028,221 +6843,21 @@
         $("registerTab").classList.toggle("active", nextMode === "register");
       };
 
-      function showMfaChallenge(payload, email) {
-        setupAccountAccessUI();
-        mfaChallenge = { ...payload, email };
-        $("loginForm").classList.add("hidden");
-        $("registerForm").classList.add("hidden");
-        $("forgotPasswordForm").classList.add("hidden");
-        $("resetPasswordForm").classList.add("hidden");
-        $("mfaForm").classList.remove("hidden");
-        $("mfaMethodChoices").classList.remove("hidden");
-        $("mfaCodeArea").classList.add("hidden");
-        $("mfaCode").value = "";
-        $("mfaTrustDevice").checked = false;
-        $("authBackButton")?.classList.add("hidden");
-        document.querySelector("#authArea .tabs").classList.add("hidden");
-        $("authHeading").textContent =
-          payload.purpose === "registration"
-            ? "Verify your registration"
-            : "Verify your sign in";
-        $("mfaInstruction").textContent =
-          "Choose where to receive your one-time verification code.";
-        $("mfaMethodChoices").innerHTML =
-          (payload.methods || [])
-            .map(
-              (item) =>
-                `<button class="btn secondary" onclick="sendMfaCode('${item.method}')">Send by ${escapeAccountText(item.label)}<span style="display:block;font-size:11px;font-weight:600;margin-top:3px">${escapeAccountText(item.destination)}</span></button>`,
-            )
-            .join("") +
-          (payload.unavailableMethods || [])
-            .map(
-              (item) =>
-                `<button class="btn secondary" disabled style="opacity:.55;cursor:not-allowed">${escapeAccountText(item.label)} unavailable<span style="display:block;font-size:11px;font-weight:600;margin-top:3px">${escapeAccountText(item.reason)}</span></button>`,
-            )
-            .join("");
-      }
-
-      sendMfaCode = async function (method) {
-        if (!mfaChallenge) return toast("Start the sign-in process again");
-        try {
-          let payload = await apiRequest("/auth/mfa/send", {
-            method: "POST",
-            body: JSON.stringify({
-              challengeId: mfaChallenge.challengeId,
-              method,
-            }),
-          });
-          mfaChallenge.method = method;
-          $("mfaMethodChoices").classList.add("hidden");
-          $("mfaCodeArea").classList.remove("hidden");
-          $("mfaDeliveryNotice").textContent =
-            `${payload.message} to ${payload.destination}. The code expires in ${payload.expiresMinutes} minutes.`;
-          $("mfaCode").focus();
-          toast(payload.message);
-        } catch (error) {
-          toast(error.message);
-        }
-      };
-
-      resendMfaCode = function () {
-        if (!mfaChallenge) return;
-        $("mfaMethodChoices").classList.remove("hidden");
-        $("mfaCodeArea").classList.add("hidden");
-        $("mfaCode").value = "";
-        $("mfaInstruction").textContent =
-          "Choose email or SMS to send a new code.";
-      };
-
-      cancelMfaChallenge = function () {
-        let email = mfaChallenge?.email || "";
-        mfaChallenge = null;
-        chooseRole(authRole || "patient");
-        $("loginEmail").value = email;
-        $("demoCreds").textContent =
-          "Sign in again when you are ready to complete verification.";
-      };
-
-      submitMfaCode = async function () {
-        let code = $("mfaCode").value.replace(/\D/g, "");
-        if (!mfaChallenge || code.length < 6)
-          return toast("Enter the verification code");
-        let button = $("mfaCodeArea").querySelector("button.btn");
-        button.disabled = true;
-        button.textContent = "Verifying…";
-        try {
-          let payload = await apiRequest("/auth/mfa/verify", {
-            method: "POST",
-            body: JSON.stringify({
-              challengeId: mfaChallenge.challengeId,
-              code,
-              trustDevice: $("mfaTrustDevice").checked,
-            }),
-          });
-          if (payload.status === "pending") {
-            let email = mfaChallenge.email;
-            mfaChallenge = null;
-            chooseRole(payload.role || "provider");
-            $("loginEmail").value = email;
-            $("demoCreds").textContent = payload.message;
-            toast("Contact verified · awaiting administrator approval");
-            return;
-          }
-          apiToken = payload.token;
-          localStorage.setItem(apiTokenKey, apiToken);
-          await loadApiData(payload.user);
-          mfaChallenge = null;
-          openSession();
-          toast(
-            payload.trustedDevice
-              ? "Verified · this device is trusted for 14 days"
-              : "Security verification successful",
-          );
-        } catch (error) {
-          toast(error.message);
-        } finally {
-          button.disabled = false;
-          button.textContent = "Verify and continue";
-        }
-      };
-
       showForgotPassword = function () {
         setupAccountAccessUI();
         $("loginForm").classList.add("hidden");
         $("registerForm").classList.add("hidden");
-        $("resetPasswordForm").classList.add("hidden");
         document.querySelector("#authArea .tabs").classList.add("hidden");
         $("forgotPasswordForm").classList.remove("hidden");
         $("forgotEmail").value = $("loginEmail").value.trim();
         $("forgotEmail").focus();
       };
 
-      requestPasswordReset = async function () {
+      requestPasswordReset = function () {
         let email = $("forgotEmail").value.trim();
         if (!email || !email.includes("@"))
           return toast("Enter a valid email address");
-        let button = $("forgotPasswordForm").querySelector("button.btn");
-        button.disabled = true;
-        button.textContent = "Sending…";
-        try {
-          let payload = await apiRequest("/auth/forgot-password", {
-            method: "POST",
-            body: JSON.stringify({ email }),
-          });
-          $("forgotEmail").value = "";
-          $("demoCreds").textContent = payload.message;
-          switchMode("login");
-          toast(
-            "If the account exists, check the email inbox for a reset link",
-          );
-        } catch (error) {
-          toast(error.message);
-        } finally {
-          button.disabled = false;
-          button.textContent = "Send reset link";
-        }
-      };
-
-      function openPasswordResetFromLink() {
-        let token = new URLSearchParams(location.hash.slice(1)).get("reset");
-        if (!token) return;
-        passwordResetToken = token;
-        history.replaceState(null, "", location.pathname + location.search);
-        setupAccountAccessUI();
-        $("roleChoice").classList.add("hidden");
-        $("authArea").classList.remove("hidden");
-        $("authHeading").textContent = "Create new password";
-        $("authBackButton")?.classList.add("hidden");
-        document.querySelector("#authArea .tabs").classList.add("hidden");
-        $("loginForm").classList.add("hidden");
-        $("registerForm").classList.add("hidden");
-        $("forgotPasswordForm").classList.add("hidden");
-        $("resetPasswordForm").classList.remove("hidden");
-        $("resetPassword").focus();
-      }
-
-      function cancelPasswordReset() {
-        passwordResetToken = "";
-        $("resetPassword").value = "";
-        $("resetPasswordConfirm").value = "";
-        $("resetPasswordForm").classList.add("hidden");
-        $("authBackButton")?.classList.remove("hidden");
-        backRole();
-      }
-
-      submitNewPassword = async function () {
-        let password = $("resetPassword").value,
-          confirmPassword = $("resetPasswordConfirm").value;
-        if (password.length < 12)
-          return toast("Password must contain at least 12 characters");
-        if (password !== confirmPassword)
-          return toast("Passwords do not match");
-        let button = $("resetPasswordForm").querySelector("button.btn");
-        button.disabled = true;
-        button.textContent = "Updating…";
-        try {
-          let payload = await apiRequest("/auth/reset-password", {
-            method: "POST",
-            body: JSON.stringify({
-              token: passwordResetToken,
-              password,
-              confirmPassword,
-            }),
-          });
-          passwordResetToken = "";
-          $("resetPassword").value = "";
-          $("resetPasswordConfirm").value = "";
-          chooseRole(payload.role);
-          $("loginEmail").value = payload.email;
-          $("demoCreds").textContent =
-            "Password updated. Sign in with your new password.";
-          toast("Password updated successfully");
-        } catch (error) {
-          toast(error.message);
-        } finally {
-          button.disabled = false;
-          button.textContent = "Update password";
-        }
+        toast("Reset form ready · secure email connection is the next step");
       };
 
       doLogin = async function () {
@@ -7257,11 +6872,6 @@
             method: "POST",
             body: JSON.stringify({ email, password, role: authRole }),
           });
-          if (payload.mfaRequired) {
-            showMfaChallenge(payload, email);
-            toast("Password accepted · verification required");
-            return;
-          }
           apiToken = payload.token;
           localStorage.setItem(apiTokenKey, apiToken);
           await loadApiData(payload.user);
@@ -7408,103 +7018,6 @@
         }
       };
 
-      function closeAdminBookingCreator() {
-        $("adminBookingCreatorModal")?.remove();
-      }
-      function updateAdminBookingLocations() {
-        let provider = data.providers.find(
-            (item) => item.apiId === $("adminBookingProvider")?.value,
-          ),
-          locations = (provider?.locations || [])
-            .map((name) =>
-              apiLocations.find((location) => location.name === name),
-            )
-            .filter(Boolean),
-          select = $("adminBookingLocation");
-        if (!select) return;
-        select.innerHTML = locations
-          .map(
-            (location) =>
-              `<option value="${location.id}">${escapeAccountText(location.name)}</option>`,
-          )
-          .join("");
-      }
-      function openAdminBookingCreator() {
-        ensureBookingModalStyles();
-        closeAdminBookingCreator();
-        let providers = data.providers.filter(
-            (provider) => provider.active !== false,
-          ),
-          patients = data.patients.filter(
-            (patient) => patient.active !== false,
-          ),
-          defaultDate =
-            calendarViewDate && calendarViewDate >= todayStr()
-              ? calendarViewDate
-              : todayStr();
-        if (!providers.length || !patients.length)
-          return toast("An active provider and patient are required");
-        document.body.insertAdjacentHTML(
-          "beforeend",
-          `<div id="adminBookingCreatorModal" class="modal-backdrop" onclick="if(event.target.id==='adminBookingCreatorModal')closeAdminBookingCreator()"><article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="adminBookingCreatorTitle"><div class="card-head"><div><h3 id="adminBookingCreatorTitle" style="margin:0">Create booking</h3><div class="sub">Add an appointment on behalf of a patient.</div></div><button class="btn secondary" onclick="closeAdminBookingCreator()">Close</button></div><div class="form-grid"><div class="field"><label>Provider</label><select id="adminBookingProvider" onchange="updateAdminBookingLocations()">${providers.map((provider) => `<option value="${provider.apiId}">${escapeAccountText(provider.name)}</option>`).join("")}</select></div><div class="field"><label>Patient</label><select id="adminBookingPatient">${patients.map((patient) => `<option value="${patient.apiId}">${escapeAccountText(patient.name)} · ${escapeAccountText(patient.email)}</option>`).join("")}</select></div><div class="field"><label>Date</label><input id="adminBookingDate" type="date" min="${todayStr()}" value="${defaultDate}"></div><div class="field"><label>Time</label><input id="adminBookingTime" type="time" value="09:00"></div><div class="field"><label>Location</label><select id="adminBookingLocation"></select></div><div class="field"><label>Mode</label><select id="adminBookingMode"><option>In-person</option><option>Online</option><option>Telephone</option></select></div><div class="field full"><label>Appointment type</label><select id="adminBookingType"><option>Individual counselling</option><option>Couples counselling</option><option>Family counselling</option><option>Assessment</option><option>Follow-up</option></select></div><div class="field full"><label>Note for provider</label><textarea id="adminBookingNote" placeholder="Optional"></textarea></div></div><div class="modal-actions"><button class="btn secondary" onclick="closeAdminBookingCreator()">Cancel</button><button class="btn" onclick="createAdminBooking()">Create booking</button></div></article></div>`,
-        );
-        updateAdminBookingLocations();
-      }
-      createAdminBooking = async function () {
-        let provider = data.providers.find(
-            (item) => item.apiId === $("adminBookingProvider").value,
-          ),
-          patient = data.patients.find(
-            (item) => item.apiId === $("adminBookingPatient").value,
-          ),
-          location = apiLocations.find(
-            (item) => item.id === $("adminBookingLocation").value,
-          ),
-          date = $("adminBookingDate").value,
-          time = $("adminBookingTime").value;
-        if (!provider || !patient || !date || !time)
-          return toast("Provider, patient, date and time are required");
-        if (bookingDateTimeInPast(date, time))
-          return toast("Past dates and times cannot be booked");
-        let button = $("adminBookingCreatorModal").querySelector(
-          ".modal-actions .btn:not(.secondary)",
-        );
-        button.disabled = true;
-        button.textContent = "Creating…";
-        try {
-          await apiRequest("/appointments", {
-            method: "POST",
-            body: JSON.stringify({
-              providerId: provider.apiId,
-              patientId: patient.apiId,
-              locationId: location?.id || null,
-              appointmentDate: date,
-              appointmentTime: time,
-              durationMinutes: Number(provider.duration || 60),
-              appointmentType: $("adminBookingType").value,
-              mode:
-                location?.name === "Online"
-                  ? "Online"
-                  : $("adminBookingMode").value,
-              note: $("adminBookingNote").value.trim(),
-              intakeRequested: false,
-            }),
-          });
-          calendarViewDate = date;
-          await reloadApiData();
-          closeAdminBookingCreator();
-          renderAdminOverview();
-          renderAdminAppointments();
-          renderAdminAvailability();
-          renderAuditLog();
-          toast("Booking created successfully");
-        } catch (error) {
-          toast(error.message);
-          button.disabled = false;
-          button.textContent = "Create booking";
-        }
-      };
-
       adminChangeStatus = async function (id, status) {
         let appointment = data.appointments.find((item) => item.id === id);
         if (!appointment) return toast("Appointment not found");
@@ -7537,37 +7050,6 @@
           toast(`You are now ${online ? "online" : "offline"}`);
         } catch (error) {
           $("providerStatusInput").checked = !online;
-          toast(error.message);
-        }
-      };
-
-      saveProviderProfile = async function () {
-        let provider = currentProvider(),
-          locations = [
-            ["vpLocCenturion", "Centurion"],
-            ["vpLocEmalahleni", "Emalahleni"],
-            ["vpLocOnline", "Online"],
-          ]
-            .filter(([id]) => $(id)?.checked)
-            .map(([, location]) => location);
-        if (!locations.length)
-          return toast("Choose at least one practice location");
-        try {
-          await apiRequest(`/providers/${provider.apiId}/profile`, {
-            method: "PATCH",
-            body: JSON.stringify({
-              fullName: $("vpName").value.trim(),
-              mobile: $("vpMobile").value.trim(),
-              professionalTitle: $("vpRole").value.trim(),
-              durationMinutes: Number($("vpDuration").value),
-              bio: $("vpBio").value.trim(),
-              locations,
-            }),
-          });
-          await reloadApiData();
-          renderProvider();
-          toast("Provider profile saved to WannaTalk");
-        } catch (error) {
           toast(error.message);
         }
       };
@@ -7639,12 +7121,6 @@
             }),
           });
           $("rPassword").value = "";
-          if (payload.verificationRequired) {
-            $("rPassword").value = "";
-            showMfaChallenge(payload, email);
-            toast("Registration created · verify your contact details");
-            return;
-          }
           if (payload.status === "approved" && payload.token) {
             apiToken = payload.token;
             localStorage.setItem(apiTokenKey, apiToken);
@@ -7680,205 +7156,6 @@
             })[character],
         );
       }
-      renderAdminPatients = function () {
-        let table = $("adminPatientTable"),
-          summary = $("adminPatientSummary");
-        if (!table || !summary) return;
-        let search = String($("adminPatientSearch")?.value || "")
-            .trim()
-            .toLowerCase(),
-          patients = [...data.patients].sort((left, right) =>
-            left.name.localeCompare(right.name),
-          ),
-          activeCount = patients.filter(
-            (patient) => patient.active !== false,
-          ).length;
-        let filtered = patients.filter(
-          (patient) =>
-            !search ||
-            [patient.name, patient.email, patient.mobile].some((value) =>
-              String(value || "")
-                .toLowerCase()
-                .includes(search),
-            ),
-        );
-        summary.textContent = `${activeCount} active · ${patients.length - activeCount} inactive · ${patients.length} total`;
-        table.innerHTML = filtered.length
-          ? `<table><thead><tr><th>Patient</th><th>Contact</th><th>Preferred</th><th>Appointments</th><th>Status</th><th>Actions</th></tr></thead><tbody>${filtered
-              .map((patient) => {
-                let appointments = data.appointments.filter(
-                    (appointment) => appointment.patientId === patient.id,
-                  ),
-                  latest = [...appointments].sort((left, right) =>
-                    (right.date + right.time).localeCompare(
-                      left.date + left.time,
-                    ),
-                  )[0];
-                return `<tr><td><span class="patient-name">${escapeAccountText(patient.name)}</span><div class="sub">${escapeAccountText(patient.email)}</div></td><td>${escapeAccountText(patient.mobile || "No mobile")}<div class="sub">${latest ? `Latest: ${escapeAccountText(fmtDate(latest.date))}` : "No bookings yet"}</div></td><td>${escapeAccountText(patient.contact || "Email")}</td><td>${appointments.length}</td><td><span class="status ${patient.active === false ? "cancelled" : "confirmed"}">${patient.active === false ? "Inactive" : "Active"}</span></td><td><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" style="padding:8px 10px;box-shadow:none" onclick="openAdminPatientEditor('${patient.apiId}')">Edit</button>${patient.active === false ? `<button class="btn" style="padding:8px 10px" onclick="reactivatePatient('${patient.apiId}')">Reactivate</button>` : `<button class="btn danger" style="padding:8px 10px" onclick="deactivatePatient('${patient.apiId}')">Deactivate</button>`}</div></td></tr>`;
-              })
-              .join("")}</tbody></table>`
-          : '<div class="notice">No patients match this search.</div>';
-      };
-      function closeAdminPatientEditor() {
-        $("patientEditorModal")?.remove();
-      }
-      function openAdminPatientEditor(patientApiId) {
-        let patient = data.patients.find((item) => item.apiId === patientApiId);
-        if (!patient) return toast("Patient not found");
-        ensureBookingModalStyles();
-        closeAdminPatientEditor();
-        document.body.insertAdjacentHTML(
-          "beforeend",
-          `<div id="patientEditorModal" class="modal-backdrop" onclick="if(event.target.id==='patientEditorModal')closeAdminPatientEditor()"><article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="patientEditorTitle"><div class="card-head"><div><h3 id="patientEditorTitle" style="margin:0">Update patient</h3><div class="sub">Account and contact information</div></div><button class="btn secondary" onclick="closeAdminPatientEditor()">Close</button></div><div class="form-grid"><div class="field full"><label for="editPatientName">Full name</label><input id="editPatientName" value="${escapeAccountText(patient.name)}" maxlength="100"></div><div class="field"><label for="editPatientEmail">Email</label><input id="editPatientEmail" type="email" value="${escapeAccountText(patient.email)}" maxlength="254"></div><div class="field"><label for="editPatientMobile">Mobile / WhatsApp</label><input id="editPatientMobile" value="${escapeAccountText(patient.mobile)}" maxlength="30"></div><div class="field full"><label for="editPatientContact">Preferred contact</label><select id="editPatientContact">${["WhatsApp", "Phone", "Email"].map((option) => `<option ${option === patient.contact ? "selected" : ""}>${option}</option>`).join("")}</select></div></div><div class="modal-actions"><button class="btn secondary" onclick="closeAdminPatientEditor()">Cancel</button><button class="btn" onclick="saveAdminPatient('${patient.apiId}')">Save changes</button></div></article></div>`,
-        );
-      }
-      saveAdminPatient = async function (patientApiId) {
-        let fullName = $("editPatientName").value.trim(),
-          email = $("editPatientEmail").value.trim(),
-          mobile = $("editPatientMobile").value.trim(),
-          preferredContact = $("editPatientContact").value;
-        if (!fullName || !email || !email.includes("@"))
-          return toast("Enter a valid name and email");
-        try {
-          await apiRequest(`/patients/${patientApiId}`, {
-            method: "PATCH",
-            body: JSON.stringify({ fullName, email, mobile, preferredContact }),
-          });
-          await reloadApiData();
-          closeAdminPatientEditor();
-          renderAdminPatients();
-          renderAdminRegistrationLists();
-          renderAdminOverview();
-          renderAuditLog();
-          toast("Patient information updated");
-        } catch (error) {
-          toast(error.message);
-        }
-      };
-      deactivatePatient = async function (patientApiId) {
-        let patient = data.patients.find((item) => item.apiId === patientApiId);
-        if (!patient) return toast("Patient not found");
-        if (
-          !confirm(
-            `Deactivate ${patient.name}? They will no longer be able to sign in or make bookings.`,
-          )
-        )
-          return;
-        try {
-          await apiRequest(`/patients/${patientApiId}/deactivate`, {
-            method: "PATCH",
-          });
-          await reloadApiData();
-          renderAdminPatients();
-          renderAdminRegistrationLists();
-          renderAdminOverview();
-          renderAuditLog();
-          toast("Patient deactivated");
-        } catch (error) {
-          toast(error.message);
-        }
-      };
-      reactivatePatient = async function (patientApiId) {
-        let patient = data.patients.find((item) => item.apiId === patientApiId);
-        if (!patient) return toast("Patient not found");
-        if (
-          !confirm(
-            `Reactivate ${patient.name}? They will be able to sign in and make bookings again.`,
-          )
-        )
-          return;
-        try {
-          await apiRequest(`/patients/${patientApiId}/reactivate`, {
-            method: "PATCH",
-          });
-          await reloadApiData();
-          renderAdminPatients();
-          renderAdminRegistrationLists();
-          renderAdminOverview();
-          renderAuditLog();
-          toast("Patient reactivated");
-        } catch (error) {
-          toast(error.message);
-        }
-      };
-      function formatHealthUptime(totalSeconds) {
-        let seconds = Math.max(0, Number(totalSeconds) || 0),
-          days = Math.floor(seconds / 86400),
-          hours = Math.floor((seconds % 86400) / 3600),
-          minutes = Math.floor((seconds % 3600) / 60);
-        return [days ? `${days}d` : "", hours ? `${hours}h` : "", `${minutes}m`]
-          .filter(Boolean)
-          .join(" ");
-      }
-      function systemHealthCard(icon, label, value, note, tone) {
-        return `<article class="card stat-card"><div class="icon ${tone}">${icon}</div><div><small>${escapeAccountText(label)}</small><b style="font-size:22px">${escapeAccountText(value)}</b><span>${escapeAccountText(note)}</span></div></article>`;
-      }
-      renderSystemHealth = async function () {
-        let summary = $("systemHealthSummary"),
-          details = $("systemHealthDetails");
-        if (!summary || !details) return;
-        summary.innerHTML = systemHealthCard(
-          "…",
-          "System status",
-          "Checking",
-          "Testing the live services",
-          "blue",
-        );
-        details.innerHTML = "";
-        try {
-          let health = await apiRequest("/admin/health"),
-            emailState = health.email?.configured
-              ? health.email.ok
-                ? "Connected"
-                : "Unavailable"
-              : "Not configured",
-            smsState = health.sms?.configured ? "Configured" : "Not configured";
-          summary.innerHTML = [
-            systemHealthCard(
-              "✓",
-              "Booking API",
-              health.api?.ok ? "Operational" : "Unavailable",
-              `Uptime ${formatHealthUptime(health.api?.uptimeSeconds)}`,
-              health.api?.ok ? "green" : "red",
-            ),
-            systemHealthCard(
-              "▦",
-              "Database",
-              health.database?.ok ? "Connected" : "Unavailable",
-              health.database?.ok
-                ? `${health.database.responseMs} ms response`
-                : "Connection failed",
-              health.database?.ok ? "green" : "red",
-            ),
-            systemHealthCard(
-              "✉",
-              "Email",
-              emailState,
-              health.email?.configured
-                ? `${health.email.host || "SMTP"}:${health.email.port || ""}${health.email.responseMs != null ? ` · ${health.email.responseMs} ms` : ""}`
-                : "SMTP details required",
-              health.email?.ok
-                ? "green"
-                : health.email?.configured
-                  ? "red"
-                  : "purple",
-            ),
-            systemHealthCard(
-              "◉",
-              "SMS",
-              smsState,
-              health.sms?.configured
-                ? "SMS API details detected"
-                : "Awaiting SMS API details",
-              health.sms?.configured ? "green" : "purple",
-            ),
-          ].join("");
-          details.innerHTML = `<article class="card"><div class="card-head"><h3>Application</h3><span class="status ${health.api?.ok ? "confirmed" : "cancelled"}">${health.api?.ok ? "Healthy" : "Attention required"}</span></div><div class="detail-list"><div class="detail-row"><span>Last checked</span><strong>${escapeAccountText(new Date(health.checkedAt).toLocaleString("en-ZA"))}</strong></div><div class="detail-row"><span>Environment</span><strong>${escapeAccountText(health.api?.environment || "Unknown")}</strong></div><div class="detail-row"><span>Node version</span><strong>${escapeAccountText(health.api?.nodeVersion || "Unknown")}</strong></div><div class="detail-row"><span>API uptime</span><strong>${escapeAccountText(formatHealthUptime(health.api?.uptimeSeconds))}</strong></div></div></article><article class="card"><div class="card-head"><h3>Database activity</h3><span class="status ${health.database?.ok ? "confirmed" : "cancelled"}">${health.database?.ok ? "Connected" : "Unavailable"}</span></div><div class="detail-list"><div class="detail-row"><span>Database</span><strong>${escapeAccountText(health.database?.database_name || "Unknown")}</strong></div><div class="detail-row"><span>Active accounts</span><strong>${Number(health.database?.active_accounts || 0)}</strong></div><div class="detail-row"><span>Upcoming appointments</span><strong>${Number(health.database?.upcoming_appointments || 0)}</strong></div><div class="detail-row"><span>Email sender</span><strong>${escapeAccountText(health.email?.sender || "Not configured")}</strong></div></div></article>`;
-        } catch (error) {
-          summary.innerHTML = `<div class="notice" style="grid-column:1/-1;background:var(--red-soft);border-color:#f2b8b8;color:#9f1d1d"><strong>Unable to load system health.</strong><br>${escapeAccountText(error.message)}</div>`;
-          details.innerHTML = "";
-        }
-      };
       function setupPendingRegistrationUI() {
         let section = $("a-registrations");
         if (section && !$("pendingRegistrationsCard"))
@@ -7909,7 +7186,7 @@
             .reverse()
             .map(
               (provider) =>
-                `<div class="detail-row" style="align-items:center"><span><strong>${escapeAccountText(provider.name)}</strong><br><small>${escapeAccountText(provider.email)} · ${escapeAccountText(provider.role)}</small><br><small>${escapeAccountText((provider.locations || []).join(", ") || "No location")}</small></span><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="status ${provider.active === false ? "cancelled" : "confirmed"}">${provider.active === false ? "Inactive" : "Active"}</span><button class="btn secondary" style="padding:8px 10px" onclick="openAdminProviderEditor('${provider.apiId}')">Edit</button>${provider.active === false ? `<button class="btn" style="padding:8px 10px" onclick="reactivateProvider('${provider.apiId}')">Reactivate</button>` : `<button class="btn danger" style="padding:8px 10px" onclick="deactivateProvider('${provider.apiId}')">Deactivate</button>`}</span></div>`,
+                `<div class="detail-row" style="align-items:center"><span><strong>${escapeAccountText(provider.name)}</strong><br><small>${escapeAccountText(provider.email)} · ${escapeAccountText(provider.role)}</small><br><small>${escapeAccountText((provider.locations || []).join(", ") || "No location")}</small></span><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="status ${provider.active === false ? "cancelled" : "confirmed"}">${provider.active === false ? "Inactive" : "Active"}</span>${provider.active === false ? "" : `<button class="btn danger" style="padding:8px 10px" onclick="deactivateProvider('${provider.apiId}')">Deactivate</button>`}</span></div>`,
             )
             .join("") || '<div class="empty">No providers registered.</div>';
         let pending = data.pendingRegistrations || [];
@@ -7964,189 +7241,11 @@
           renderAdminRegistrationLists();
           renderAdminOverview();
           renderAdminAvailability();
-          if ($("a-providers")?.classList.contains("active"))
-            await renderAdminProviders();
           renderAuditLog();
           toast("Provider deactivated");
         } catch (error) {
           toast(error.message);
         }
-      };
-
-      reactivateProvider = async function (providerApiId) {
-        let provider = data.providers.find(
-          (item) => item.apiId === providerApiId,
-        );
-        if (!provider) return toast("Provider not found");
-        if (
-          !confirm(
-            `Reactivate ${provider.name}? They will be able to log in and receive new bookings again.`,
-          )
-        )
-          return;
-        try {
-          await apiRequest(`/providers/${providerApiId}/reactivate`, {
-            method: "PATCH",
-          });
-          await reloadApiData();
-          renderAdminRegistrationLists();
-          renderAdminOverview();
-          renderAdminAvailability();
-          if ($("a-providers")?.classList.contains("active"))
-            await renderAdminProviders();
-          renderAuditLog();
-          toast("Provider reactivated · currently offline");
-        } catch (error) {
-          toast(error.message);
-        }
-      };
-
-      function closeAdminProviderEditor() {
-        $("providerEditorModal")?.remove();
-      }
-      function openAdminProviderEditor(providerApiId) {
-        let provider = data.providers.find(
-          (item) => item.apiId === providerApiId,
-        );
-        if (!provider) return toast("Provider not found");
-        ensureBookingModalStyles();
-        closeAdminProviderEditor();
-        let locationOptions = apiLocations
-          .map(
-            (location) =>
-              `<label><input class="edit-provider-location" type="checkbox" value="${escapeAccountText(location.name)}" style="width:auto" ${(provider.locations || []).includes(location.name) ? "checked" : ""}> ${escapeAccountText(location.name)}</label>`,
-          )
-          .join("");
-        document.body.insertAdjacentHTML(
-          "beforeend",
-          `<div id="providerEditorModal" class="modal-backdrop" onclick="if(event.target.id==='providerEditorModal')closeAdminProviderEditor()"><article class="modal-card workflow-modal-wide" role="dialog" aria-modal="true" aria-labelledby="providerEditorTitle"><div class="card-head"><div><h3 id="providerEditorTitle" style="margin:0">Update provider</h3><div class="sub">Account, professional and booking information</div></div><button class="btn secondary" onclick="closeAdminProviderEditor()">Close</button></div><div class="form-grid"><div class="field full"><label for="editProviderName">Full name</label><input id="editProviderName" value="${escapeAccountText(provider.name)}" maxlength="100"></div><div class="field"><label for="editProviderEmail">Email</label><input id="editProviderEmail" type="email" value="${escapeAccountText(provider.email)}" maxlength="254"></div><div class="field"><label for="editProviderMobile">Mobile / SMS</label><input id="editProviderMobile" value="${escapeAccountText(provider.mobile || "")}" maxlength="30"></div><div class="field"><label for="editProviderRole">Professional title</label><input id="editProviderRole" value="${escapeAccountText(provider.role || "Provider")}" maxlength="100"></div><div class="field"><label for="editProviderDuration">Session duration</label><select id="editProviderDuration">${[45, 60, 90].map((duration) => `<option value="${duration}" ${Number(provider.duration) === duration ? "selected" : ""}>${duration} minutes</option>`).join("")}</select></div><div class="field full"><label>Practice locations</label><div class="workflow-checks">${locationOptions}</div></div><div class="field full"><label for="editProviderBio">Short bio / service note</label><textarea id="editProviderBio" maxlength="500">${escapeAccountText(provider.bio || "")}</textarea></div></div><div class="notice" style="margin-top:16px">Changing the email or mobile number removes trusted-device access. The provider must verify the updated contact details at their next secure sign-in.</div><div class="modal-actions"><button class="btn secondary" onclick="closeAdminProviderEditor()">Cancel</button><button class="btn" onclick="saveAdminProvider('${provider.apiId}')">Save changes</button></div></article></div>`,
-        );
-      }
-      saveAdminProvider = async function (providerApiId) {
-        let fullName = $("editProviderName").value.trim(),
-          email = $("editProviderEmail").value.trim(),
-          mobile = $("editProviderMobile").value.trim(),
-          professionalTitle = $("editProviderRole").value.trim(),
-          durationMinutes = Number($("editProviderDuration").value),
-          bio = $("editProviderBio").value.trim(),
-          locations = [
-            ...document.querySelectorAll(".edit-provider-location:checked"),
-          ].map((input) => input.value);
-        if (!fullName || !email || !email.includes("@"))
-          return toast("Enter a valid name and email");
-        if (!locations.length)
-          return toast("Choose at least one practice location");
-        try {
-          await apiRequest(`/providers/${providerApiId}/profile`, {
-            method: "PATCH",
-            body: JSON.stringify({
-              fullName,
-              email,
-              mobile,
-              professionalTitle,
-              durationMinutes,
-              bio,
-              locations,
-            }),
-          });
-          await reloadApiData();
-          closeAdminProviderEditor();
-          renderAdminRegistrationLists();
-          renderAdminOverview();
-          renderAdminAvailability();
-          renderAdminProviders?.();
-          renderAuditLog();
-          toast("Provider information updated");
-        } catch (error) {
-          toast(error.message);
-        }
-      };
-
-      let selectedAdminAvailabilityProviderApiId = null;
-      function ensureAdminProviderAvailabilityStyles() {
-        if ($("adminProviderAvailabilityStyles")) return;
-        document.head.insertAdjacentHTML(
-          "beforeend",
-          `<style id="adminProviderAvailabilityStyles">
-    #adminAvailability.admin-provider-availability{display:grid;grid-template-columns:minmax(230px,280px) minmax(0,1fr);gap:18px;align-items:start}
-    .admin-provider-list{display:grid;gap:9px}
-    .admin-provider-list-button{width:100%;border:1px solid var(--line);border-radius:13px;background:#fff;padding:12px;text-align:left;cursor:pointer;color:var(--text)}
-    .admin-provider-list-button:hover,.admin-provider-list-button.active{border-color:#16a56f;background:var(--green-soft);box-shadow:0 8px 20px rgba(16,166,79,.10)}
-    .admin-provider-list-button strong{display:block;margin-bottom:4px}
-    .admin-provider-list-button .provider-list-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}
-    #adminProviderCalendar{min-width:0}
-    @media(max-width:900px){#adminAvailability.admin-provider-availability{grid-template-columns:1fr}.admin-provider-directory{position:static}}
-  </style>`,
-        );
-      }
-
-      function selectAdminAvailabilityProvider(providerApiId) {
-        selectedAdminAvailabilityProviderApiId = providerApiId;
-        renderAdminAvailability();
-        if (window.innerWidth <= 900)
-          requestAnimationFrame(() =>
-            $("adminProviderCalendar")?.scrollIntoView({
-              behavior: "smooth",
-              block: "start",
-            }),
-          );
-      }
-
-      renderAdminAvailability = function () {
-        ensureAdminProviderAvailabilityStyles();
-        let container = $("adminAvailability"),
-          providers = [...data.providers].sort(
-            (left, right) =>
-              Number(right.active !== false) - Number(left.active !== false) ||
-              left.name.localeCompare(right.name),
-          );
-        container.classList.add("admin-provider-availability");
-        if (!providers.length) {
-          container.innerHTML =
-            '<div class="notice">No providers configured.</div>';
-          return;
-        }
-        if (
-          !providers.some(
-            (provider) =>
-              provider.apiId === selectedAdminAvailabilityProviderApiId,
-          )
-        )
-          selectedAdminAvailabilityProviderApiId = (
-            providers.find((provider) => provider.active !== false) ||
-            providers[0]
-          ).apiId;
-        let selected = providers.find(
-            (provider) =>
-              provider.apiId === selectedAdminAvailabilityProviderApiId,
-          ),
-          appointments = data.appointments
-            .filter((appointment) => appointment.providerId === selected.id)
-            .sort((left, right) =>
-              (left.date + left.time).localeCompare(right.date + right.time),
-            ),
-          enabled = Object.values(selected.availability || {}).filter(
-            (item) => item.on,
-          ),
-          weeklyHours =
-            enabled.reduce(
-              (total, item) =>
-                total +
-                Math.max(0, timeToMin(item.end) - timeToMin(item.start)),
-              0,
-            ) / 60;
-        let directory = providers
-          .map(
-            (provider) =>
-              `<button class="admin-provider-list-button ${provider.apiId === selected.apiId ? "active" : ""}" onclick="selectAdminAvailabilityProvider('${provider.apiId}')"><strong>${escapeAccountText(provider.name)}</strong><div class="provider-list-meta"><span class="sub">${escapeAccountText(provider.role || "Provider")}</span><span class="status ${provider.active === false ? "cancelled" : providerOnline(provider) ? "confirmed" : "completed"}">${provider.active === false ? "Inactive" : providerOnline(provider) ? "Online" : "Offline"}</span></div></button>`,
-          )
-          .join("");
-        container.innerHTML = `<aside class="card admin-provider-directory"><div class="card-head"><h3>Providers</h3><span class="pill">${providers.length}</span></div><div class="admin-provider-list">${directory}</div></aside><article id="adminProviderCalendar" class="card calendar-content"><div class="profile-header"><div class="profile-left"><div class="big-avatar">${initials(selected.name)}</div><div><h3 style="margin:0">${escapeAccountText(selected.name)}</h3><div class="sub">${escapeAccountText(selected.role || "Provider")} · ${escapeAccountText((selected.locations || []).join(", ") || "No location set")}</div></div></div>${selected.active === false ? '<span class="status cancelled">Inactive</span>' : providerStatusPill(selected)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><span class="pill">${weeklyHours} hrs/week</span><span class="pill">${appointments.length} appointment${appointments.length === 1 ? "" : "s"}</span></div>${appointmentCalendarPanel("Calendar view", "Provider appointments by day, week, or month.", appointments, "admin")}<div class="detail-list" style="margin-top:16px">${days
-          .map((day, index) => {
-            let availability = selected.availability?.[index];
-            return `<div class="detail-row"><span>${day}</span><strong>${availability?.on ? `${availability.start}–${availability.end}` : "Unavailable"}</strong></div>`;
-          })
-          .join("")}</div></article>`;
       };
 
       adminRegisterClient = async function () {
@@ -8240,10 +7339,8 @@
         }
       };
 
-      setupAccountAccessUI();
-      openPasswordResetFromLink();
       (async function restoreApiSession() {
-        if (passwordResetToken || !apiToken) return;
+        if (!apiToken) return;
         try {
           let payload = await apiRequest("/auth/me");
           await loadApiData(payload.user);
@@ -8253,8 +7350,8 @@
           localStorage.removeItem(apiTokenKey);
         }
       })();
+      setupAccountAccessUI();
     </script>
-    <script src="wannatalk-workflows.js?v=20260917-9"></script>
     <script id="modernMobileAppNavScript">
       (function () {
         const shells = ["providerShell", "adminShell", "patientShell"];
