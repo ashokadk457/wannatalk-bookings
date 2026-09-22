@@ -13685,5 +13685,240 @@
         }
       }
     </style>
+    <style id="termsConsentStyles">
+      .terms-check-row{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border:1px solid #cfe5fb;border-radius:14px;background:linear-gradient(135deg,#f4faff,#fff);margin-top:4px}
+      .terms-check-row input[type="checkbox"]{width:20px;height:20px;margin-top:2px;accent-color:#087a45;flex:0 0 auto;cursor:pointer}
+      .terms-check-row label{font-size:13px;font-weight:600;color:#264059;line-height:1.5;cursor:pointer}
+      .terms-check-row .terms-link{color:#0d9b5f;font-weight:800;text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit}
+      .terms-check-row .terms-link:focus-visible{outline:3px solid #9fc8ef;outline-offset:2px;border-radius:4px}
+      .terms-error{color:#b91c1c;font-size:12.5px;font-weight:700;margin-top:8px}
+      #termsModalBackdrop{position:fixed;inset:0;background:rgba(4,18,36,.55);display:grid;place-items:center;padding:20px;z-index:200}
+      #termsModalCard{width:min(680px,100%);max-height:90vh;max-height:90dvh;background:#fff;border-radius:20px;border:1px solid #d8e6f2;box-shadow:0 28px 80px rgba(10,50,31,.3);display:flex;flex-direction:column;overflow:hidden}
+      #termsModalHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #dce8f3;background:#f6faff}
+      #termsModalHead h2{margin:0;font-size:18px;color:#063f28}
+      #termsContent{padding:18px;overflow-y:auto;max-height:52vh;max-height:52dvh;line-height:1.65;font-size:14px;-webkit-overflow-scrolling:touch}
+      #termsContent h1{font-size:19px;margin:0 0 10px;color:#0f172a}
+      #termsContent h2{font-size:16px;color:#0b3b48}
+      #termsContent h3{font-size:15px;margin-top:22px;color:#0f172a;border-top:1px solid #edf2f7;padding-top:14px}
+      #termsModalFoot{padding:14px 18px;border-top:1px solid #dce8f3;background:#fbfefd;display:grid;gap:10px}
+      #termsModalFoot .terms-check-row{margin-top:0}
+      #termsModalActions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+      #termsProgress{font-size:12px;color:#64748b;font-weight:700}
+      @media (max-width:600px){#termsModalBackdrop{padding:0;align-items:end}#termsModalCard{width:100%;max-height:92dvh;border-radius:24px 24px 0 0}#termsContent{max-height:56dvh}#termsModalActions .btn{width:100%}}
+    </style>
+    <div id="termsModalBackdrop" class="hidden" role="presentation">
+      <div id="termsModalCard" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle">
+        <div id="termsModalHead">
+          <h2 id="termsModalTitle">Terms &amp; Conditions</h2>
+          <button type="button" class="btn secondary" id="termsModalClose" aria-label="Close Terms and Conditions">✕ Close</button>
+        </div>
+        <div id="termsContent" tabindex="0" aria-label="Terms and Conditions content. Scroll to the bottom to enable acceptance."></div>
+        <div id="termsModalFoot">
+          <div id="termsProgress" role="status">Please scroll to the bottom to enable acceptance.</div>
+          <div class="terms-check-row">
+            <input type="checkbox" id="termsModalCheck" disabled aria-describedby="termsProgress" />
+            <label for="termsModalCheck">I have read and agree to these Terms &amp; Conditions</label>
+          </div>
+          <div id="termsModalActions">
+            <button type="button" class="btn secondary" id="termsModalCancel">Cancel</button>
+            <button type="button" class="btn" id="termsModalAccept" disabled>Accept</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script id="termsConsentScript">
+      var patientTermsAccepted = false;
+      var providerTermsAccepted = false;
+      var activeTermsRole = null;
+      var termsReachedBottom = false;
+      var termsReturnFocus = null;
+      var termsCache = {};
+      var termsFileFor = (role) =>
+        role === "provider"
+          ? "wannatalk_provider_consent.html"
+          : "wannatalk_patient_consent.html";
+      function termsAcceptedFor(role) {
+        return role === "provider" ? providerTermsAccepted : patientTermsAccepted;
+      }
+      function setTermsAcceptedFor(role, value) {
+        if (role === "provider") providerTermsAccepted = !!value;
+        else patientTermsAccepted = !!value;
+        const box = document.getElementById("termsAcceptedBox");
+        if (box && (role || authRole) === authRole) box.checked = !!value;
+        const err = document.getElementById("termsError");
+        if (err && value) err.classList.add("hidden");
+      }
+      function guardMainTermsClick(event) {
+        if (termsAcceptedFor(authRole)) return true;
+        if (event) event.preventDefault();
+        openTermsModal(authRole);
+        toast("Please read the Terms & Conditions in the popup first.");
+        return false;
+      }
+      function onMainTermsChange(box) {
+        if (!box.checked) {
+          setTermsAcceptedFor(authRole, false);
+          const err = document.getElementById("termsError");
+          if (err) {
+            err.textContent = "Please read and accept the Terms & Conditions before registering.";
+            err.classList.remove("hidden");
+          }
+        } else if (!termsAcceptedFor(authRole)) {
+          box.checked = false;
+          openTermsModal(authRole);
+        }
+      }
+      function termsBlockHTML(role) {
+        const label = role === "provider" ? "Provider" : "Patient";
+        return (
+          '<div class="field full"><div class="terms-check-row">' +
+          '<input type="checkbox" id="termsAcceptedBox" aria-describedby="termsError" onclick="return guardMainTermsClick(event)" onchange="onMainTermsChange(this)" />' +
+          '<label for="termsAcceptedBox">I have read and agree to the <button type="button" class="terms-link" onclick="openTermsModal(XXROLEXX);return false;">Terms &amp; Conditions</button> <span class="sub">(XXLABELXX)</span></label>' +
+          '</div><div id="termsError" class="terms-error hidden" role="alert"></div></div>'
+        ).replace("XXROLEXX", "'" + role + "'").replace("XXLABELXX", label);
+      }
+      function extractTermsBody(html) {
+        try {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          const box = doc.querySelector(".terms-box") || doc.querySelector("main") || doc.body;
+          box.querySelectorAll("script,style,form,.acknowledgement,.actions").forEach((n) => n.remove());
+          return box.innerHTML;
+        } catch (e) { return "<p>Terms could not be parsed.</p>"; }
+      }
+      async function loadTermsIntoModal(role) {
+        const content = document.getElementById("termsContent");
+        const file = termsFileFor(role);
+        if (termsCache[file]) { content.innerHTML = termsCache[file]; return; }
+        try {
+          const res = await fetch(file, { cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          termsCache[file] = extractTermsBody(await res.text());
+          content.innerHTML = termsCache[file];
+        } catch (e) {
+          content.innerHTML = "<p>Could not load " + file + ".</p>";
+        }
+      }
+      function checkTermsBottom() {
+        const c = document.getElementById("termsContent");
+        if (c.scrollHeight <= c.clientHeight + 4) return true;
+        return c.scrollTop + c.clientHeight >= c.scrollHeight - 16;
+      }
+      function refreshTermsGate() {
+        const check = document.getElementById("termsModalCheck");
+        const accept = document.getElementById("termsModalAccept");
+        const prog = document.getElementById("termsProgress");
+        if (termsReachedBottom) {
+          check.disabled = false;
+          prog.textContent = "You reached the bottom. You may now accept.";
+        } else {
+          check.disabled = true; check.checked = false; accept.disabled = true;
+          prog.textContent = "Please scroll to the bottom to enable acceptance.";
+        }
+        accept.disabled = !(termsReachedBottom && check.checked);
+      }
+      async function openTermsModal(role) {
+        activeTermsRole = role || authRole || "patient";
+        termsReachedBottom = false;
+        termsReturnFocus = document.activeElement;
+        const back = document.getElementById("termsModalBackdrop");
+        const c = document.getElementById("termsContent");
+        const check = document.getElementById("termsModalCheck");
+        check.checked = false; check.disabled = true;
+        document.getElementById("termsModalAccept").disabled = true;
+        c.scrollTop = 0;
+        back.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        document.getElementById("termsModalTitle").textContent =
+          (activeTermsRole === "provider" ? "Provider" : "Patient") + " Terms & Conditions";
+        await loadTermsIntoModal(activeTermsRole);
+        c.scrollTop = 0;
+        if (checkTermsBottom()) termsReachedBottom = true;
+        refreshTermsGate();
+        setTimeout(() => {
+          if (!termsReachedBottom && checkTermsBottom()) { termsReachedBottom = true; refreshTermsGate(); }
+        }, 300);
+        document.getElementById("termsModalClose").focus();
+      }
+      function closeTermsModal(accepted) {
+        document.getElementById("termsModalBackdrop").classList.add("hidden");
+        document.body.style.overflow = "";
+        if (accepted && activeTermsRole) setTermsAcceptedFor(activeTermsRole, true);
+        if (termsReturnFocus && termsReturnFocus.focus) { try { termsReturnFocus.focus(); } catch (e) {} }
+        activeTermsRole = null;
+      }
+      function requireTermsAccepted() {
+        if (!termsAcceptedFor(authRole)) {
+          const err = document.getElementById("termsError");
+          if (err) {
+            err.textContent = "Please read and accept the Terms & Conditions before registering.";
+            err.classList.remove("hidden");
+          }
+          toast("Please read and accept the Terms & Conditions before registering.");
+          openTermsModal(authRole);
+          return false;
+        }
+        return true;
+      }
+    </script>
+    <script id="termsConsentInit">
+      var termsScrollEl = document.getElementById("termsContent");
+      termsScrollEl.addEventListener("scroll", () => {
+        if (!termsReachedBottom && checkTermsBottom()) { termsReachedBottom = true; refreshTermsGate(); }
+      });
+      document.getElementById("termsModalCheck").addEventListener("change", (e) => {
+        document.getElementById("termsModalAccept").disabled = !(termsReachedBottom && e.target.checked);
+      });
+      document.getElementById("termsModalAccept").addEventListener("click", () => {
+        const check = document.getElementById("termsModalCheck");
+        if (!termsReachedBottom || !check.checked) return;
+        closeTermsModal(true);
+        toast("Terms & Conditions accepted.");
+      });
+      document.getElementById("termsModalClose").addEventListener("click", () => closeTermsModal(false));
+      document.getElementById("termsModalCancel").addEventListener("click", () => closeTermsModal(false));
+      document.getElementById("termsModalBackdrop").addEventListener("click", (e) => {
+        if (e.target.id === "termsModalBackdrop") closeTermsModal(false);
+      });
+      document.addEventListener("keydown", (e) => {
+        const open = !document.getElementById("termsModalBackdrop").classList.contains("hidden");
+        if (!open) return;
+        if (e.key === "Escape") closeTermsModal(false);
+        if (e.key === "Tab") {
+          const f = Array.from(document.querySelectorAll("#termsModalCard button, #termsModalCard input")).filter((el) => !el.disabled);
+          if (!f.length) return;
+          const first = f[0], last = f[f.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      });
+      var origBuild = buildRegister;
+      buildRegister = function () {
+        setTermsAcceptedFor(authRole, false);
+        const r = origBuild.apply(this, arguments);
+        const host = document.getElementById("regFields");
+        if (host && !document.getElementById("termsAcceptedBox")) {
+          host.insertAdjacentHTML("beforeend", termsBlockHTML(authRole));
+        }
+        return r;
+      };
+      var origSubmit = (typeof submitRegistration === "function") ? submitRegistration : null;
+      if (origSubmit) {
+        submitRegistration = async function () {
+          if (!requireTermsAccepted()) return;
+          return origSubmit.apply(this, arguments);
+        };
+      }
+      var origDo = (typeof doRegister === "function") ? doRegister : null;
+      doRegister = function () {
+        if (!requireTermsAccepted()) return;
+        if (origDo && origDo !== doRegister) return origDo.apply(this, arguments);
+        if (typeof submitRegistration === "function") return submitRegistration();
+      };
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" && ev.target && ev.target.closest && ev.target.closest("#registerForm")) {
+          if (!termsAcceptedFor(authRole)) { ev.preventDefault(); requireTermsAccepted(); }
+        }
+      });
+    </script>
   </body>
 </html>
