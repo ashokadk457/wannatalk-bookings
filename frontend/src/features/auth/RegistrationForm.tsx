@@ -227,6 +227,7 @@ export default function RegistrationForm({
                 </Field>
                 <Field label="Preferred Contact">
                   <select
+                    required
                     value={form.preferredContact}
                     onChange={(e) => set('preferredContact', e.target.value)}
                   >

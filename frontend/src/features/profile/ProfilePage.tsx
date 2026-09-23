@@ -71,12 +71,12 @@ export default function ProfilePage() {
                 <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
                 <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
               </> : <>
-                <Field label="Title"><select value={patientTitle} onChange={(e) => setPatientTitle(e.target.value)}><option value="">Select title</option>{['Mr.','Mrs.','Ms.','Miss','Dr.','Prof.','Mx.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
+                <Field label="Title"><select required value={patientTitle} onChange={(e) => setPatientTitle(e.target.value)}><option value="">Select title</option>{['Mr.','Mrs.','Ms.','Miss','Dr.','Prof.','Mx.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
                 <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
                 <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
-                <Field label="South African ID / Passport No."><input value={identityDocument} onChange={(e) => setIdentityDocument(e.target.value)} /></Field>
-                <Field label="Date of Birth"><input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} /></Field>
-                <Field label="Nationality"><select value={nationality} onChange={(e) => setNationality(e.target.value)}>{countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
+                <Field label="South African ID / Passport No."><input required value={identityDocument} onChange={(e) => setIdentityDocument(e.target.value)} /></Field>
+                <Field label="Date of Birth"><input required type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} /></Field>
+                <Field label="Nationality"><select required value={nationality} onChange={(e) => setNationality(e.target.value)}>{countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
               </>}
               <Field label="Email">
                 <input type="email" disabled value={user?.email || ''} />
@@ -119,7 +119,7 @@ export default function ProfilePage() {
                 </>
               ) : (
                 <Field label="Preferred contact">
-                  <select value={contact} onChange={(e) => setContact(e.target.value)}>
+                  <select required value={contact} onChange={(e) => setContact(e.target.value)}>
                     {['Email', 'SMS', 'Both'].map((c) => (
                       <option key={c}>{c}</option>
                     ))}
@@ -134,3 +134,4 @@ export default function ProfilePage() {
     </section>
   );
 }
+
