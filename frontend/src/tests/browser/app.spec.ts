@@ -136,14 +136,35 @@ test('registration continues through contact verification', async ({ page }) => 
   await page.goto('/login');
   await page.getByRole('button', { name: '👤 Patient' }).click();
   await page.getByRole('button', { name: 'Register', exact: true }).click();
-  await page.getByLabel('Full name').fill('New Patient');
+  await page.getByLabel('Title').selectOption('Ms.');
+  await page.getByLabel('First Name').fill('New');
+  await page.getByLabel('Last Name').fill('Patient');
   await page.getByLabel('Email', { exact: true }).fill('new@example.test');
+  await page.getByLabel('Phone No. / Mobile').fill('+27 82 123 4567');
+  await page.getByLabel('South African ID / Passport No.').fill('A12345678');
+  await page.getByLabel('Date of Birth').fill('1990-05-12');
+  await page.getByLabel('Send code via phone no.').check();
   await page.getByLabel('Password', { exact: true }).fill('test-password-123');
+  await page.getByLabel(/I accept the Patient Consent/).check();
+  await page.getByLabel(/I accept the Terms and Conditions/).check();
+  await page.getByLabel(/I accept the Privacy Policy/).check();
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'Security verification' })).toBeVisible();
-  expect(api.requests.find((r) => r.path === '/auth/register')?.body.preferredContact).toBe(
-    'Email',
-  );
+  const registration = api.requests.find((r) => r.path === '/auth/register')?.body;
+  expect(registration).toMatchObject({
+    fullName: 'New Patient',
+    title: 'Ms.',
+    firstName: 'New',
+    lastName: 'Patient',
+    identityDocument: 'A12345678',
+    dateOfBirth: '1990-05-12',
+    nationality: 'South Africa',
+    otpMethod: 'sms',
+    preferredContact: 'Email',
+    patientConsentAccepted: true,
+    termsAccepted: true,
+    privacyAccepted: true,
+  });
 });
 test('password reset link and forgot-password use the existing API', async ({ page }) => {
   const api = await mockApi(page, 'patient', false);

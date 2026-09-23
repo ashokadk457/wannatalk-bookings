@@ -11,7 +11,7 @@ npm install
 npm run start
 ```
 
-Update `.env` with the real PostgreSQL password and a long random `JWT_SECRET`.
+Update `.env` with the real PostgreSQL password, a long random `JWT_SECRET`, and a separate long random `PII_ENCRYPTION_KEY`. The latter encrypts patient ID/passport numbers at rest; retain it securely because encrypted values cannot be recovered after the key is lost.
 
 ## First Passwords
 

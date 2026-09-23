@@ -39,6 +39,7 @@ export default function AuthPage() {
         methods: result.methods,
         purpose: result.purpose || 'registration',
         unavailableMethods: result.unavailableMethods,
+        preferredMethod: result.preferredMethod,
       });
     else if (result.token && result.user) await acceptSession(result.token, result.user);
     else {

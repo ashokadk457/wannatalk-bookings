@@ -130,10 +130,20 @@ export interface Message {
 export interface RegistrationInput {
   role: Role;
   fullName: string;
+  title: string;
+  firstName: string;
+  lastName: string;
   email: string;
   mobile: string;
   password: string;
   preferredContact: string;
+  identityDocument: string;
+  dateOfBirth: string;
+  nationality: string;
+  otpMethod: 'email' | 'sms';
+  patientConsentAccepted: boolean;
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
   professionalTitle: string;
   durationMinutes: number;
   bio: string;
@@ -143,6 +153,7 @@ export interface MfaChallenge {
   challengeId: string;
   purpose: 'login' | 'registration';
   methods: { method: 'email' | 'sms'; label: string; destination: string }[];
+  preferredMethod?: 'email' | 'sms';
   unavailableMethods?: { label: string; reason: string }[];
 }
 export interface RegistrationResult {
@@ -154,6 +165,7 @@ export interface RegistrationResult {
   challengeId?: string;
   purpose?: 'login' | 'registration';
   methods?: MfaChallenge['methods'];
+  preferredMethod?: MfaChallenge['preferredMethod'];
   unavailableMethods?: MfaChallenge['unavailableMethods'];
 }
 export interface LoginResult extends RegistrationResult {

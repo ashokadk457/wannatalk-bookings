@@ -16,6 +16,9 @@ import {
 export const authRouter = Router();
 
 const roleMap = new Set(['admin', 'provider', 'patient']);
+const patientTitles = new Set(['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Prof.', 'Mx.']);
+const otpMethods = new Set(['email', 'sms']);
+const preferredContacts = new Set(['Email', 'SMS', 'Both']);
 const registrationAttempts = new Map();
 const passwordResetAttempts = new Map();
 const loginAttempts = new Map();
@@ -86,6 +89,13 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
   const mobile = cleanText(req.body.mobile, 30) || null;
   const password = String(req.body.password || '');
   const preferredContact = cleanText(req.body.preferredContact, 30) || 'Email';
+  const title = cleanText(req.body.title, 20);
+  const firstName = cleanText(req.body.firstName, 50);
+  const lastName = cleanText(req.body.lastName, 50);
+  const identityDocument = cleanText(req.body.identityDocument, 30);
+  const dateOfBirth = String(req.body.dateOfBirth || '').trim();
+  const nationality = cleanText(req.body.nationality, 80);
+  const otpMethod = String(req.body.otpMethod || 'email').trim().toLowerCase();
 
   if (!roleMap.has(role) || !fullName || !/^\S+@\S+\.\S+$/.test(email)) {
     return res.status(400).json({ error: 'Valid name, email and account type are required' });
@@ -108,19 +118,83 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
 
   try {
     const createdByAdmin = await requestIsAdmin(req);
+    if (!preferredContacts.has(preferredContact)) {
+      return res.status(400).json({ error: 'Invalid preferred contact method' });
+    }
+    if (isPatient) {
+      const parsedBirthDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)
+        ? new Date(`${dateOfBirth}T00:00:00Z`)
+        : null;
+      const earliestBirthDate = new Date('1900-01-01T00:00:00Z');
+      const tomorrow = new Date();
+      tomorrow.setUTCHours(0, 0, 0, 0);
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+      if (!patientTitles.has(title) || !firstName || !lastName) {
+        return res.status(400).json({ error: 'Title, first name and last name are required' });
+      }
+      if (!identityDocument || identityDocument.length < 5) {
+        return res.status(400).json({ error: 'A valid South African ID or passport number is required' });
+      }
+      if (!parsedBirthDate || Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate < earliestBirthDate || parsedBirthDate >= tomorrow) {
+        return res.status(400).json({ error: 'A valid date of birth is required' });
+      }
+      if (!nationality) return res.status(400).json({ error: 'Nationality is required' });
+      if (!mobile || !/^\+?[0-9][0-9 ()-]{7,28}$/.test(mobile)) {
+        return res.status(400).json({ error: 'A valid phone or mobile number is required' });
+      }
+      if (!otpMethods.has(otpMethod)) {
+        return res.status(400).json({ error: 'Choose email or phone for OTP authentication' });
+      }
+      if (!createdByAdmin && (!req.body.patientConsentAccepted || !req.body.termsAccepted || !req.body.privacyAccepted)) {
+        return res.status(400).json({ error: 'Patient Consent, Terms and Conditions, and Privacy Policy must be accepted' });
+      }
+      if (!process.env.PII_ENCRYPTION_KEY && !process.env.JWT_SECRET) {
+        const configurationError = new Error('PII_ENCRYPTION_KEY or JWT_SECRET is required to protect patient identity documents');
+        configurationError.statusCode = 503;
+        throw configurationError;
+      }
+    }
     const registered = await withTransaction(async (client) => {
       const passwordHash = await bcrypt.hash(password, 12);
       const userResult = await client.query(
-        `INSERT INTO app_users (full_name, email, mobile, password_hash, role, preferred_contact, is_active, registration_status, registration_verification_required)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO app_users (full_name, email, mobile, password_hash, role, preferred_contact, preferred_otp_method, is_active, registration_status, registration_verification_required)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id, full_name, email, mobile, role, preferred_contact, is_active, registration_status, auth_version`,
-        [fullName, email, mobile, passwordHash, role, preferredContact, createdByAdmin && isPatient, isPatient ? 'approved' : 'pending', !createdByAdmin]
+        [fullName, email, mobile, passwordHash, role, preferredContact, isPatient ? otpMethod : null, createdByAdmin && isPatient, isPatient ? 'approved' : 'pending', !createdByAdmin]
       );
       const user = userResult.rows[0];
       let entityId = null;
 
       if (role === 'patient') {
-        const patient = await client.query(`INSERT INTO patients (user_id) VALUES ($1) RETURNING id`, [user.id]);
+        const encryptionKey = process.env.PII_ENCRYPTION_KEY || process.env.JWT_SECRET;
+        const patient = await client.query(
+          `INSERT INTO patients (
+             user_id, title, first_name, last_name, identity_document_encrypted,
+             date_of_birth, nationality, patient_consent_accepted_at,
+             terms_accepted_at, privacy_accepted_at
+           )
+           VALUES (
+             $1, $2, $3, $4, pgp_sym_encrypt($5, $6, 'cipher-algo=aes256'),
+             $7::date, $8,
+             CASE WHEN $9 THEN now() ELSE NULL END,
+             CASE WHEN $10 THEN now() ELSE NULL END,
+             CASE WHEN $11 THEN now() ELSE NULL END
+           )
+           RETURNING id`,
+          [
+            user.id,
+            title,
+            firstName,
+            lastName,
+            identityDocument,
+            encryptionKey,
+            dateOfBirth,
+            nationality,
+            Boolean(req.body.patientConsentAccepted),
+            Boolean(req.body.termsAccepted),
+            Boolean(req.body.privacyAccepted),
+          ]
+        );
         entityId = patient.rows[0].id;
       } else if (role === 'provider') {
         const provider = await client.query(
@@ -173,6 +247,7 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
       purpose: 'registration',
       role,
       ...challenge,
+      preferredMethod: otpMethod,
       message: 'Verify your email address or mobile number to complete registration.',
     });
 

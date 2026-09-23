@@ -60,6 +60,36 @@
   align-items: center;
   gap: 9px;
 }
+.otp-choice,
+.legal-acceptance {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 0;
+  gap: 12px;
+}
+.otp-choice legend {
+  padding: 0 5px;
+  color: #087a45;
+  font-size: 12px;
+  font-weight: 850;
+}
+.otp-choice label,
+.legal-acceptance label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  line-height: 1.45;
+}
+.otp-choice input,
+.legal-acceptance input {
+  width: auto;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+.legal-acceptance a {
+  color: #087a45;
+}
 .rolecard,
 .provider-option {
   text-align: left;

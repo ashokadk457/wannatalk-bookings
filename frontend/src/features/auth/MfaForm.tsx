@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Field } from '../../components/ui';
 import { mutate } from '../../services/api';
@@ -17,6 +17,7 @@ export default function MfaForm({
     [code, setCode] = useState(''),
     [trust, setTrust] = useState(false),
     [busy, setBusy] = useState(false);
+  const preferredMethodStarted = useRef(false);
   async function send(method: string) {
     setBusy(true);
     await run(async () => {
@@ -31,6 +32,17 @@ export default function MfaForm({
     });
     setBusy(false);
   }
+  useEffect(() => {
+    if (
+      challenge.purpose === 'registration' &&
+      challenge.preferredMethod &&
+      challenge.methods.some((item) => item.method === challenge.preferredMethod) &&
+      !preferredMethodStarted.current
+    ) {
+      preferredMethodStarted.current = true;
+      void send(challenge.preferredMethod);
+    }
+  }, [challenge]);
   async function verify(e: FormEvent) {
     e.preventDefault();
     setBusy(true);

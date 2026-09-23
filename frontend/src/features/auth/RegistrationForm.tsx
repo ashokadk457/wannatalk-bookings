@@ -16,10 +16,20 @@ export default function RegistrationForm({
   const initial: RegistrationInput = {
     role,
     fullName: '',
+    title: '',
+    firstName: '',
+    lastName: '',
     email: '',
     mobile: '',
     password: '',
     preferredContact: 'Email',
+    identityDocument: '',
+    dateOfBirth: '',
+    nationality: 'South Africa',
+    otpMethod: 'email',
+    patientConsentAccepted: false,
+    termsAccepted: false,
+    privacyAccepted: false,
     professionalTitle: '',
     durationMinutes: 60,
     bio: '',
@@ -35,7 +45,12 @@ export default function RegistrationForm({
       return notify('Choose at least one practice location');
     setBusy(true);
     await run(async () => {
-      const result = await mutate<RegistrationResult>('/auth/register', 'POST', { ...form, role });
+      const result = await mutate<RegistrationResult>('/auth/register', 'POST', {
+        ...form,
+        role,
+        fullName:
+          role === 'patient' ? `${form.firstName.trim()} ${form.lastName.trim()}` : form.fullName,
+      });
       setForm(initial);
       if (administrator) {
         await refresh();
@@ -53,15 +68,46 @@ export default function RegistrationForm({
     <form onSubmit={submit}>
       <fieldset disabled={busy} className="form-reset">
         <div className="form-grid">
-          <Field label="Full name">
-            <input
-              required
-              maxLength={100}
-              autoComplete="name"
-              value={form.fullName}
-              onChange={(e) => set('fullName', e.target.value)}
-            />
-          </Field>
+          {role === 'patient' ? (
+            <>
+              <Field label="Title">
+                <select required value={form.title} onChange={(e) => set('title', e.target.value)}>
+                  <option value="">Select title</option>
+                  {['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Prof.', 'Mx.'].map((title) => (
+                    <option key={title}>{title}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="First Name">
+                <input
+                  required
+                  maxLength={50}
+                  autoComplete="given-name"
+                  value={form.firstName}
+                  onChange={(e) => set('firstName', e.target.value)}
+                />
+              </Field>
+              <Field label="Last Name">
+                <input
+                  required
+                  maxLength={50}
+                  autoComplete="family-name"
+                  value={form.lastName}
+                  onChange={(e) => set('lastName', e.target.value)}
+                />
+              </Field>
+            </>
+          ) : (
+            <Field label="Full name">
+              <input
+                required
+                maxLength={100}
+                autoComplete="name"
+                value={form.fullName}
+                onChange={(e) => set('fullName', e.target.value)}
+              />
+            </Field>
+          )}
           <Field label="Email">
             <input
               required
@@ -72,25 +118,98 @@ export default function RegistrationForm({
               onChange={(e) => set('email', e.target.value)}
             />
           </Field>
-          <Field label="Mobile / SMS">
+          <Field label="Phone No. / Mobile">
             <input
+              required={role === 'patient'}
               maxLength={30}
               autoComplete="tel"
+              inputMode="tel"
+              pattern="\+?[0-9][0-9 ()-]{7,28}"
+              title="Enter a valid phone number, for example +27 82 123 4567"
               value={form.mobile}
               onChange={(e) => set('mobile', e.target.value)}
             />
           </Field>
           {role === 'patient' && (
-            <Field label="Preferred contact">
-              <select
-                value={form.preferredContact}
-                onChange={(e) => set('preferredContact', e.target.value)}
-              >
-                {['Email', 'SMS', 'Both'].map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </Field>
+            <>
+              <Field label="South African ID / Passport No.">
+                <input
+                  required
+                  minLength={5}
+                  maxLength={30}
+                  autoComplete="off"
+                  value={form.identityDocument}
+                  onChange={(e) => set('identityDocument', e.target.value)}
+                />
+              </Field>
+              <Field label="Date of Birth">
+                <input
+                  required
+                  type="date"
+                  min="1900-01-01"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={form.dateOfBirth}
+                  onChange={(e) => set('dateOfBirth', e.target.value)}
+                />
+              </Field>
+              <Field label="Nationality">
+                <select
+                  required
+                  value={form.nationality}
+                  onChange={(e) => set('nationality', e.target.value)}
+                >
+                  {[
+                    'South Africa',
+                    'Botswana',
+                    'Eswatini',
+                    'Lesotho',
+                    'Malawi',
+                    'Mozambique',
+                    'Namibia',
+                    'Zambia',
+                    'Zimbabwe',
+                    'Other',
+                  ].map((nationality) => (
+                    <option key={nationality}>{nationality}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Preferred Contact">
+                <select
+                  value={form.preferredContact}
+                  onChange={(e) => set('preferredContact', e.target.value)}
+                >
+                  {['Email', 'SMS', 'Both'].map((contact) => (
+                    <option key={contact}>{contact}</option>
+                  ))}
+                </select>
+              </Field>
+              {!administrator && (
+                <fieldset className="otp-choice field full">
+                  <legend>Choose how you'd like to authenticate via OTP</legend>
+                  <label>
+                    <input
+                      type="radio"
+                      name="otpMethod"
+                      value="email"
+                      checked={form.otpMethod === 'email'}
+                      onChange={() => set('otpMethod', 'email')}
+                    />
+                    Send code via email
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="otpMethod"
+                      value="sms"
+                      checked={form.otpMethod === 'sms'}
+                      onChange={() => set('otpMethod', 'sms')}
+                    />
+                    Send code via phone no.
+                  </label>
+                </fieldset>
+              )}
+            </>
           )}
           {role === 'provider' && (
             <>
@@ -137,9 +256,54 @@ export default function RegistrationForm({
             />
             <span className="sub">Use at least 12 characters.</span>
           </Field>
+          {role === 'patient' && !administrator && (
+            <div className="legal-acceptance field full">
+              <label>
+                <input
+                  required
+                  type="checkbox"
+                  checked={form.patientConsentAccepted}
+                  onChange={(e) => set('patientConsentAccepted', e.target.checked)}
+                />
+                I accept the{' '}
+                <a href="/legal/patient-consent.html" target="_blank" rel="noreferrer">
+                  Patient Consent
+                </a>
+                .
+              </label>
+              <label>
+                <input
+                  required
+                  type="checkbox"
+                  checked={form.termsAccepted}
+                  onChange={(e) => set('termsAccepted', e.target.checked)}
+                />
+                I accept the{' '}
+                <a href="/legal/patient-consent.html" target="_blank" rel="noreferrer">
+                  Terms and Conditions
+                </a>
+                .
+              </label>
+              <label>
+                <input
+                  required
+                  type="checkbox"
+                  checked={form.privacyAccepted}
+                  onChange={(e) => set('privacyAccepted', e.target.checked)}
+                />
+                I accept the{' '}
+                <a href="/legal/patient-consent.html" target="_blank" rel="noreferrer">
+                  Privacy Policy and POPIA terms
+                </a>
+                .
+              </label>
+            </div>
+          )}
           <div className="notice field full">
             {role === 'patient'
-              ? 'Verify your contact details to activate your account. Accounts created by an administrator require MFA at login.'
+              ? administrator
+                ? 'The patient account is available immediately. MFA is required when the patient first logs in.'
+                : 'Your patient account is available after you verify the one-time code sent to your selected contact method.'
               : 'Verify your contact details. An existing administrator must approve this account before login.'}
           </div>
         </div>
