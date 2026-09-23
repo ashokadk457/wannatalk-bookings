@@ -1,8 +1,32 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Field, LocationFields } from '../../components/ui';
+import LegalModal from '../../components/LegalModal';
 import { mutate } from '../../services/api';
 import { useApp } from '../../app/AppContext';
 import type { RegistrationInput, RegistrationResult, Role } from '../../types';
+type LegalAcceptance = 'patientConsent' | 'terms' | 'privacy';
+type LegalField = 'patientConsentAccepted' | 'termsAccepted' | 'privacyAccepted';
+const LEGAL_DOCUMENT_HREF = '/legal/patient-consent.html';
+const LEGAL_DOCUMENTS: Record<
+  LegalAcceptance,
+  { field: LegalField; linkLabel: string; title: string }
+> = {
+  patientConsent: {
+    field: 'patientConsentAccepted',
+    linkLabel: 'Patient Consent',
+    title: 'Patient Consent',
+  },
+  terms: {
+    field: 'termsAccepted',
+    linkLabel: 'Terms and Conditions',
+    title: 'Terms and Conditions',
+  },
+  privacy: {
+    field: 'privacyAccepted',
+    linkLabel: 'Privacy Policy and POPIA terms',
+    title: 'Privacy Policy and POPIA terms',
+  },
+};
 export default function RegistrationForm({
   role,
   administrator = false,
@@ -37,8 +61,26 @@ export default function RegistrationForm({
   };
   const [form, setForm] = useState(initial),
     [busy, setBusy] = useState(false);
+  const [activeLegalModal, setActiveLegalModal] = useState<LegalAcceptance | null>(null);
+  const legalTriggerRef = useRef<HTMLInputElement | null>(null);
   const set = <K extends keyof RegistrationInput>(key: K, value: RegistrationInput[K]) =>
     setForm((previous) => ({ ...previous, [key]: value }));
+  function handleLegalCheckbox(key: LegalAcceptance, event: ChangeEvent<HTMLInputElement>) {
+    if (event.target.checked) {
+      // The checkbox stays controlled by form state, so skipping set() keeps it
+      // unchecked; the modal acceptance sets the value instead.
+      legalTriggerRef.current = event.currentTarget;
+      setActiveLegalModal(key);
+    } else set(LEGAL_DOCUMENTS[key].field, false);
+  }
+  function closeLegalModal() {
+    setActiveLegalModal(null);
+    legalTriggerRef.current?.focus();
+  }
+  function acceptLegalModal(key: LegalAcceptance) {
+    set(LEGAL_DOCUMENTS[key].field, true);
+    closeLegalModal();
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (role === 'provider' && !form.locations.length)
@@ -65,256 +107,251 @@ export default function RegistrationForm({
     setBusy(false);
   }
   return (
-    <form onSubmit={submit}>
-      <fieldset disabled={busy} className="form-reset">
-        <div className="form-grid">
-          {role === 'patient' ? (
-            <>
-              <Field label="Title">
-                <select required value={form.title} onChange={(e) => set('title', e.target.value)}>
-                  <option value="">Select title</option>
-                  {['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Prof.', 'Mx.'].map((title) => (
-                    <option key={title}>{title}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="First Name">
+    <>
+      <form onSubmit={submit}>
+        <fieldset disabled={busy} className="form-reset">
+          <div className="form-grid">
+            {role === 'patient' ? (
+              <>
+                <Field label="Title">
+                  <select
+                    required
+                    value={form.title}
+                    onChange={(e) => set('title', e.target.value)}
+                  >
+                    <option value="">Select title</option>
+                    {['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Prof.', 'Mx.'].map((title) => (
+                      <option key={title}>{title}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="First Name">
+                  <input
+                    required
+                    maxLength={50}
+                    autoComplete="given-name"
+                    value={form.firstName}
+                    onChange={(e) => set('firstName', e.target.value)}
+                  />
+                </Field>
+                <Field label="Last Name">
+                  <input
+                    required
+                    maxLength={50}
+                    autoComplete="family-name"
+                    value={form.lastName}
+                    onChange={(e) => set('lastName', e.target.value)}
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field label="Full name">
                 <input
                   required
-                  maxLength={50}
-                  autoComplete="given-name"
-                  value={form.firstName}
-                  onChange={(e) => set('firstName', e.target.value)}
+                  maxLength={100}
+                  autoComplete="name"
+                  value={form.fullName}
+                  onChange={(e) => set('fullName', e.target.value)}
                 />
               </Field>
-              <Field label="Last Name">
-                <input
-                  required
-                  maxLength={50}
-                  autoComplete="family-name"
-                  value={form.lastName}
-                  onChange={(e) => set('lastName', e.target.value)}
-                />
-              </Field>
-            </>
-          ) : (
-            <Field label="Full name">
+            )}
+            <Field label="Email">
               <input
                 required
-                maxLength={100}
-                autoComplete="name"
-                value={form.fullName}
-                onChange={(e) => set('fullName', e.target.value)}
+                type="email"
+                maxLength={254}
+                autoComplete="email"
+                value={form.email}
+                onChange={(e) => set('email', e.target.value)}
               />
             </Field>
-          )}
-          <Field label="Email">
-            <input
-              required
-              type="email"
-              maxLength={254}
-              autoComplete="email"
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-            />
-          </Field>
-          <Field label="Phone No. / Mobile">
-            <input
-              required={role === 'patient'}
-              maxLength={30}
-              autoComplete="tel"
-              inputMode="tel"
-              pattern="\+?[0-9][0-9 ()-]{7,28}"
-              title="Enter a valid phone number, for example +27 82 123 4567"
-              value={form.mobile}
-              onChange={(e) => set('mobile', e.target.value)}
-            />
-          </Field>
-          {role === 'patient' && (
-            <>
-              <Field label="South African ID / Passport No.">
-                <input
-                  required
-                  minLength={5}
-                  maxLength={30}
-                  autoComplete="off"
-                  value={form.identityDocument}
-                  onChange={(e) => set('identityDocument', e.target.value)}
-                />
-              </Field>
-              <Field label="Date of Birth">
-                <input
-                  required
-                  type="date"
-                  min="1900-01-01"
-                  max={new Date().toISOString().slice(0, 10)}
-                  value={form.dateOfBirth}
-                  onChange={(e) => set('dateOfBirth', e.target.value)}
-                />
-              </Field>
-              <Field label="Nationality">
-                <select
-                  required
-                  value={form.nationality}
-                  onChange={(e) => set('nationality', e.target.value)}
-                >
-                  {[
-                    'South Africa',
-                    'Botswana',
-                    'Eswatini',
-                    'Lesotho',
-                    'Malawi',
-                    'Mozambique',
-                    'Namibia',
-                    'Zambia',
-                    'Zimbabwe',
-                    'Other',
-                  ].map((nationality) => (
-                    <option key={nationality}>{nationality}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Preferred Contact">
-                <select
-                  value={form.preferredContact}
-                  onChange={(e) => set('preferredContact', e.target.value)}
-                >
-                  {['Email', 'SMS', 'Both'].map((contact) => (
-                    <option key={contact}>{contact}</option>
-                  ))}
-                </select>
-              </Field>
-              {!administrator && (
-                <fieldset className="otp-choice field full">
-                  <legend>Choose how you'd like to authenticate via OTP</legend>
-                  <label>
-                    <input
-                      type="radio"
-                      name="otpMethod"
-                      value="email"
-                      checked={form.otpMethod === 'email'}
-                      onChange={() => set('otpMethod', 'email')}
-                    />
-                    Send code via email
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="otpMethod"
-                      value="sms"
-                      checked={form.otpMethod === 'sms'}
-                      onChange={() => set('otpMethod', 'sms')}
-                    />
-                    Send code via phone no.
-                  </label>
-                </fieldset>
-              )}
-            </>
-          )}
-          {role === 'provider' && (
-            <>
-              <Field label="Professional title">
-                <input
-                  maxLength={100}
-                  placeholder="Counsellor / Psychologist"
-                  value={form.professionalTitle}
-                  onChange={(e) => set('professionalTitle', e.target.value)}
-                />
-              </Field>
-              <Field label="Session duration">
-                <select
-                  value={form.durationMinutes}
-                  onChange={(e) => set('durationMinutes', Number(e.target.value))}
-                >
-                  {[45, 60, 90].map((n) => (
-                    <option key={n} value={n}>
-                      {n} minutes
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <LocationFields value={form.locations} onChange={(v) => set('locations', v)} />
-              <Field label="Short bio" full>
-                <textarea
-                  maxLength={500}
-                  placeholder="Optional"
-                  value={form.bio}
-                  onChange={(e) => set('bio', e.target.value)}
-                />
-              </Field>
-            </>
-          )}
-          <Field label={administrator ? 'Temporary password' : 'Password'} full>
-            <input
-              required
-              type="password"
-              autoComplete="new-password"
-              minLength={12}
-              maxLength={128}
-              value={form.password}
-              onChange={(e) => set('password', e.target.value)}
-            />
-            <span className="sub">Use at least 12 characters.</span>
-          </Field>
-          {role === 'patient' && !administrator && (
-            <div className="legal-acceptance field full">
-              <label>
-                <input
-                  required
-                  type="checkbox"
-                  checked={form.patientConsentAccepted}
-                  onChange={(e) => set('patientConsentAccepted', e.target.checked)}
-                />
-                I accept the{' '}
-                <a href="/legal/patient-consent.html" target="_blank" rel="noreferrer">
-                  Patient Consent
-                </a>
-                .
-              </label>
-              <label>
-                <input
-                  required
-                  type="checkbox"
-                  checked={form.termsAccepted}
-                  onChange={(e) => set('termsAccepted', e.target.checked)}
-                />
-                I accept the{' '}
-                <a href="/legal/patient-consent.html" target="_blank" rel="noreferrer">
-                  Terms and Conditions
-                </a>
-                .
-              </label>
-              <label>
-                <input
-                  required
-                  type="checkbox"
-                  checked={form.privacyAccepted}
-                  onChange={(e) => set('privacyAccepted', e.target.checked)}
-                />
-                I accept the{' '}
-                <a href="/legal/patient-consent.html" target="_blank" rel="noreferrer">
-                  Privacy Policy and POPIA terms
-                </a>
-                .
-              </label>
+            <Field label="Phone No. / Mobile">
+              <input
+                required={role === 'patient'}
+                maxLength={30}
+                autoComplete="tel"
+                inputMode="tel"
+                pattern="\+?[0-9][0-9 ()-]{7,28}"
+                title="Enter a valid phone number, for example +27 82 123 4567"
+                value={form.mobile}
+                onChange={(e) => set('mobile', e.target.value)}
+              />
+            </Field>
+            {role === 'patient' && (
+              <>
+                <Field label="South African ID / Passport No.">
+                  <input
+                    required
+                    minLength={5}
+                    maxLength={30}
+                    autoComplete="off"
+                    value={form.identityDocument}
+                    onChange={(e) => set('identityDocument', e.target.value)}
+                  />
+                </Field>
+                <Field label="Date of Birth">
+                  <input
+                    required
+                    type="date"
+                    min="1900-01-01"
+                    max={new Date().toISOString().slice(0, 10)}
+                    value={form.dateOfBirth}
+                    onChange={(e) => set('dateOfBirth', e.target.value)}
+                  />
+                </Field>
+                <Field label="Nationality">
+                  <select
+                    required
+                    value={form.nationality}
+                    onChange={(e) => set('nationality', e.target.value)}
+                  >
+                    {[
+                      'South Africa',
+                      'Botswana',
+                      'Eswatini',
+                      'Lesotho',
+                      'Malawi',
+                      'Mozambique',
+                      'Namibia',
+                      'Zambia',
+                      'Zimbabwe',
+                      'Other',
+                    ].map((nationality) => (
+                      <option key={nationality}>{nationality}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Preferred Contact">
+                  <select
+                    value={form.preferredContact}
+                    onChange={(e) => set('preferredContact', e.target.value)}
+                  >
+                    {['Email', 'SMS', 'Both'].map((contact) => (
+                      <option key={contact}>{contact}</option>
+                    ))}
+                  </select>
+                </Field>
+                {!administrator && (
+                  <fieldset className="otp-choice field full">
+                    <legend>Choose how you'd like to authenticate via OTP</legend>
+                    <label>
+                      <input
+                        type="radio"
+                        name="otpMethod"
+                        value="email"
+                        checked={form.otpMethod === 'email'}
+                        onChange={() => set('otpMethod', 'email')}
+                      />
+                      Send code via email
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="otpMethod"
+                        value="sms"
+                        checked={form.otpMethod === 'sms'}
+                        onChange={() => set('otpMethod', 'sms')}
+                      />
+                      Send code via phone no.
+                    </label>
+                  </fieldset>
+                )}
+              </>
+            )}
+            {role === 'provider' && (
+              <>
+                <Field label="Professional title">
+                  <input
+                    maxLength={100}
+                    placeholder="Counsellor / Psychologist"
+                    value={form.professionalTitle}
+                    onChange={(e) => set('professionalTitle', e.target.value)}
+                  />
+                </Field>
+                <Field label="Session duration">
+                  <select
+                    value={form.durationMinutes}
+                    onChange={(e) => set('durationMinutes', Number(e.target.value))}
+                  >
+                    {[45, 60, 90].map((n) => (
+                      <option key={n} value={n}>
+                        {n} minutes
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <LocationFields value={form.locations} onChange={(v) => set('locations', v)} />
+                <Field label="Short bio" full>
+                  <textarea
+                    maxLength={500}
+                    placeholder="Optional"
+                    value={form.bio}
+                    onChange={(e) => set('bio', e.target.value)}
+                  />
+                </Field>
+              </>
+            )}
+            <Field label={administrator ? 'Temporary password' : 'Password'} full>
+              <input
+                required
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={128}
+                value={form.password}
+                onChange={(e) => set('password', e.target.value)}
+              />
+              <span className="sub">Use at least 12 characters.</span>
+            </Field>
+            {role === 'patient' && !administrator && (
+              <div className="legal-acceptance field full">
+                {(Object.keys(LEGAL_DOCUMENTS) as LegalAcceptance[]).map((key) => {
+                  const legal = LEGAL_DOCUMENTS[key];
+                  return (
+                    <label key={key}>
+                      <input
+                        required
+                        type="checkbox"
+                        checked={form[legal.field]}
+                        onChange={(event) => handleLegalCheckbox(key, event)}
+                      />
+                      I accept the{' '}
+                      <a href={LEGAL_DOCUMENT_HREF} target="_blank" rel="noreferrer">
+                        {legal.linkLabel}
+                      </a>
+                      .
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <div className="notice field full">
+              {role === 'patient'
+                ? administrator
+                  ? 'The patient account is available immediately. MFA is required when the patient first logs in.'
+                  : 'Your patient account is available after you verify the one-time code sent to your selected contact method.'
+                : 'Verify your contact details. An existing administrator must approve this account before login.'}
             </div>
-          )}
-          <div className="notice field full">
-            {role === 'patient'
-              ? administrator
-                ? 'The patient account is available immediately. MFA is required when the patient first logs in.'
-                : 'Your patient account is available after you verify the one-time code sent to your selected contact method.'
-              : 'Verify your contact details. An existing administrator must approve this account before login.'}
           </div>
-        </div>
-        <button className="btn space-top" type="submit">
-          {busy
-            ? 'Submitting…'
-            : administrator
-              ? `Register ${role === 'patient' ? 'client' : 'provider'}`
-              : 'Create account'}
-        </button>
-      </fieldset>
-    </form>
+          <button className="btn space-top" type="submit">
+            {busy
+              ? 'Submitting…'
+              : administrator
+                ? `Register ${role === 'patient' ? 'client' : 'provider'}`
+                : 'Create account'}
+          </button>
+        </fieldset>
+      </form>
+      {activeLegalModal && (
+        <LegalModal
+          key={activeLegalModal}
+          title={LEGAL_DOCUMENTS[activeLegalModal].title}
+          src={LEGAL_DOCUMENT_HREF}
+          accepted={form[LEGAL_DOCUMENTS[activeLegalModal].field]}
+          onAccept={() => acceptLegalModal(activeLegalModal)}
+          onClose={closeLegalModal}
+        />
+      )}
+    </>
   );
 }

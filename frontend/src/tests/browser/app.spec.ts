@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { mockApi } from './fixtures';
 import { navigation } from '../../app/navigation';
 import type { Role } from '../../types';
@@ -131,6 +131,23 @@ test('MFA login rejects a bad code, verifies, and logs out', async ({ page }) =>
   await expect(page).toHaveURL(/login/);
   expect(await page.evaluate(() => localStorage.getItem('wannatalkApiToken'))).toBeNull();
 });
+async function acceptLegalDocument(page: Page, mainLabel: RegExp) {
+  const mainCheckbox = page.getByLabel(mainLabel),
+    dialog = page.getByRole('dialog');
+  await mainCheckbox.click();
+  await expect(dialog).toBeVisible();
+  await expect(mainCheckbox).not.toBeChecked();
+  await expect(dialog.locator('.legal-modal-content h1')).toBeVisible();
+  await dialog.locator('.legal-modal-content').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const acceptance = dialog.getByLabel(/I have read and agree/);
+  await expect(acceptance).toBeEnabled();
+  await acceptance.check();
+  await dialog.getByRole('button', { name: 'Accept', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(mainCheckbox).toBeChecked();
+}
 test('registration continues through contact verification', async ({ page }) => {
   const api = await mockApi(page, 'patient', false);
   await page.goto('/login');
@@ -145,9 +162,14 @@ test('registration continues through contact verification', async ({ page }) => 
   await page.getByLabel('Date of Birth').fill('1990-05-12');
   await page.getByLabel('Send code via phone no.').check();
   await page.getByLabel('Password', { exact: true }).fill('test-password-123');
-  await page.getByLabel(/I accept the Patient Consent/).check();
-  await page.getByLabel(/I accept the Terms and Conditions/).check();
-  await page.getByLabel(/I accept the Privacy Policy/).check();
+  const consentCheckbox = page.getByLabel(/I accept the Patient Consent/);
+  await consentCheckbox.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(consentCheckbox).not.toBeChecked();
+  await acceptLegalDocument(page, /I accept the Patient Consent/);
+  await acceptLegalDocument(page, /I accept the Terms and Conditions/);
+  await acceptLegalDocument(page, /I accept the Privacy Policy/);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'Security verification' })).toBeVisible();
   await expect(page.getByText(/Verification code sent by sms/)).toBeVisible();
