@@ -4,29 +4,12 @@ import LegalModal from '../../components/LegalModal';
 import { mutate } from '../../services/api';
 import { useApp } from '../../app/AppContext';
 import type { RegistrationInput, RegistrationResult, Role } from '../../types';
-type LegalAcceptance = 'patientConsent' | 'terms' | 'privacy';
-type LegalField = 'patientConsentAccepted' | 'termsAccepted' | 'privacyAccepted';
-const LEGAL_DOCUMENT_HREF = '/legal/patient-consent.html';
-const LEGAL_DOCUMENTS: Record<
-  LegalAcceptance,
-  { field: LegalField; linkLabel: string; title: string }
-> = {
-  patientConsent: {
-    field: 'patientConsentAccepted',
-    linkLabel: 'Patient Consent',
-    title: 'Patient Consent',
-  },
-  terms: {
-    field: 'termsAccepted',
-    linkLabel: 'Terms and Conditions',
-    title: 'Terms and Conditions',
-  },
-  privacy: {
-    field: 'privacyAccepted',
-    linkLabel: 'Privacy Policy and POPIA terms',
-    title: 'Privacy Policy and POPIA terms',
-  },
-};
+type LegalAcceptance = 'consent';
+const LEGAL_DOCUMENT_HREF = {
+  patient: '/legal/patient-consent.html',
+  provider: '/legal/provider-consent.html',
+} as const;
+const LEGAL_DOCUMENT = { field: 'patientConsentAccepted' as const, title: 'Consent document' };
 export default function RegistrationForm({
   role,
   administrator = false,
@@ -65,26 +48,37 @@ export default function RegistrationForm({
   const legalTriggerRef = useRef<HTMLInputElement | null>(null);
   const set = <K extends keyof RegistrationInput>(key: K, value: RegistrationInput[K]) =>
     setForm((previous) => ({ ...previous, [key]: value }));
-  function handleLegalCheckbox(key: LegalAcceptance, event: ChangeEvent<HTMLInputElement>) {
+  function handleLegalCheckbox(_key: LegalAcceptance, event: ChangeEvent<HTMLInputElement>) {
     if (event.target.checked) {
       // The checkbox stays controlled by form state, so skipping set() keeps it
       // unchecked; the modal acceptance sets the value instead.
       legalTriggerRef.current = event.currentTarget;
-      setActiveLegalModal(key);
-    } else set(LEGAL_DOCUMENTS[key].field, false);
+      setActiveLegalModal(_key);
+    } else set(LEGAL_DOCUMENT.field, false);
   }
   function closeLegalModal() {
     setActiveLegalModal(null);
     legalTriggerRef.current?.focus();
   }
-  function acceptLegalModal(key: LegalAcceptance) {
-    set(LEGAL_DOCUMENTS[key].field, true);
+  function acceptLegalModal() {
+    setForm((previous) => ({
+      ...previous,
+      patientConsentAccepted: true,
+      termsAccepted: true,
+      privacyAccepted: true,
+    }));
     closeLegalModal();
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (role === 'provider' && !form.locations.length)
       return notify('Choose at least one practice location');
+    if (!administrator) {
+      if (!form.patientConsentAccepted) {
+        setActiveLegalModal('consent');
+        return;
+      }
+    }
     setBusy(true);
     await run(async () => {
       const result = await mutate<RegistrationResult>('/auth/register', 'POST', {
@@ -303,26 +297,15 @@ export default function RegistrationForm({
               />
               <span className="sub">Use at least 12 characters.</span>
             </Field>
-            {role === 'patient' && !administrator && (
+            {!administrator && (
               <div className="legal-acceptance field full">
-                {(Object.keys(LEGAL_DOCUMENTS) as LegalAcceptance[]).map((key) => {
-                  const legal = LEGAL_DOCUMENTS[key];
-                  return (
-                    <label key={key}>
-                      <input
-                        required
-                        type="checkbox"
-                        checked={form[legal.field]}
-                        onChange={(event) => handleLegalCheckbox(key, event)}
-                      />
-                      I accept the{' '}
-                      <a href={LEGAL_DOCUMENT_HREF} target="_blank" rel="noreferrer">
-                        {legal.linkLabel}
-                      </a>
-                      .
-                    </label>
-                  );
-                })}
+                <label>
+                  <input required type="checkbox" checked={form.patientConsentAccepted} onChange={(event) => handleLegalCheckbox('consent', event)} />
+                  {role === 'patient' ? 'I confirm that I have read, understood and accepted the ' : 'I agree to the '}
+                  <a href={LEGAL_DOCUMENT_HREF[role === 'provider' ? 'provider' : 'patient']} onClick={(event) => { event.preventDefault(); setActiveLegalModal('consent'); }}>
+                    {role === 'patient' ? 'Patient Consent, Terms and Conditions and Privacy Policy' : 'Terms and Conditions'}
+                  </a>.
+                </label>
               </div>
             )}
             <div className="notice field full">
@@ -333,7 +316,11 @@ export default function RegistrationForm({
                 : 'Verify your contact details. An existing administrator must approve this account before login.'}
             </div>
           </div>
-          <button className="btn space-top" type="submit">
+          <button
+            className="btn space-top"
+            type="submit"
+            disabled={!administrator && !form.patientConsentAccepted}
+          >
             {busy
               ? 'Submitting…'
               : administrator
@@ -345,10 +332,10 @@ export default function RegistrationForm({
       {activeLegalModal && (
         <LegalModal
           key={activeLegalModal}
-          title={LEGAL_DOCUMENTS[activeLegalModal].title}
-          src={LEGAL_DOCUMENT_HREF}
-          accepted={form[LEGAL_DOCUMENTS[activeLegalModal].field]}
-          onAccept={() => acceptLegalModal(activeLegalModal)}
+          title={role === 'patient' ? 'Patient Consent, Terms and Conditions and Privacy Policy' : 'Provider Terms and Conditions'}
+          src={LEGAL_DOCUMENT_HREF[role === 'provider' ? 'provider' : 'patient']}
+          accepted={form.patientConsentAccepted}
+          onAccept={acceptLegalModal}
           onClose={closeLegalModal}
         />
       )}

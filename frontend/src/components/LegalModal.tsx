@@ -96,7 +96,7 @@ export default function LegalModal({
               Cancel
             </button>
             <button type="button" className="btn" onClick={onAccept} disabled={!acceptedInModal}>
-              Accept
+              Submit Acceptance
             </button>
           </div>
         </div>
