@@ -144,7 +144,12 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
   }
 
   const result = await query(
-    `SELECT a.*, pu.full_name AS patient_name, pu.email AS patient_email, pu.mobile AS patient_mobile,
+    `SELECT a.id, a.provider_id, a.patient_id, a.location_id,
+            a.appointment_date::date::text AS appointment_date,
+            a.appointment_time::time::text AS appointment_time,
+            a.duration_minutes, a.appointment_type, a.mode, a.status, a.payment_status,
+            a.note, a.intake_requested, a.meeting_url, a.created_at, a.updated_at,
+            pu.full_name AS patient_name, pu.email AS patient_email, pu.mobile AS patient_mobile,
             pr.full_name AS provider_name, pr.email AS provider_email, pr.mobile AS provider_mobile,
             pro.professional_title, l.name AS location_name
      FROM appointments a
