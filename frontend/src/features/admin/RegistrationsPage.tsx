@@ -1,0 +1,88 @@
+import { useState } from 'react';
+import { useApp } from '../../app/AppContext';
+import { Card, Empty, Heading } from '../../components/ui';
+import { mutate } from '../../services/api';
+import RegistrationForm from '../auth/RegistrationForm';
+export default function RegistrationsPage() {
+  const { data, refresh, run } = useApp();
+  const [busy, setBusy] = useState(false);
+  async function review(id: string, decision: 'approve' | 'reject') {
+    if (decision === 'reject' && !window.confirm('Reject this registration request?')) return;
+    setBusy(true);
+    await run(
+      async () => {
+        await mutate(`/registrations/${id}/${decision}`, 'PATCH');
+        await refresh();
+      },
+      `Registration ${decision === 'approve' ? 'approved' : 'rejected'}`,
+    );
+    setBusy(false);
+  }
+  return (
+    <section>
+      <Heading
+        title="Register clients and providers"
+        subtitle="Create accounts on behalf of people joining WannaTalk."
+      />
+      <Card title="Pending access requests">
+        {data.registrations.length ? (
+          data.registrations.map((r) => (
+            <div className="detail-row" key={r.id}>
+              <div>
+                <strong>{r.full_name}</strong>
+                <div className="sub">
+                  {r.email} · {r.role}
+                </div>
+                <div className="sub">{new Date(r.created_at).toLocaleString('en-ZA')}</div>
+              </div>
+              <div className="actions">
+                <button
+                  className="btn"
+                  disabled={busy}
+                  onClick={() => void review(r.id, 'approve')}
+                >
+                  Approve
+                </button>
+                <button
+                  className="btn danger"
+                  disabled={busy}
+                  onClick={() => void review(r.id, 'reject')}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <Empty>No pending registration requests.</Empty>
+        )}
+      </Card>
+      <div className="grid two space-top">
+        <Card title="Register client">
+          <RegistrationForm role="patient" administrator />
+        </Card>
+        <Card title="Register provider">
+          <RegistrationForm role="provider" administrator />
+        </Card>
+      </div>
+      <div className="grid two space-top">
+        <Card title={`Registered clients (${data.patients.length})`}>
+          {data.patients.slice(-5).map((p) => (
+            <div className="detail-row" key={p.id}>
+              <strong>{p.full_name}</strong>
+              <span>{p.email}</span>
+            </div>
+          ))}
+        </Card>
+        <Card title={`Registered providers (${data.providers.length})`}>
+          {data.providers.map((p) => (
+            <div className="detail-row" key={p.id}>
+              <strong>{p.full_name}</strong>
+              <span>{p.professional_title}</span>
+            </div>
+          ))}
+        </Card>
+      </div>
+    </section>
+  );
+}

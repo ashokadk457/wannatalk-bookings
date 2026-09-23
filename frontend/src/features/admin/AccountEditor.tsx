@@ -1,0 +1,117 @@
+import { useState, type FormEvent } from 'react';
+import { useApp } from '../../app/AppContext';
+import { Field, LocationFields } from '../../components/ui';
+import Modal from '../../components/Modal';
+import { mutate } from '../../services/api';
+import type { Patient, Provider } from '../../types';
+export default function AccountEditor({
+  account,
+  onClose,
+}: {
+  account: Patient | Provider;
+  onClose: () => void;
+}) {
+  const provider = 'professional_title' in account ? account : null;
+  const { data, run, refresh, notify } = useApp();
+  const [name, setName] = useState(account.full_name),
+    [email, setEmail] = useState(account.email),
+    [mobile, setMobile] = useState(account.mobile || ''),
+    [contact, setContact] = useState(
+      'preferred_contact' in account &&
+        ['Email', 'SMS', 'Both'].includes(account.preferred_contact || '')
+        ? account.preferred_contact || 'Email'
+        : 'Email',
+    ),
+    [title, setTitle] = useState(provider?.professional_title || ''),
+    [duration, setDuration] = useState(provider?.default_duration_minutes || 60),
+    [bio, setBio] = useState(provider?.bio || ''),
+    [locations, setLocations] = useState(provider?.locations || []),
+    [busy, setBusy] = useState(false);
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (provider && !locations.length) return notify('Choose at least one practice location');
+    setBusy(true);
+    const ok = await run(async () => {
+      await mutate(
+        provider ? `/providers/${account.id}/profile` : `/patients/${account.id}`,
+        'PATCH',
+        {
+          fullName: name,
+          email,
+          mobile,
+          preferredContact: contact,
+          professionalTitle: title,
+          durationMinutes: duration,
+          bio,
+          locations,
+        },
+      );
+      await refresh();
+    }, 'Account updated');
+    setBusy(false);
+    if (ok) onClose();
+  }
+  return (
+    <Modal title={`Edit ${provider ? 'provider' : 'patient'}`} onClose={onClose}>
+      <form onSubmit={save}>
+        <fieldset disabled={busy} className="form-reset">
+          <div className="form-grid">
+            <Field label="Full name">
+              <input
+                required
+                maxLength={100}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <Field label="Email">
+              <input
+                required
+                type="email"
+                maxLength={254}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field>
+            <Field label="Mobile / SMS">
+              <input maxLength={30} value={mobile} onChange={(e) => setMobile(e.target.value)} />
+            </Field>
+            {provider ? (
+              <>
+                <Field label="Professional title">
+                  <input maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} />
+                </Field>
+                <Field label="Session duration">
+                  <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+                    {[45, 60, 90].map((n) => (
+                      <option value={n} key={n}>
+                        {n} minutes
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <LocationFields
+                  value={locations}
+                  onChange={setLocations}
+                  locations={data.locations.map((l) => l.name)}
+                />
+                <Field label="Short bio" full>
+                  <textarea maxLength={500} value={bio} onChange={(e) => setBio(e.target.value)} />
+                </Field>
+              </>
+            ) : (
+              <Field label="Preferred contact">
+                <select value={contact} onChange={(e) => setContact(e.target.value)}>
+                  {['Email', 'SMS', 'Both'].map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+          </div>
+          <button className="btn space-top">Save changes</button>
+        </fieldset>
+      </form>
+    </Modal>
+  );
+}
