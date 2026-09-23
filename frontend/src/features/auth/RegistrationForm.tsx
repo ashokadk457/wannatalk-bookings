@@ -5,6 +5,7 @@ import { mutate } from '../../services/api';
 import { useApp } from '../../app/AppContext';
 import type { RegistrationInput, RegistrationResult, Role } from '../../types';
 import { countries } from '../../data/countries';
+import { doctorCategories, doctorSubCategories } from '../../data/doctorCategories';
 type LegalAcceptance = 'consent';
 const LEGAL_DOCUMENT_HREF = {
   patient: '/legal/patient-consent.html',
@@ -39,6 +40,12 @@ export default function RegistrationForm({
     termsAccepted: false,
     privacyAccepted: false,
     professionalTitle: '',
+    specialty: '',
+    subSpecialties: [],
+    medicalRegistrationNumber: '',
+    practiceNumber: '',
+    practiceSetting: '',
+    privatePracticeName: '',
     durationMinutes: 60,
     bio: '',
     locations: [],
@@ -240,21 +247,21 @@ export default function RegistrationForm({
                 </Field>
               </>
             )}
-            {!administrator && (
-              <fieldset className="otp-choice field full">
-                <legend>Choose how you'd like to authenticate via OTP</legend>
-                <label>
-                  <input type="radio" name="otpMethod" value="email" checked={form.otpMethod === 'email'} onChange={() => set('otpMethod', 'email')} />
-                  Send code via email
-                </label>
-                <label>
-                  <input type="radio" name="otpMethod" value="sms" checked={form.otpMethod === 'sms'} onChange={() => set('otpMethod', 'sms')} />
-                  Send code via phone no.
-                </label>
-              </fieldset>
-            )}
             {role === 'provider' && (
               <>
+                <Field label="Title">
+                  <select required value={form.title} onChange={(e) => set('title', e.target.value)}>
+                    <option value="">Select title</option><option>Dr.</option><option>Prof.</option><option>Mr.</option><option>Ms.</option>
+                  </select>
+                </Field>
+                <Field label="First Name"><input required value={form.fullName.split(' ')[0] || ''} onChange={(e) => set('fullName', `${e.target.value} ${form.fullName.split(' ').slice(1).join(' ')}`.trim())} /></Field>
+                <Field label="Last Name"><input required value={form.fullName.split(' ').slice(1).join(' ')} onChange={(e) => set('fullName', `${form.fullName.split(' ')[0] || ''} ${e.target.value}`.trim())} /></Field>
+                <Field label="Specialty (Optional)"><select value={form.specialty} onChange={(e) => { set('specialty', e.target.value); set('subSpecialties', []); }}><option value="">Select specialty</option>{doctorCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+                <Field label="Sub Specialty (Optional)"><select multiple value={form.subSpecialties} onChange={(e) => set('subSpecialties', Array.from(e.target.selectedOptions, (o) => o.value))}>{doctorSubCategories.filter((s) => s.categoryId === form.specialty).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+                <Field label="Medical Registration Number (Optional)"><input maxLength={80} value={form.medicalRegistrationNumber} onChange={(e) => set('medicalRegistrationNumber', e.target.value)} /></Field>
+                <Field label="Practice No (Optional)"><input maxLength={80} value={form.practiceNumber} onChange={(e) => set('practiceNumber', e.target.value)} /></Field>
+                <Field label="Practice Setting (Optional)"><select value={form.practiceSetting} onChange={(e) => set('practiceSetting', e.target.value)}><option value="">Select setting</option><option>Private Practice</option><option>Hospital</option><option>Clinic</option><option>Community Health Centre</option><option>Academic / Teaching</option></select></Field>
+                <Field label="Private Practice Name (Optional)"><input maxLength={150} value={form.privatePracticeName} onChange={(e) => set('privatePracticeName', e.target.value)} /></Field>
                 <Field label="Professional title">
                   <input
                     maxLength={100}
@@ -298,6 +305,13 @@ export default function RegistrationForm({
               />
               <span className="sub">Use at least 12 characters.</span>
             </Field>
+            {!administrator && (
+              <fieldset className="otp-choice field full">
+                <legend>Choose how you'd like to authenticate via OTP</legend>
+                <label><input type="radio" name="otpMethod" value="email" checked={form.otpMethod === 'email'} onChange={() => set('otpMethod', 'email')} /> Send code via email</label>
+                <label><input type="radio" name="otpMethod" value="sms" checked={form.otpMethod === 'sms'} onChange={() => set('otpMethod', 'sms')} /> Send code via phone no.</label>
+              </fieldset>
+            )}
             {!administrator && (
               <div className="legal-acceptance field full">
                 <label>

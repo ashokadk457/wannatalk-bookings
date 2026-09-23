@@ -43,6 +43,12 @@ export interface Provider {
   mobile: string | null;
   is_active: boolean;
   professional_title: string;
+  specialty?: string;
+  sub_specialties?: string[];
+  medical_registration_number?: string;
+  practice_number?: string;
+  practice_setting?: string;
+  private_practice_name?: string;
   default_duration_minutes: number;
   bio: string | null;
   is_online: boolean;
@@ -145,6 +151,12 @@ export interface RegistrationInput {
   termsAccepted: boolean;
   privacyAccepted: boolean;
   professionalTitle: string;
+  specialty: string;
+  subSpecialties: string[];
+  medicalRegistrationNumber: string;
+  practiceNumber: string;
+  practiceSetting: string;
+  privatePracticeName: string;
   durationMinutes: number;
   bio: string;
   locations: string[];

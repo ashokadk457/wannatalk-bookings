@@ -112,6 +112,13 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
   const professionalTitle = cleanText(req.body.professionalTitle, 100) || 'Provider';
   const duration = [45, 60, 90].includes(Number(req.body.durationMinutes)) ? Number(req.body.durationMinutes) : 60;
   const bio = cleanText(req.body.bio, 500) || null;
+  const providerTitle = cleanText(req.body.title, 20) || null;
+  const specialty = cleanText(req.body.specialty, 100) || null;
+  const subSpecialties = Array.isArray(req.body.subSpecialties) ? req.body.subSpecialties.map((value) => cleanText(value, 150)).filter(Boolean).slice(0, 20) : [];
+  const medicalRegistrationNumber = cleanText(req.body.medicalRegistrationNumber, 80) || null;
+  const practiceNumber = cleanText(req.body.practiceNumber, 80) || null;
+  const practiceSetting = cleanText(req.body.practiceSetting, 80) || null;
+  const privatePracticeName = cleanText(req.body.privatePracticeName, 150) || null;
   const requestedLocations = Array.isArray(req.body.locations)
     ? [...new Set(req.body.locations.map((value) => cleanText(value, 50)).filter(Boolean))]
     : [];
@@ -210,9 +217,9 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
         entityId = patient.rows[0].id;
       } else if (role === 'provider') {
         const provider = await client.query(
-          `INSERT INTO providers (user_id, professional_title, default_duration_minutes, bio, is_online)
-           VALUES ($1, $2, $3, $4, false) RETURNING id`,
-          [user.id, professionalTitle, duration, bio]
+          `INSERT INTO providers (user_id, title, professional_title, specialty, sub_specialties, medical_registration_number, practice_number, practice_setting, private_practice_name, default_duration_minutes, bio, is_online)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false) RETURNING id`,
+          [user.id, providerTitle, professionalTitle, specialty, subSpecialties, medicalRegistrationNumber, practiceNumber, practiceSetting, privatePracticeName, duration, bio]
         );
         entityId = provider.rows[0].id;
         const locations = await client.query(`SELECT id, name FROM locations WHERE name = ANY($1::text[]) AND is_active = true`, [requestedLocations]);
