@@ -73,12 +73,12 @@ export function slotProblem(
     return 'The provider is unavailable during that time';
   if (
     !excludeId &&
-    provider.busy.some(
-      (b) =>
-        b.appointment_date.slice(0, 10) === date &&
-        start < minutes(b.end_time) &&
-        end > minutes(b.appointment_time),
-    )
+    provider.busy.some((b) => {
+      const busyDate = String(b.appointment_date).slice(0, 10);
+      const busyStart = minutes(String(b.appointment_time).slice(0, 5));
+      const busyEnd = minutes(String(b.end_time).slice(0, 5));
+      return busyDate === date && Number.isFinite(busyStart) && Number.isFinite(busyEnd) && start < busyEnd && end > busyStart;
+    })
   )
     return 'That booking slot is already taken';
   if (

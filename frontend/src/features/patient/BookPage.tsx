@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, ProviderStatus } from '../../components/ui';
@@ -19,7 +19,20 @@ export default function BookPage() {
     [note, setNote] = useState(''),
     [intake, setIntake] = useState(false),
     [saving, setSaving] = useState(false);
-  const providers = data.providers.filter((p) => p.is_active && p.locations.includes(location)),
+  useEffect(() => {
+    const refreshAvailability = () => {
+      if (document.visibilityState === 'visible') void run(refresh);
+    };
+    window.addEventListener('focus', refreshAvailability);
+    document.addEventListener('visibilitychange', refreshAvailability);
+    const timer = window.setInterval(refreshAvailability, 30000);
+    return () => {
+      window.removeEventListener('focus', refreshAvailability);
+      document.removeEventListener('visibilitychange', refreshAvailability);
+      window.clearInterval(timer);
+    };
+  }, [refresh, run]);
+  const providers = data.providers.filter((p) => p.is_active && p.is_online && p.locations.includes(location)),
     selected = providers.find((p) => p.id === providerId);
   async function confirm() {
     if (!selected || !location || !time) return notify('Choose location, provider, date and time');
@@ -116,7 +129,7 @@ export default function BookPage() {
             {date < today()
               ? 'Past dates cannot be booked.'
               : selected
-                ? `${selected.full_name} selected. ${selected.is_online ? 'Provider is online.' : 'Provider is offline, but booking slots remain available.'}`
+                ? `${selected.full_name} selected. Provider is online and accepting bookings.`
                 : 'Select a green slot to choose a provider and time.'}
           </div>
         </Card>
