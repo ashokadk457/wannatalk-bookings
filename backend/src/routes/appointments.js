@@ -37,7 +37,7 @@ async function assertProviderAvailable(client, { providerId, appointmentDate, ap
   }
 
   const provider = await client.query(
-    `SELECT p.id
+    `SELECT p.id, p.is_online
      FROM providers p JOIN app_users u ON u.id = p.user_id
      WHERE p.id = $1 AND u.is_active = true
      FOR UPDATE OF p`,
@@ -46,6 +46,11 @@ async function assertProviderAvailable(client, { providerId, appointmentDate, ap
   if (!provider.rows[0]) {
     const error = new Error('Provider not found or inactive');
     error.statusCode = 404;
+    throw error;
+  }
+  if (!provider.rows[0].is_online) {
+    const error = new Error('This provider is currently offline');
+    error.statusCode = 409;
     throw error;
   }
 
