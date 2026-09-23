@@ -7,9 +7,130 @@ import { mutate } from '../../services/api';
 import { PatientSelect, ProviderSelect } from '../workflows/shared';
 export default function BookingCreator({ onClose }: { onClose: () => void }) {
   const { data, run, refresh, notify } = useApp();
-  const [patientId, setPatient] = useState(''), [providerId, setProvider] = useState(''), [locationId, setLocation] = useState(''), [date, setDate] = useState(today()), [time, setTime] = useState(''), [type, setType] = useState('Individual counselling'), [mode, setMode] = useState('In-person'), [note, setNote] = useState(''), [intake, setIntake] = useState(false), [busy, setBusy] = useState(false);
-  const provider = data.providers.find(p => p.id === providerId), locations = data.locations.filter(l => provider?.locations.includes(l.name)), location = locations.find(l => l.id === locationId);
-  const slots = provider ? providerTimes(provider, date).filter(t => !slotProblem(provider, date, t, data.appointments)) : [];
-  async function save(e: FormEvent) { e.preventDefault(); if (!provider || !location || !slots.includes(time)) return notify('Choose a provider, location and available time'); setBusy(true); const ok = await run(async () => { await mutate('/appointments', 'POST', { patientId, providerId, locationId, appointmentDate: date, appointmentTime: time, durationMinutes: provider.default_duration_minutes, appointmentType: type, mode: location.name === 'Online' ? 'Online' : mode, note, intakeRequested: intake }); await refresh(); }, 'Booking created'); setBusy(false); if (ok) onClose(); }
-  return <Modal title="Create booking" onClose={onClose}><form onSubmit={save}><fieldset className="form-reset" disabled={busy}><div className="form-grid"><PatientSelect value={patientId} onChange={setPatient} /><ProviderSelect value={providerId} onChange={id => { setProvider(id); setLocation(''); setTime(''); }} /><Field label="Location"><select required value={locationId} onChange={e => setLocation(e.target.value)}><option value="">Choose location</option>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></Field><Field label="Appointment date"><input required type="date" min={today()} value={date} onChange={e => { setDate(e.target.value); setTime(''); }} /></Field><Field label="Available time"><select required value={time} onChange={e => setTime(e.target.value)}><option value="">{slots.length ? 'Choose time' : 'No available slots'}</option>{slots.map(t => <option key={t}>{t}</option>)}</select></Field><Field label="Appointment type"><select value={type} onChange={e => setType(e.target.value)}>{['Individual counselling', 'Couples counselling', 'Family counselling', 'Assessment', 'Follow-up'].map(t => <option key={t}>{t}</option>)}</select></Field><Field label="Mode"><select disabled={location?.name === 'Online'} value={location?.name === 'Online' ? 'Online' : mode} onChange={e => setMode(e.target.value)}>{['In-person', 'Online', 'Telephone'].map(m => <option key={m}>{m}</option>)}</select></Field><Field label="Note" full><textarea value={note} onChange={e => setNote(e.target.value)} /></Field><label className="check-row"><input type="checkbox" checked={intake} onChange={e => setIntake(e.target.checked)} />Optional private intake</label></div><button className="btn space-top">{busy ? 'Saving…' : 'Create booking'}</button></fieldset></form></Modal>;
+  const [patientId, setPatient] = useState(''),
+    [providerId, setProvider] = useState(''),
+    [locationId, setLocation] = useState(''),
+    [date, setDate] = useState(today()),
+    [time, setTime] = useState(''),
+    [type, setType] = useState('Individual counselling'),
+    [mode, setMode] = useState('In-person'),
+    [note, setNote] = useState(''),
+    [intake, setIntake] = useState(false),
+    [busy, setBusy] = useState(false);
+  const provider = data.providers.find((p) => p.id === providerId),
+    locations = data.locations.filter((l) => provider?.locations.includes(l.name)),
+    location = locations.find((l) => l.id === locationId);
+  const slots = provider
+    ? providerTimes(provider, date).filter(
+        (t) => !slotProblem(provider, date, t, data.appointments),
+      )
+    : [];
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!provider || !location || !slots.includes(time))
+      return notify('Choose a provider, location and available time');
+    setBusy(true);
+    const ok = await run(async () => {
+      await mutate('/appointments', 'POST', {
+        patientId,
+        providerId,
+        locationId,
+        appointmentDate: date,
+        appointmentTime: time,
+        durationMinutes: provider.default_duration_minutes,
+        appointmentType: type,
+        mode: location.name === 'Online' ? 'Online' : mode,
+        note,
+        intakeRequested: intake,
+      });
+      await refresh();
+    }, 'Booking created');
+    setBusy(false);
+    if (ok) onClose();
+  }
+  return (
+    <Modal title="Create booking" onClose={onClose}>
+      <form onSubmit={save}>
+        <fieldset className="form-reset" disabled={busy}>
+          <div className="form-grid">
+            <PatientSelect value={patientId} onChange={setPatient} />
+            <ProviderSelect
+              value={providerId}
+              onChange={(id) => {
+                setProvider(id);
+                setLocation('');
+                setTime('');
+              }}
+            />
+            <Field label="Location">
+              <select required value={locationId} onChange={(e) => setLocation(e.target.value)}>
+                <option value="">Choose location</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Appointment date">
+              <input
+                required
+                type="date"
+                min={today()}
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setTime('');
+                }}
+              />
+            </Field>
+            <Field label="Available time">
+              <select required value={time} onChange={(e) => setTime(e.target.value)}>
+                <option value="">{slots.length ? 'Choose time' : 'No available slots'}</option>
+                {slots.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Appointment type">
+              <select value={type} onChange={(e) => setType(e.target.value)}>
+                {[
+                  'Individual counselling',
+                  'Couples counselling',
+                  'Family counselling',
+                  'Assessment',
+                  'Follow-up',
+                ].map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Mode">
+              <select
+                disabled={location?.name === 'Online'}
+                value={location?.name === 'Online' ? 'Online' : mode}
+                onChange={(e) => setMode(e.target.value)}
+              >
+                {['In-person', 'Online', 'Telephone'].map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Note" full>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} />
+            </Field>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={intake}
+                onChange={(e) => setIntake(e.target.checked)}
+              />
+              Optional private intake
+            </label>
+          </div>
+          <button className="btn space-top">{busy ? 'Saving…' : 'Create booking'}</button>
+        </fieldset>
+      </form>
+    </Modal>
+  );
 }

@@ -1,1 +1,18 @@
-export function MeetingLink({ url }: { url?: string | null }) { if (!url) return null; let safe = false; try { safe = ['https:', 'http:'].includes(new URL(url).protocol); } catch { /* Invalid links are not clickable. */ } return safe ? <div className="meeting-link-box"><strong>Online session link</strong><a href={url} target="_blank" rel="noopener noreferrer">Join session</a><div className="sub">{url}</div></div> : null; }
+export function MeetingLink({ url }: { url?: string | null }) {
+  if (!url) return null;
+  let safe = false;
+  try {
+    safe = ['https:', 'http:'].includes(new URL(url).protocol);
+  } catch {
+    /* Invalid links are not clickable. */
+  }
+  return safe ? (
+    <div className="meeting-link-box">
+      <strong>Online session link</strong>
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        Join session
+      </a>
+      <div className="sub">{url}</div>
+    </div>
+  ) : null;
+}

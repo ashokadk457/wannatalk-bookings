@@ -5,6 +5,8 @@ const root = new URL('../', import.meta.url);
 fs.mkdirSync(new URL('src/styles/', root), { recursive: true });
 fs.mkdirSync(new URL('public/assets/', root), { recursive: true });
 const styles = [...html.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/g)].map(m => m[1]);
+const workflows = fs.readFileSync(new URL('../../public/wannatalk-workflows.js', import.meta.url), 'utf8');
+styles.push(...[...workflows.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/g)].map(m => m[1]));
 fs.writeFileSync(new URL('src/styles/original.css', root), styles.join('\n\n'));
 for (const [variable, name] of [['brandLogoTransparentData', 'logo-transparent'], ['welcomeBackgroundData', 'welcome']]) {
   const match = html.match(new RegExp(`${variable}\\s*=\\s*['\"]data:image/(\\w+);base64,([^'\"]+)`));

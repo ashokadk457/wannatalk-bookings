@@ -8,9 +8,147 @@ import { mutate } from '../../services/api';
 import { Channels, deliverySummary, PatientSelect, ProviderSelect, ResourceState } from './shared';
 import type { Delivery } from '../../types';
 export default function MessagesPage() {
-  const { user, run, notify } = useApp(), resource = useResource<{ deliveries: Delivery[] }>('/communications');
-  const initial = useLocation().state as { patientId?: string; providerId?: string; subject?: string; message?: string } | null;
-  const [patientId, setPatient] = useState(initial?.patientId || ''), [providerId, setProvider] = useState(user?.role === 'provider' ? user.entityId || '' : initial?.providerId || ''), [subject, setSubject] = useState(initial?.subject || 'Message from WannaTalk'), [message, setMessage] = useState(initial?.message || ''), [channels, setChannels] = useState(['email', 'sms']), [busy, setBusy] = useState(false), [selected, setSelected] = useState<Delivery | null>(null);
-  async function send(e: FormEvent) { e.preventDefault(); if (!channels.length) return notify('Choose Email, SMS, or both'); if (!window.confirm('Send this message by the selected channels now?')) return; setBusy(true); await run(async () => { const result = await mutate<{ deliveries: Delivery[] }>('/communications/send', 'POST', { patientId, providerId: providerId || null, subject, message, channels }); notify(deliverySummary(result.deliveries)); await resource.reload(); }); setBusy(false); }
-  return <section><Heading title="Messages" subtitle="Send patient communications by Email or SMS and review delivery history." /><div className="grid two"><Card title="Send patient message"><form onSubmit={send}><fieldset className="form-reset" disabled={busy}><div className="form-grid"><PatientSelect value={patientId} onChange={setPatient} />{user?.role === 'admin' && <ProviderSelect value={providerId} onChange={setProvider} optional />}<Field label="Subject" full><input required maxLength={160} value={subject} onChange={e => setSubject(e.target.value)} /></Field><Field label="Message" full><textarea required maxLength={1000} value={message} onChange={e => setMessage(e.target.value)} /></Field><Channels value={channels} onChange={setChannels} /></div><button className="btn space-top">{busy ? 'Sending…' : 'Send message'}</button></fieldset></form></Card><Card title="Delivery information"><div className="notice">Only the message entered here is sent. Private follow-up notes are never included.</div><p>Delivery status depends on the configured Email and SMS services.</p></Card></div><Card title="Delivery history" className="space-top"><ResourceState loading={resource.loading} error={resource.error} retry={() => void resource.reload()} />{resource.value?.deliveries.length ? <div className="dashboard-table"><table><thead><tr><th>Date</th><th>Patient</th><th>Provider</th><th>Channel</th><th>Subject</th><th>Status</th><th /></tr></thead><tbody>{resource.value.deliveries.map(d => <tr key={d.id}><td>{new Date(d.created_at).toLocaleString('en-ZA')}</td><td>{d.patient_name}</td><td>{d.provider_name || 'Practice'}</td><td>{d.channel}</td><td>{d.subject}</td><td><StatusPill status={d.status} /></td><td><button className="btn secondary small" onClick={() => setSelected(d)}>View</button></td></tr>)}</tbody></table></div> : !resource.loading && !resource.error && <Empty>No messages sent yet.</Empty>}</Card>{selected && <Modal title="Message details" onClose={() => setSelected(null)}><p><strong>{selected.patient_name}</strong> · {selected.recipient}</p><p>{selected.subject}</p><div className="workflow-message">{selected.message_text}</div><p><StatusPill status={selected.status} /></p>{selected.error_message && <div className="notice" role="alert">{selected.error_message}</div>}</Modal>}</section>;
+  const { user, run, notify } = useApp(),
+    resource = useResource<{ deliveries: Delivery[] }>('/communications');
+  const initial = useLocation().state as {
+    patientId?: string;
+    providerId?: string;
+    subject?: string;
+    message?: string;
+  } | null;
+  const [patientId, setPatient] = useState(initial?.patientId || ''),
+    [providerId, setProvider] = useState(
+      user?.role === 'provider' ? user.entityId || '' : initial?.providerId || '',
+    ),
+    [subject, setSubject] = useState(initial?.subject || 'Message from WannaTalk'),
+    [message, setMessage] = useState(initial?.message || ''),
+    [channels, setChannels] = useState(['email', 'sms']),
+    [busy, setBusy] = useState(false),
+    [selected, setSelected] = useState<Delivery | null>(null);
+  async function send(e: FormEvent) {
+    e.preventDefault();
+    if (!channels.length) return notify('Choose Email, SMS, or both');
+    if (!window.confirm('Send this message by the selected channels now?')) return;
+    setBusy(true);
+    await run(async () => {
+      const result = await mutate<{ deliveries: Delivery[] }>('/communications/send', 'POST', {
+        patientId,
+        providerId: providerId || null,
+        subject,
+        message,
+        channels,
+      });
+      notify(deliverySummary(result.deliveries));
+      await resource.reload();
+    });
+    setBusy(false);
+  }
+  return (
+    <section>
+      <Heading
+        title="Messages"
+        subtitle="Send patient communications by Email or SMS and review delivery history."
+      />
+      <div className="grid two">
+        <Card title="Send patient message">
+          <form onSubmit={send}>
+            <fieldset className="form-reset" disabled={busy}>
+              <div className="form-grid">
+                <PatientSelect value={patientId} onChange={setPatient} />
+                {user?.role === 'admin' && (
+                  <ProviderSelect value={providerId} onChange={setProvider} optional />
+                )}
+                <Field label="Subject" full>
+                  <input
+                    required
+                    maxLength={160}
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                  />
+                </Field>
+                <Field label="Message" full>
+                  <textarea
+                    required
+                    maxLength={1000}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                  />
+                </Field>
+                <Channels value={channels} onChange={setChannels} />
+              </div>
+              <button className="btn space-top">{busy ? 'Sending…' : 'Send message'}</button>
+            </fieldset>
+          </form>
+        </Card>
+        <Card title="Delivery information">
+          <div className="notice">
+            Only the message entered here is sent. Private follow-up notes are never included.
+          </div>
+          <p>Delivery status depends on the configured Email and SMS services.</p>
+        </Card>
+      </div>
+      <Card title="Delivery history" className="space-top">
+        <ResourceState
+          loading={resource.loading}
+          error={resource.error}
+          retry={() => void resource.reload()}
+        />
+        {resource.value?.deliveries.length ? (
+          <div className="dashboard-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Patient</th>
+                  <th>Provider</th>
+                  <th>Channel</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {resource.value.deliveries.map((d) => (
+                  <tr key={d.id}>
+                    <td>{new Date(d.created_at).toLocaleString('en-ZA')}</td>
+                    <td>{d.patient_name}</td>
+                    <td>{d.provider_name || 'Practice'}</td>
+                    <td>{d.channel}</td>
+                    <td>{d.subject}</td>
+                    <td>
+                      <StatusPill status={d.status} />
+                    </td>
+                    <td>
+                      <button className="btn secondary small" onClick={() => setSelected(d)}>
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          !resource.loading && !resource.error && <Empty>No messages sent yet.</Empty>
+        )}
+      </Card>
+      {selected && (
+        <Modal title="Message details" onClose={() => setSelected(null)}>
+          <p>
+            <strong>{selected.patient_name}</strong> · {selected.recipient}
+          </p>
+          <p>{selected.subject}</p>
+          <div className="workflow-message">{selected.message_text}</div>
+          <p>
+            <StatusPill status={selected.status} />
+          </p>
+          {selected.error_message && (
+            <div className="notice" role="alert">
+              {selected.error_message}
+            </div>
+          )}
+        </Modal>
+      )}
+    </section>
+  );
 }

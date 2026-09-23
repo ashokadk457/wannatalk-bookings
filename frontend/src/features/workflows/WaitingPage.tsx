@@ -7,11 +7,236 @@ import { api, mutate } from '../../services/api';
 import { Channels, deliverySummary, PatientSelect, ProviderSelect, ResourceState } from './shared';
 import type { Delivery, WaitingEntry } from '../../types';
 export default function WaitingPage() {
-  const { user, data, run, notify } = useApp(), admin = user?.role === 'admin', resource = useResource<{ entries: WaitingEntry[] }>('/waiting-list');
-  const [patientId, setPatient] = useState(''), [providerId, setProvider] = useState(''), [locationId, setLocation] = useState(''), [dateFrom, setFrom] = useState(today()), [dateTo, setTo] = useState(addDays(today(), 14)), [timePreference, setPreference] = useState('any'), [channels, setChannels] = useState(['email', 'sms']), [busy, setBusy] = useState(false), [opening, setOpening] = useState(''), [matches, setMatches] = useState<WaitingEntry[] | null>(null);
-  async function join(e: FormEvent) { e.preventDefault(); if (!channels.length) return notify('Choose Email, SMS, or both'); setBusy(true); await run(async () => { await mutate('/waiting-list', 'POST', { patientId, providerId: providerId || null, locationId: locationId || null, dateFrom, dateTo, timePreference, channels }); await resource.reload(); }, 'Added to cancellation list'); setBusy(false); }
-  async function cancel(id: string) { if (!window.confirm('Remove this cancellation-list request?')) return; setBusy(true); await run(async () => { await mutate(`/waiting-list/${id}/cancel`, 'PATCH'); await resource.reload(); }, 'Cancellation-list request removed'); setBusy(false); }
-  async function match() { if (!opening) return notify('Choose a cancelled appointment'); setBusy(true); await run(async () => setMatches((await api<{ matches: WaitingEntry[] }>(`/waiting-list/matches/${opening}`)).matches)); setBusy(false); }
-  async function send(id: string) { if (!window.confirm('Send this cancellation opening by Email/SMS now?')) return; setBusy(true); await run(async () => { const result = await mutate<{ deliveries: Delivery[] }>(`/waiting-list/${id}/notify`, 'POST', { appointmentId: opening }); notify(deliverySummary(result.deliveries)); await resource.reload(); }); setBusy(false); }
-  return <section><Heading title={admin ? 'Waiting list' : 'Cancellation list'} subtitle="Get notified when a suitable cancellation appointment becomes available." /><div className="grid two"><Card title={admin ? 'Add patient to cancellation list' : 'Join cancellation list'}><form onSubmit={join}><fieldset disabled={busy} className="form-reset"><div className="form-grid">{admin && <PatientSelect value={patientId} onChange={setPatient} />}<ProviderSelect value={providerId} onChange={setProvider} optional /><Field label="Location"><select value={locationId} onChange={e => setLocation(e.target.value)}><option value="">Any location</option>{data.locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></Field><Field label="From date"><input required type="date" min={today()} value={dateFrom} onChange={e => setFrom(e.target.value)} /></Field><Field label="Until date"><input required type="date" min={dateFrom} value={dateTo} onChange={e => setTo(e.target.value)} /></Field><Field label="Preferred time"><select value={timePreference} onChange={e => setPreference(e.target.value)}><option value="any">Any time</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option></select></Field><Channels value={channels} onChange={setChannels} /></div><button className="btn space-top">{admin ? 'Add patient' : 'Join cancellation list'}</button></fieldset></form></Card><Card title={admin ? 'Match a cancellation opening' : 'How it works'}>{admin ? <><Field label="Cancelled appointment"><select value={opening} onChange={e => { setOpening(e.target.value); setMatches(null); }}><option value="">Choose an opening</option>{data.appointments.filter(a => ['Cancelled', 'No-show'].includes(a.status) && a.appointment_date >= today()).map(a => <option key={a.id} value={a.id}>{a.provider_name} · {a.appointment_date} {a.appointment_time} · {a.location_name || a.mode}</option>)}</select></Field><button className="btn space-top" disabled={busy} onClick={() => void match()}>Find matches</button>{matches && (matches.length ? matches.map(m => <div className="detail-row" key={m.id}><span>{m.patient_name}<small className="sub block">{m.notification_channels.join(' + ')}</small></span><button disabled={busy} className="btn" onClick={() => void send(m.id)}>Notify</button></div>) : <Empty>No patients match this opening.</Empty>)}</> : <div className="notice">Choose your preferred dates, provider and notification channels. A notification does not reserve a slot; sign in to book it while it is available.</div>}</Card></div><Card title="Requests" className="space-top"><ResourceState loading={resource.loading} error={resource.error} retry={() => void resource.reload()} />{resource.value?.entries.length ? <div className="dashboard-table"><table><thead><tr>{admin && <th>Patient</th>}<th>Provider / location</th><th>Dates</th><th>Preferred time</th><th>Channels</th><th>Status</th><th /></tr></thead><tbody>{resource.value.entries.map(w => <tr key={w.id}>{admin && <td>{w.patient_name}</td>}<td>{w.provider_name || 'Any provider'}<div className="sub">{w.location_name || 'Any location'}</div></td><td>{w.date_from.slice(0, 10)} – {w.date_to.slice(0, 10)}</td><td>{w.time_preference}</td><td>{w.notification_channels.join(' + ')}</td><td><StatusPill status={w.status} /></td><td>{w.status === 'active' && <button className="btn secondary small" disabled={busy} onClick={() => void cancel(w.id)}>Remove</button>}</td></tr>)}</tbody></table></div> : !resource.loading && !resource.error && <Empty>No waiting-list requests.</Empty>}</Card></section>;
+  const { user, data, run, notify } = useApp(),
+    admin = user?.role === 'admin',
+    resource = useResource<{ entries: WaitingEntry[] }>('/waiting-list');
+  const [patientId, setPatient] = useState(''),
+    [providerId, setProvider] = useState(''),
+    [locationId, setLocation] = useState(''),
+    [dateFrom, setFrom] = useState(today()),
+    [dateTo, setTo] = useState(addDays(today(), 14)),
+    [timePreference, setPreference] = useState('any'),
+    [channels, setChannels] = useState(['email', 'sms']),
+    [busy, setBusy] = useState(false),
+    [opening, setOpening] = useState(''),
+    [matches, setMatches] = useState<WaitingEntry[] | null>(null);
+  async function join(e: FormEvent) {
+    e.preventDefault();
+    if (!channels.length) return notify('Choose Email, SMS, or both');
+    setBusy(true);
+    await run(async () => {
+      await mutate('/waiting-list', 'POST', {
+        patientId,
+        providerId: providerId || null,
+        locationId: locationId || null,
+        dateFrom,
+        dateTo,
+        timePreference,
+        channels,
+      });
+      await resource.reload();
+    }, 'Added to cancellation list');
+    setBusy(false);
+  }
+  async function cancel(id: string) {
+    if (!window.confirm('Remove this cancellation-list request?')) return;
+    setBusy(true);
+    await run(async () => {
+      await mutate(`/waiting-list/${id}/cancel`, 'PATCH');
+      await resource.reload();
+    }, 'Cancellation-list request removed');
+    setBusy(false);
+  }
+  async function match() {
+    if (!opening) return notify('Choose a cancelled appointment');
+    setBusy(true);
+    await run(async () =>
+      setMatches(
+        (await api<{ matches: WaitingEntry[] }>(`/waiting-list/matches/${opening}`)).matches,
+      ),
+    );
+    setBusy(false);
+  }
+  async function send(id: string) {
+    if (!window.confirm('Send this cancellation opening by Email/SMS now?')) return;
+    setBusy(true);
+    await run(async () => {
+      const result = await mutate<{ deliveries: Delivery[] }>(
+        `/waiting-list/${id}/notify`,
+        'POST',
+        { appointmentId: opening },
+      );
+      notify(deliverySummary(result.deliveries));
+      await resource.reload();
+    });
+    setBusy(false);
+  }
+  return (
+    <section>
+      <Heading
+        title={admin ? 'Waiting list' : 'Cancellation list'}
+        subtitle="Get notified when a suitable cancellation appointment becomes available."
+      />
+      <div className="grid two">
+        <Card title={admin ? 'Add patient to cancellation list' : 'Join cancellation list'}>
+          <form onSubmit={join}>
+            <fieldset disabled={busy} className="form-reset">
+              <div className="form-grid">
+                {admin && <PatientSelect value={patientId} onChange={setPatient} />}
+                <ProviderSelect value={providerId} onChange={setProvider} optional />
+                <Field label="Location">
+                  <select value={locationId} onChange={(e) => setLocation(e.target.value)}>
+                    <option value="">Any location</option>
+                    {data.locations.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="From date">
+                  <input
+                    required
+                    type="date"
+                    min={today()}
+                    value={dateFrom}
+                    onChange={(e) => setFrom(e.target.value)}
+                  />
+                </Field>
+                <Field label="Until date">
+                  <input
+                    required
+                    type="date"
+                    min={dateFrom}
+                    value={dateTo}
+                    onChange={(e) => setTo(e.target.value)}
+                  />
+                </Field>
+                <Field label="Preferred time">
+                  <select value={timePreference} onChange={(e) => setPreference(e.target.value)}>
+                    <option value="any">Any time</option>
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                  </select>
+                </Field>
+                <Channels value={channels} onChange={setChannels} />
+              </div>
+              <button className="btn space-top">
+                {admin ? 'Add patient' : 'Join cancellation list'}
+              </button>
+            </fieldset>
+          </form>
+        </Card>
+        <Card title={admin ? 'Match a cancellation opening' : 'How it works'}>
+          {admin ? (
+            <>
+              <Field label="Cancelled appointment">
+                <select
+                  value={opening}
+                  onChange={(e) => {
+                    setOpening(e.target.value);
+                    setMatches(null);
+                  }}
+                >
+                  <option value="">Choose an opening</option>
+                  {data.appointments
+                    .filter(
+                      (a) =>
+                        ['Cancelled', 'No-show'].includes(a.status) &&
+                        a.appointment_date >= today(),
+                    )
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.provider_name} · {a.appointment_date} {a.appointment_time} ·{' '}
+                        {a.location_name || a.mode}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+              <button className="btn space-top" disabled={busy} onClick={() => void match()}>
+                Find matches
+              </button>
+              {matches &&
+                (matches.length ? (
+                  matches.map((m) => (
+                    <div className="detail-row" key={m.id}>
+                      <span>
+                        {m.patient_name}
+                        <small className="sub block">{m.notification_channels.join(' + ')}</small>
+                      </span>
+                      <button disabled={busy} className="btn" onClick={() => void send(m.id)}>
+                        Notify
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <Empty>No patients match this opening.</Empty>
+                ))}
+            </>
+          ) : (
+            <div className="notice">
+              Choose your preferred dates, provider and notification channels. A notification does
+              not reserve a slot; sign in to book it while it is available.
+            </div>
+          )}
+        </Card>
+      </div>
+      <Card title="Requests" className="space-top">
+        <ResourceState
+          loading={resource.loading}
+          error={resource.error}
+          retry={() => void resource.reload()}
+        />
+        {resource.value?.entries.length ? (
+          <div className="dashboard-table">
+            <table>
+              <thead>
+                <tr>
+                  {admin && <th>Patient</th>}
+                  <th>Provider / location</th>
+                  <th>Dates</th>
+                  <th>Preferred time</th>
+                  <th>Channels</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {resource.value.entries.map((w) => (
+                  <tr key={w.id}>
+                    {admin && <td>{w.patient_name}</td>}
+                    <td>
+                      {w.provider_name || 'Any provider'}
+                      <div className="sub">{w.location_name || 'Any location'}</div>
+                    </td>
+                    <td>
+                      {w.date_from.slice(0, 10)} – {w.date_to.slice(0, 10)}
+                    </td>
+                    <td>{w.time_preference}</td>
+                    <td>{w.notification_channels.join(' + ')}</td>
+                    <td>
+                      <StatusPill status={w.status} />
+                    </td>
+                    <td>
+                      {w.status === 'active' && (
+                        <button
+                          className="btn secondary small"
+                          disabled={busy}
+                          onClick={() => void cancel(w.id)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          !resource.loading && !resource.error && <Empty>No waiting-list requests.</Empty>
+        )}
+      </Card>
+    </section>
+  );
 }

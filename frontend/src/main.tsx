@@ -8,8 +8,36 @@ import './styles/original.css';
 import './styles/app.css';
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(error: Error, info: ErrorInfo) { console.error('Page failed to render', error, info.componentStack); }
-  render() { return this.state.failed ? <div className="loading-screen"><div className="card"><h2>Unable to display this page</h2><p>Please reload the page and try again.</p><button className="btn" onClick={() => window.location.reload()}>Reload</button></div></div> : this.props.children; }
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Page failed to render', error, info.componentStack);
+  }
+  render() {
+    return this.state.failed ? (
+      <div className="loading-screen">
+        <div className="card">
+          <h2>Unable to display this page</h2>
+          <p>Please reload the page and try again.</p>
+          <button className="btn" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      </div>
+    ) : (
+      this.props.children
+    );
+  }
 }
-createRoot(document.getElementById('root')!).render(<ErrorBoundary><BrowserRouter><AppProvider><AppointmentProvider><Router /></AppointmentProvider></AppProvider></BrowserRouter></ErrorBoundary>);
+createRoot(document.getElementById('root')!).render(
+  <ErrorBoundary>
+    <BrowserRouter>
+      <AppProvider>
+        <AppointmentProvider>
+          <Router />
+        </AppointmentProvider>
+      </AppProvider>
+    </BrowserRouter>
+  </ErrorBoundary>,
+);

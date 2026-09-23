@@ -6,7 +6,12 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(tokenKey);
 }
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message); }
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
 }
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
