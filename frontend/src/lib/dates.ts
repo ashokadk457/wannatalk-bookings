@@ -5,7 +5,10 @@ export function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 export const today = () => isoDate(new Date());
-export const dateOf = (value: string) => new Date(`${value.slice(0, 10)}T00:00:00`);
+export const dateOf = (value: string) => {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
 export const shortTime = (value: string) => value.slice(0, 5);
 export const formatDate = (value: string) =>
   dateOf(value).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });

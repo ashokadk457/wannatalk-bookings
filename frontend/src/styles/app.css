@@ -328,9 +328,9 @@
   border-color: #0c9b68;
 }
 .month-event.unavailable {
-  background: #edf2f6;
-  color: #607082;
-  border-color: #8a9bad;
+  background: #ffe4e4;
+  color: #b91c1c;
+  border-color: #df3333;
 }
 .month-event.past {
   background: #ffe4e4;
@@ -400,6 +400,12 @@ button:disabled {
 button.week-event:disabled,
 button.month-event:disabled {
   opacity: 1;
+}
+button.week-event.unavailable,
+button.month-event.unavailable {
+  background: #ffe4e4;
+  color: #b91c1c;
+  border-color: #df3333;
 }
 .mobile-app-nav {
   display: none;
