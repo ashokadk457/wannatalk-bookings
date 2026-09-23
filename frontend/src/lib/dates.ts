@@ -55,7 +55,6 @@ export function slotProblem(
 ) {
   if (isPast(date, time)) return 'Past dates and times cannot be booked';
   if (!provider.is_active) return 'This provider is inactive';
-  if (!provider.is_online) return 'This provider is currently offline';
   const availability = provider.availability.find((a) => a.day_of_week === dateOf(date).getDay());
   const start = minutes(time),
     end = start + provider.default_duration_minutes;

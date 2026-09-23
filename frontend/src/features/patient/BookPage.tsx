@@ -32,7 +32,7 @@ export default function BookPage() {
       window.clearInterval(timer);
     };
   }, [refresh, run]);
-  const providers = data.providers.filter((p) => p.is_active && p.is_online && p.locations.includes(location)),
+  const providers = data.providers.filter((p) => p.is_active && p.locations.includes(location)),
     selected = providers.find((p) => p.id === providerId);
   async function confirm() {
     if (!selected || !location || !time) return notify('Choose location, provider, date and time');
@@ -125,11 +125,11 @@ export default function BookPage() {
               }}
             />
           </Field>
-          <div className="notice space-top">
+          <div className={`notice space-top ${selected && !selected.is_online ? 'offline-info' : ''}`}>
             {date < today()
               ? 'Past dates cannot be booked.'
               : selected
-                ? `${selected.full_name} selected. Provider is online and accepting bookings.`
+                ? `${selected.full_name} selected. ${selected.is_online ? 'Provider is online and accepting bookings.' : 'Provider is offline, but booking slots remain available.'}`
                 : 'Select a green slot to choose a provider and time.'}
           </div>
         </Card>

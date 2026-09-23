@@ -407,6 +407,11 @@ button.month-event.unavailable {
   color: #b91c1c;
   border-color: #df3333;
 }
+.notice.offline-info {
+  background: #fff7e6;
+  border-color: #f4c46a;
+  color: #8a5300;
+}
 .mobile-app-nav {
   display: none;
 }

@@ -48,11 +48,6 @@ async function assertProviderAvailable(client, { providerId, appointmentDate, ap
     error.statusCode = 404;
     throw error;
   }
-  if (!provider.rows[0].is_online) {
-    const error = new Error('This provider is currently offline');
-    error.statusCode = 409;
-    throw error;
-  }
 
   const weeklyAvailability = await client.query(
     `SELECT 1 FROM provider_availability
