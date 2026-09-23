@@ -339,15 +339,43 @@
 }
 .provider-status-toggle {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 12px;
-}
-.provider-status-toggle input {
-  width: auto;
-}
-.provider-status-toggle small {
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 16px;
+  background: rgba(255,255,255,.07);
   color: #fff;
+}
+.provider-status-heading { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .68; font-weight: 800; }
+.provider-status-pill { display: inline-flex; align-items: center; gap: 7px; width: fit-content; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 800; }
+.provider-status-pill.online { background: rgba(62, 211, 145, .18); color: #8ff0c3; }
+.provider-status-pill.offline { background: rgba(255, 255, 255, .12); color: #d7e1ec; }
+.provider-status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.provider-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; font-weight: 700; }
+.provider-status-toggle input {
+  width: 42px;
+  height: 24px;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 3px;
+  background: rgba(255,255,255,.25);
+  cursor: pointer;
+  transition: background .2s ease;
+}
+.provider-status-toggle input::before { content: ''; display: block; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s ease; }
+.provider-status-toggle input:checked { background: #26b978; }
+.provider-status-toggle input:checked::before { transform: translateX(18px); }
+.provider-status-toggle input:disabled { opacity: .6; cursor: wait; }
+.provider-status-toggle small {
+  color: rgba(255,255,255,.62);
+  font-size: 11px;
+}
+.auth-mobile-logo { display: none; }
+@media (max-width: 780px) {
+  .auth-mobile-logo { display: block; width: min(190px, 65%); height: auto; margin: 0 auto 24px; }
+  .auth-panel { padding: 26px 20px; }
+  .provider-status-toggle { padding: 12px; }
 }
 .week-shell.reference-calendar.day-shell .week-board {
   grid-template-columns: 78px minmax(280px, 1fr);

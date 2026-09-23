@@ -157,15 +157,22 @@ export default function Layout({ role }: { role: Role }) {
         </nav>
         {provider && (
           <label className="provider-status-toggle">
-            <span>{provider.is_online ? '● Online' : '○ Offline'}</span>
-            <input
-              type="checkbox"
-              aria-label="Provider online status"
-              checked={pendingOnline ?? provider.is_online}
-              disabled={busy}
-              onChange={(e) => void toggleOnline(e.target.checked)}
-            />
-            <small>Patients can book while you are offline.</small>
+            <span className="provider-status-heading">Availability</span>
+            <span className={`provider-status-pill ${provider.is_online ? 'online' : 'offline'}`}>
+              <span className="provider-status-dot" aria-hidden="true" />
+              {provider.is_online ? 'Online' : 'Offline'}
+            </span>
+            <span className="provider-switch-row">
+              <span>{provider.is_online ? 'Accepting online bookings' : 'Not accepting bookings'}</span>
+              <input
+                type="checkbox"
+                aria-label="Provider online status"
+                checked={pendingOnline ?? provider.is_online}
+                disabled={busy}
+                onChange={(e) => void toggleOnline(e.target.checked)}
+              />
+            </span>
+            <small>Update your availability anytime.</small>
           </label>
         )}
         <div className="provider-card">

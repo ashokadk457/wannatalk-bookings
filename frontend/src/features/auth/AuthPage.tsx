@@ -124,6 +124,11 @@ export default function AuthPage() {
           <small>Copyright WannaTalk™ 2026</small>
         </section>
         <section className="auth-panel">
+          <img
+            className="auth-mobile-logo"
+            src="/assets/logo-transparent.png"
+            alt="WannaTalk — You are not alone"
+          />
           {resetToken ? (
             <form onSubmit={reset}>
               <h2>Create new password</h2>
