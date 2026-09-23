@@ -55,7 +55,7 @@ export default function DashboardPage() {
           note="Follow-up suggested"
         />
       </div>
-      <div className="grid two space-top">
+      <div className="grid two space-top flex-box">
         <Card title={admin ? 'Upcoming appointments' : "Today's appointments"}>
           <AppointmentTable appointments={admin ? upcoming : todays} />
         </Card>
