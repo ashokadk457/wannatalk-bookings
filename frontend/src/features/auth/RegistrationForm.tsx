@@ -302,7 +302,7 @@ export default function RegistrationForm({
                 <label>
                   <input required type="checkbox" checked={form.patientConsentAccepted} onChange={(event) => handleLegalCheckbox('consent', event)} />
                   {role === 'patient' ? 'I confirm that I have read, understood and accepted the ' : 'I agree to the '}
-                  <a href={LEGAL_DOCUMENT_HREF[role === 'provider' ? 'provider' : 'patient']} onClick={(event) => { event.preventDefault(); setActiveLegalModal('consent'); }}>
+                  <a href='#' onClick={(event) => { event.preventDefault(); setActiveLegalModal('consent'); }}>
                     {role === 'patient' ? 'Patient Consent, Terms and Conditions and Privacy Policy' : 'Terms and Conditions'}
                   </a>.
                 </label>
