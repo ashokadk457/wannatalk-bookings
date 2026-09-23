@@ -5,6 +5,86 @@ import { homePath, navigation } from './navigation';
 import { initials } from '../lib/dates';
 import { mutate } from '../services/api';
 import type { Role } from '../types';
+
+const mobileNavigation: Record<Role, { path: string; label: string; icon: string }[]> = {
+  patient: [
+    { path: 'book', label: 'Book', icon: 'book' },
+    { path: 'appointments', label: 'Bookings', icon: 'calendar' },
+    { path: 'profile', label: 'Profile', icon: 'profile' },
+  ],
+  provider: [
+    { path: 'dashboard', label: 'Home', icon: 'home' },
+    { path: 'calendar', label: 'Calendar', icon: 'calendar' },
+    { path: 'availability', label: 'Slots', icon: 'clock' },
+    { path: 'patients', label: 'Patients', icon: 'patients' },
+  ],
+  admin: [
+    { path: 'overview', label: 'Home', icon: 'home' },
+    { path: 'registrations', label: 'Registrations', icon: 'register' },
+    { path: 'availability', label: 'Slots', icon: 'clock' },
+    { path: 'audit', label: 'Audit', icon: 'audit' },
+  ],
+};
+
+function MobileIcon({ name }: { name: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    home: (
+      <>
+        <path d="m4 11.5 8-6.5 8 6.5" />
+        <path d="M6 10.5V19h12v-8.5" />
+      </>
+    ),
+    book: (
+      <>
+        <path d="M5 4h11a3 3 0 0 1 3 3v13H7a2 2 0 0 1-2-2V4Z" />
+        <path d="M8 9h8M12 6v6" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="4" y="5" width="16" height="15" rx="2" />
+        <path d="M8 3v4M16 3v4M4 10h16M8 14h2M14 14h2" />
+      </>
+    ),
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 8v4l3 2" />
+      </>
+    ),
+    patients: (
+      <>
+        <circle cx="9" cy="9" r="3" />
+        <path d="M4 19c.5-3.2 2.1-5 5-5s4.5 1.8 5 5M15 8.5a2.5 2.5 0 0 1 0 5M16 14.5c2.2.5 3.4 2 3.8 4.5" />
+      </>
+    ),
+    profile: (
+      <>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20c.6-4.2 2.9-6.5 7-6.5s6.4 2.3 7 6.5" />
+      </>
+    ),
+    register: (
+      <>
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path d="M12 8v8M8 12h8" />
+      </>
+    ),
+    audit: (
+      <>
+        <path d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="M9 8h6M9 12h6M9 16h4" />
+      </>
+    ),
+    menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  };
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  );
+}
+
 export default function Layout({ role }: { role: Role }) {
   const { user, data, logout, run, refresh } = useApp(),
     location = useLocation(),
@@ -31,6 +111,8 @@ export default function Layout({ role }: { role: Role }) {
   if (user.role !== role) return <Navigate to={homePath(user.role)} replace />;
   const current = navigation[role].find((item) => location.pathname.endsWith(`/${item.path}`));
   const provider = data.providers.find((p) => p.id === user.entityId);
+  const mobileItems = mobileNavigation[role];
+  const mobilePathIsPrimary = mobileItems.some((item) => item.path === current?.path);
   const dashboard = current?.path === 'dashboard' || current?.path === 'overview';
   const title = dashboard
     ? role === 'provider'
@@ -146,6 +228,39 @@ export default function Layout({ role }: { role: Role }) {
         </header>
         <Outlet />
       </main>
+      <nav className="mobile-app-nav" aria-label={`${role} mobile navigation`}>
+        {mobileItems.map((item) => {
+          const active = current?.path === item.path;
+          return (
+            <button
+              type="button"
+              key={item.path}
+              className={active ? 'active' : ''}
+              aria-current={active ? 'page' : undefined}
+              aria-label={item.label}
+              onClick={() => navigate(`/${role}/${item.path}`)}
+            >
+              <span className="m-icon">
+                <MobileIcon name={item.icon} />
+              </span>
+              <span className="m-label">{item.label}</span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className={`mobile-more-btn${!mobilePathIsPrimary || drawer ? ' active' : ''}`}
+          aria-label={drawer ? 'Close menu' : 'Open menu'}
+          aria-expanded={drawer}
+          aria-controls="app-navigation"
+          onClick={() => setDrawer((value) => !value)}
+        >
+          <span className="m-icon">
+            <MobileIcon name="menu" />
+          </span>
+          <span className="m-label">Menu</span>
+        </button>
+      </nav>
     </div>
   );
 }

@@ -316,6 +316,42 @@ test('waiting-list join, matching and notification', async ({ page }) => {
   await expect(page.locator('.toast')).toContainText('1 delivered');
   expect(api.unexpected).toEqual([]);
 });
+
+for (const mobileCase of [
+  {
+    role: 'provider' as const,
+    start: '/provider/dashboard',
+    label: 'Calendar',
+    route: /provider\/calendar/,
+  },
+  {
+    role: 'admin' as const,
+    start: '/admin/overview',
+    label: 'Registrations',
+    route: /admin\/registrations/,
+  },
+]) {
+  test(`${mobileCase.role} mobile dock exposes primary routes and overflow menu`, async ({
+    page,
+  }) => {
+    await mockApi(page, mobileCase.role);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(mobileCase.start);
+    const dock = page.getByRole('navigation', {
+      name: `${mobileCase.role} mobile navigation`,
+    });
+    await expect(dock).toBeVisible();
+    await expect(dock.getByRole('button')).toHaveCount(5);
+    await dock.getByRole('button', { name: mobileCase.label, exact: true }).click();
+    await expect(page).toHaveURL(mobileCase.route);
+    await dock.getByRole('button', { name: 'Open menu' }).click();
+    await expect(
+      page.getByRole('navigation', { name: `${mobileCase.role} navigation` }),
+    ).toBeVisible();
+    await page.locator('.mobile-drawer-backdrop').click({ position: { x: 380, y: 200 } });
+  });
+}
+
 test('role guard, mobile drawer, and visual screenshots', async ({ page }) => {
   await mockApi(page, 'patient');
   await page.goto('/admin/registrations');
@@ -327,10 +363,29 @@ test('role guard, mobile drawer, and visual screenshots', async ({ page }) => {
     animations: 'disabled',
   });
   await page.setViewportSize({ width: 390, height: 844 });
+  const mobileNav = page.getByRole('navigation', { name: 'patient mobile navigation' });
+  await expect(mobileNav).toBeVisible();
+  await expect(mobileNav.getByRole('button', { name: 'Book', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await mobileNav.getByRole('button', { name: 'Bookings' }).click();
+  await expect(page).toHaveURL(/patient\/appointments/);
+  await mobileNav.getByRole('button', { name: 'Profile' }).click();
+  await expect(page).toHaveURL(/patient\/profile/);
+  await mobileNav.getByRole('button', { name: 'Book', exact: true }).click();
+  await expect(page).toHaveURL(/patient\/book/);
+  await mobileNav.getByRole('button', { name: 'Open menu' }).click();
+  await expect(page.getByRole('button', { name: 'Close menu' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  await page.locator('.mobile-drawer-backdrop').click({ position: { x: 380, y: 200 } });
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  const drawerNav = page.getByRole('navigation', { name: 'patient navigation' });
+  await expect(drawerNav).toBeVisible();
   await page
-    .getByRole('navigation')
+    .getByRole('navigation', { name: 'patient navigation' })
     .getByRole('button', { name: /My Profile/ })
     .click();
   await expect(page).toHaveURL(/patient\/profile/);
