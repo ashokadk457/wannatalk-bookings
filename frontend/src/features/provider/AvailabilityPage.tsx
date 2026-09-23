@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
-import { Card, Heading, Field } from '../../components/ui';
+import { Card, Field } from '../../components/ui';
 import { days, minutes, shortTime } from '../../lib/dates';
 import { mutate } from '../../services/api';
 export default function AvailabilityPage() {
@@ -35,7 +35,6 @@ export default function AvailabilityPage() {
   }
   return (
     <section>
-      <Heading title="Availability" subtitle="Choose the hours patients may book with you." />
       <Card>
         <div className="notice">
           Patients will only see booking times that fall within these hours and are not already

@@ -1,14 +1,18 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
-import { Card, Field, Heading, LocationFields } from '../../components/ui';
-import { mutate } from '../../services/api';
+import { Card, Field, LocationFields } from '../../components/ui';
+import { api, mutate } from '../../services/api';
 import { doctorCategories, doctorSubCategories } from '../../data/doctorCategories';
+import { countries } from '../../data/countries';
 export default function ProfilePage() {
   const { user, data, run, refresh, notify } = useApp();
   const provider = data.providers.find((p) => p.id === user?.entityId);
+  const [patientDetails, setPatientDetails] = useState<any>(null);
+  useEffect(() => { if (!provider && user?.role === 'patient') void api<any>('/patients/me').then((r) => setPatientDetails(r.patient)); }, [provider, user?.role]);
   const [name, setName] = useState(user?.fullName || ''),
-    [firstName, setFirstName] = useState(provider ? (user?.fullName || '').trim().split(/\s+/)[0] || '' : ''),
-    [lastName, setLastName] = useState(provider ? (user?.fullName || '').trim().split(/\s+/).slice(1).join(' ') : ''),
+    [firstName, setFirstName] = useState((user?.fullName || '').trim().split(/\s+/)[0] || ''),
+    [lastName, setLastName] = useState((user?.fullName || '').trim().split(/\s+/).slice(1).join(' ')),
+    [patientTitle, setPatientTitle] = useState(''), [identityDocument, setIdentityDocument] = useState(''), [dateOfBirth, setDateOfBirth] = useState(''), [nationality, setNationality] = useState('ZA'),
     [mobile, setMobile] = useState(user?.mobile || ''),
     [contact, setContact] = useState(
       (['Email', 'SMS', 'Both'].includes(user?.preferredContact || '')
@@ -27,23 +31,27 @@ export default function ProfilePage() {
     [bio, setBio] = useState(provider?.bio || ''),
     [locations, setLocations] = useState(provider?.locations || []),
     [busy, setBusy] = useState(false);
+  useEffect(() => { if (patientDetails) { setPatientTitle(patientDetails.title || ''); setIdentityDocument(patientDetails.identity_document || ''); setDateOfBirth(patientDetails.date_of_birth?.slice(0,10) || ''); setNationality(countries.some((country) => country.code === patientDetails.nationality) ? patientDetails.nationality : 'ZA'); } }, [patientDetails]);
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (provider && !locations.length) return notify('Choose at least one practice location');
     setBusy(true);
     await run(async () => {
       await mutate(provider ? `/providers/${provider.id}/profile` : '/patients/me', 'PATCH', {
-        fullName: provider ? `${firstName.trim()} ${lastName.trim()}`.trim() : name,
+        fullName: `${firstName.trim()} ${lastName.trim()}`.trim() || name,
         mobile,
         preferredContact: contact,
         professionalTitle: title,
-        title: providerTitle,
         specialty,
         subSpecialties,
         medicalRegistrationNumber,
         practiceNumber,
         practiceSetting,
         privatePracticeName,
+        title: provider ? providerTitle : patientTitle,
+        identityDocument,
+        dateOfBirth,
+        nationality,
         durationMinutes: duration,
         bio,
         locations,
@@ -54,23 +62,22 @@ export default function ProfilePage() {
   }
   return (
     <section>
-      <Heading
-        title={provider ? 'Provider profile' : 'My profile'}
-        subtitle={
-          provider
-            ? 'Details patients see when choosing a provider.'
-            : 'Your contact details used for bookings.'
-        }
-      />
       <Card>
         <form onSubmit={submit}>
           <fieldset className="form-reset" disabled={busy}>
             <div className="form-grid">
               {provider ? <>
-                <Field label="Title"><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
+                <Field label="Title" full><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
                 <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
                 <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
-              </> : <Field label="Name"><input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /></Field>}
+              </> : <>
+                <Field label="Title"><select value={patientTitle} onChange={(e) => setPatientTitle(e.target.value)}><option value="">Select title</option>{['Mr.','Mrs.','Ms.','Miss','Dr.','Prof.','Mx.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
+                <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
+                <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
+                <Field label="South African ID / Passport No."><input value={identityDocument} onChange={(e) => setIdentityDocument(e.target.value)} /></Field>
+                <Field label="Date of Birth"><input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} /></Field>
+                <Field label="Nationality"><select value={nationality} onChange={(e) => setNationality(e.target.value)}>{countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
+              </>}
               <Field label="Email">
                 <input type="email" disabled value={user?.email || ''} />
               </Field>

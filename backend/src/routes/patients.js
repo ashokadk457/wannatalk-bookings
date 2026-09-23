@@ -4,6 +4,19 @@ import { authRequired } from '../middleware/authRequired.js';
 
 export const patientsRouter = Router();
 
+patientsRouter.get('/me', authRequired(['patient']), async (req, res) => {
+  const result = await query(
+    `SELECT pat.id, u.full_name, u.email, u.mobile, u.preferred_contact, u.is_active,
+            pat.title, pat.first_name, pat.last_name, pat.date_of_birth, pat.nationality,
+            pgp_sym_decrypt(pat.identity_document_encrypted, $2) AS identity_document
+     FROM patients pat JOIN app_users u ON u.id = pat.user_id
+     WHERE u.id = $1`,
+    [req.user.id, process.env.PII_ENCRYPTION_KEY || process.env.JWT_SECRET]
+  );
+  if (!result.rows[0]) return res.status(404).json({ error: 'Patient profile not found' });
+  res.json({ patient: result.rows[0] });
+});
+
 patientsRouter.get('/', authRequired(), async (req, res) => {
   const params = [];
   let where = '';
@@ -35,6 +48,11 @@ patientsRouter.patch('/me', authRequired(['patient']), async (req, res) => {
   const fullName = String(req.body.fullName || '').trim().slice(0, 100);
   const mobile = String(req.body.mobile || '').trim().slice(0, 30);
   const preferredContact = String(req.body.preferredContact || 'Email').trim();
+  const title = String(req.body.title || '').trim().slice(0, 20);
+  const firstName = String(req.body.firstName || '').trim().slice(0, 50);
+  const lastName = String(req.body.lastName || '').trim().slice(0, 50);
+  const dateOfBirth = String(req.body.dateOfBirth || '').trim() || null;
+  const nationality = String(req.body.nationality || '').trim().slice(0, 80);
   if (!fullName) return res.status(400).json({ error: 'Full name is required' });
   if (!['Email', 'SMS', 'Both'].includes(preferredContact)) return res.status(400).json({ error: 'Invalid preferred contact method' });
   const patient = await withTransaction(async (client) => {
@@ -55,6 +73,14 @@ patientsRouter.patch('/me', authRequired(['patient']), async (req, res) => {
        WHERE id = $4
        RETURNING full_name, email, mobile, preferred_contact`,
       [fullName, mobile, preferredContact, current.user_id]
+    );
+    const encryptionKey = process.env.PII_ENCRYPTION_KEY || process.env.JWT_SECRET;
+    await client.query(
+      `UPDATE patients SET title = $1, first_name = $2, last_name = $3, date_of_birth = $4,
+       nationality = $5,
+       identity_document_encrypted = CASE WHEN NULLIF($6, '') IS NULL THEN identity_document_encrypted ELSE pgp_sym_encrypt($6, $7, 'cipher-algo=aes256') END,
+       updated_at = now() WHERE id = $8`,
+      [title, firstName, lastName, dateOfBirth, nationality, String(req.body.identityDocument || '').trim(), encryptionKey, current.id]
     );
     if (mobileChanged) await client.query(`UPDATE trusted_devices SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [current.user_id]);
     await client.query(

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
-import { Card, Empty, Field, Heading, StatusPill } from '../../components/ui';
+import { Card, Empty, Field, StatusPill } from '../../components/ui';
 import { useResource } from '../../hooks/useResource';
 import { addDays, today } from '../../lib/dates';
 import { api, mutate } from '../../services/api';
@@ -73,10 +73,6 @@ export default function WaitingPage() {
   }
   return (
     <section>
-      <Heading
-        title={admin ? 'Waiting list' : 'Cancellation list'}
-        subtitle="Get notified when a suitable cancellation appointment becomes available."
-      />
       <div className="grid two">
         <Card title={admin ? 'Add patient to cancellation list' : 'Join cancellation list'}>
           <form onSubmit={join}>

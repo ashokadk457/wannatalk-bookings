@@ -1,5 +1,5 @@
 import { useApp } from '../../app/AppContext';
-import { Card, Empty, Heading } from '../../components/ui';
+import { Card, Empty } from '../../components/ui';
 import Calendar from '../appointments/Calendar';
 import AppointmentTable from '../appointments/AppointmentTable';
 export default function AppointmentsPage() {
@@ -11,7 +11,6 @@ export default function AppointmentsPage() {
   );
   return (
     <section>
-      <Heading title="My appointments" subtitle="Upcoming and previous sessions." />
       {appointments.length ? (
         <>
           <Calendar appointments={appointments} />

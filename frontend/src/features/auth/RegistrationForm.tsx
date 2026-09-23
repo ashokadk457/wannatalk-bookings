@@ -134,7 +134,7 @@ export default function RegistrationForm({
           <div className="form-grid">
             {role === 'patient' ? (
               <>
-                <Field label="Title">
+                <Field label="Title" full>
                   <select
                     required
                     value={form.title}
@@ -239,7 +239,7 @@ export default function RegistrationForm({
             )}
             {role === 'provider' && (
               <>
-                <Field label="Title">
+                <Field label="Title" full>
                   <select required value={form.title} onChange={(e) => set('title', e.target.value)}>
                     <option value="">Select title</option><option>Dr.</option><option>Prof.</option><option>Mr.</option><option>Ms.</option>
                   </select>
