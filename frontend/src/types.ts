@@ -43,6 +43,7 @@ export interface Provider {
   mobile: string | null;
   is_active: boolean;
   professional_title: string;
+  title?: string;
   specialty?: string;
   sub_specialties?: string[];
   medical_registration_number?: string;

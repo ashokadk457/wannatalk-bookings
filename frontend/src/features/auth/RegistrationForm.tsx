@@ -257,7 +257,22 @@ export default function RegistrationForm({
                 <Field label="First Name"><input required value={form.fullName.split(' ')[0] || ''} onChange={(e) => set('fullName', `${e.target.value} ${form.fullName.split(' ').slice(1).join(' ')}`.trim())} /></Field>
                 <Field label="Last Name"><input required value={form.fullName.split(' ').slice(1).join(' ')} onChange={(e) => set('fullName', `${form.fullName.split(' ')[0] || ''} ${e.target.value}`.trim())} /></Field>
                 <Field label="Specialty (Optional)"><select value={form.specialty} onChange={(e) => { set('specialty', e.target.value); set('subSpecialties', []); }}><option value="">Select specialty</option>{doctorCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-                <Field label="Sub Specialty (Optional)"><select multiple value={form.subSpecialties} onChange={(e) => set('subSpecialties', Array.from(e.target.selectedOptions, (o) => o.value))}>{doctorSubCategories.filter((s) => s.categoryId === form.specialty).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+                <Field label="Sub Specialty (Optional)">
+                  <div className="specialty-picker">
+                    {!form.specialty ? <span className="sub">Select a specialty first.</span> : (
+                      <div className="specialty-options">
+                        {doctorSubCategories.filter((s) => s.categoryId === form.specialty).map((s) => {
+                          const checked = form.subSpecialties.includes(s.id);
+                          return <label className={`specialty-option ${checked ? 'selected' : ''}`} key={s.id}>
+                            <input type="checkbox" checked={checked} onChange={() => set('subSpecialties', checked ? form.subSpecialties.filter((id) => id !== s.id) : [...form.subSpecialties, s.id])} />
+                            <span>{s.name}</span>
+                          </label>;
+                        })}
+                      </div>
+                    )}
+                    {form.subSpecialties.length > 0 && <div className="selected-specialties">{form.subSpecialties.map((id) => <span className="specialty-chip" key={id}>{doctorSubCategories.find((s) => s.id === id)?.name}<button type="button" aria-label={`Remove ${doctorSubCategories.find((s) => s.id === id)?.name}`} onClick={() => set('subSpecialties', form.subSpecialties.filter((value) => value !== id))}>×</button></span>)}</div>}
+                  </div>
+                </Field>
                 <Field label="Medical Registration Number (Optional)"><input maxLength={80} value={form.medicalRegistrationNumber} onChange={(e) => set('medicalRegistrationNumber', e.target.value)} /></Field>
                 <Field label="Practice No (Optional)"><input maxLength={80} value={form.practiceNumber} onChange={(e) => set('practiceNumber', e.target.value)} /></Field>
                 <Field label="Practice Setting (Optional)"><select value={form.practiceSetting} onChange={(e) => set('practiceSetting', e.target.value)}><option value="">Select setting</option><option>Private Practice</option><option>Hospital</option><option>Clinic</option><option>Community Health Centre</option><option>Academic / Teaching</option></select></Field>

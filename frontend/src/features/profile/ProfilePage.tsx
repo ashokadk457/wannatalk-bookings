@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, Heading, LocationFields } from '../../components/ui';
 import { mutate } from '../../services/api';
+import { doctorCategories, doctorSubCategories } from '../../data/doctorCategories';
 export default function ProfilePage() {
   const { user, data, run, refresh, notify } = useApp();
   const provider = data.providers.find((p) => p.id === user?.entityId);
@@ -13,6 +14,13 @@ export default function ProfilePage() {
         : 'Email') || 'Email',
     );
   const [title, setTitle] = useState(provider?.professional_title || ''),
+    [providerTitle, setProviderTitle] = useState(provider?.title || ''),
+    [specialty, setSpecialty] = useState(provider?.specialty || ''),
+    [subSpecialties, setSubSpecialties] = useState(provider?.sub_specialties || []),
+    [medicalRegistrationNumber, setMedicalRegistrationNumber] = useState(provider?.medical_registration_number || ''),
+    [practiceNumber, setPracticeNumber] = useState(provider?.practice_number || ''),
+    [practiceSetting, setPracticeSetting] = useState(provider?.practice_setting || ''),
+    [privatePracticeName, setPrivatePracticeName] = useState(provider?.private_practice_name || ''),
     [duration, setDuration] = useState(provider?.default_duration_minutes || 60),
     [bio, setBio] = useState(provider?.bio || ''),
     [locations, setLocations] = useState(provider?.locations || []),
@@ -27,6 +35,13 @@ export default function ProfilePage() {
         mobile,
         preferredContact: contact,
         professionalTitle: title,
+        title: providerTitle,
+        specialty,
+        subSpecialties,
+        medicalRegistrationNumber,
+        practiceNumber,
+        practiceSetting,
+        privatePracticeName,
         durationMinutes: duration,
         bio,
         locations,
@@ -72,6 +87,13 @@ export default function ProfilePage() {
                       onChange={(e) => setTitle(e.target.value)}
                     />
                   </Field>
+                  <Field label="Title"><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
+                  <Field label="Specialty (Optional)"><select value={specialty} onChange={(e) => { setSpecialty(e.target.value); setSubSpecialties([]); }}><option value="">Select specialty</option>{doctorCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+                  <Field label="Sub Specialty (Optional)"><div className="specialty-picker"><div className="specialty-options">{doctorSubCategories.filter((s) => s.categoryId === specialty).map((s) => <label className={`specialty-option ${subSpecialties.includes(s.id) ? 'selected' : ''}`} key={s.id}><input type="checkbox" checked={subSpecialties.includes(s.id)} onChange={() => setSubSpecialties(subSpecialties.includes(s.id) ? subSpecialties.filter((id) => id !== s.id) : [...subSpecialties, s.id])} /><span>{s.name}</span></label>)}</div></div></Field>
+                  <Field label="Medical Registration Number (Optional)"><input value={medicalRegistrationNumber} onChange={(e) => setMedicalRegistrationNumber(e.target.value)} /></Field>
+                  <Field label="Practice No (Optional)"><input value={practiceNumber} onChange={(e) => setPracticeNumber(e.target.value)} /></Field>
+                  <Field label="Practice Setting (Optional)"><select value={practiceSetting} onChange={(e) => setPracticeSetting(e.target.value)}><option value="">Select setting</option>{['Private Practice','Hospital','Clinic','Community Health Centre','Academic / Teaching'].map((v) => <option key={v}>{v}</option>)}</select></Field>
+                  <Field label="Private Practice Name (Optional)"><input value={privatePracticeName} onChange={(e) => setPrivatePracticeName(e.target.value)} /></Field>
                   <Field label="Default session duration">
                     <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
                       {[45, 60, 90].map((n) => (

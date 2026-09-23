@@ -6,8 +6,9 @@ export const providersRouter = Router();
 
 providersRouter.get('/', authRequired(), async (req, res) => {
   const result = await query(
-    `SELECT p.id, u.full_name, u.email, u.mobile, u.is_active, p.professional_title, p.default_duration_minutes,
-            p.bio, p.is_online,
+    `SELECT p.id, u.full_name, u.email, u.mobile, u.is_active, p.title, p.professional_title, p.specialty,
+            p.sub_specialties, p.medical_registration_number, p.practice_number, p.practice_setting,
+            p.private_practice_name, p.default_duration_minutes, p.bio, p.is_online,
             COALESCE(json_agg(l.name ORDER BY l.name) FILTER (WHERE l.id IS NOT NULL), '[]') AS locations
      FROM providers p
      JOIN app_users u ON u.id = p.user_id
@@ -84,7 +85,7 @@ providersRouter.patch('/:id/profile', authRequired(['provider', 'admin']), async
 
   const provider = await withTransaction(async (client) => {
     const currentResult = await client.query(
-      `SELECT p.id, p.user_id, u.email, u.mobile
+    `SELECT p.id, p.user_id, u.email, u.mobile
        FROM providers p JOIN app_users u ON u.id = p.user_id
        WHERE p.id = $1
        FOR UPDATE`,
@@ -124,8 +125,8 @@ providersRouter.patch('/:id/profile', authRequired(['provider', 'admin']), async
       [fullName, email, mobile, current.user_id, adminContactChanged]
     );
     await client.query(
-      `UPDATE providers SET professional_title = $1, default_duration_minutes = $2, bio = $3, updated_at = now() WHERE id = $4`,
-      [professionalTitle, duration, bio, current.id]
+      `UPDATE providers SET title = $1, professional_title = $2, specialty = $3, sub_specialties = $4, medical_registration_number = $5, practice_number = $6, practice_setting = $7, private_practice_name = $8, default_duration_minutes = $9, bio = $10, updated_at = now() WHERE id = $11`,
+      [String(req.body.title || '').trim().slice(0, 20) || null, professionalTitle, String(req.body.specialty || '').trim().slice(0, 100) || null, Array.isArray(req.body.subSpecialties) ? req.body.subSpecialties.map((v) => String(v).trim()).filter(Boolean).slice(0, 20) : [], String(req.body.medicalRegistrationNumber || '').trim().slice(0, 80) || null, String(req.body.practiceNumber || '').trim().slice(0, 80) || null, String(req.body.practiceSetting || '').trim().slice(0, 80) || null, String(req.body.privatePracticeName || '').trim().slice(0, 150) || null, duration, bio, current.id]
     );
     await client.query(`DELETE FROM provider_locations WHERE provider_id = $1`, [current.id]);
     for (const location of locations.rows) await client.query(`INSERT INTO provider_locations (provider_id, location_id) VALUES ($1, $2)`, [current.id, location.id]);
