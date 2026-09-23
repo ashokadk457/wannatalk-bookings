@@ -154,6 +154,9 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
       if (!otpMethods.has(otpMethod)) {
         return res.status(400).json({ error: 'Choose email or phone for OTP authentication' });
       }
+      if (!createdByAdmin && otpMethod === 'sms' && (!mobile || !/^\+?[0-9][0-9 ()-]{7,28}$/.test(mobile))) {
+        return res.status(400).json({ error: 'A valid phone or mobile number is required for phone OTP' });
+      }
       if (!createdByAdmin && (!req.body.patientConsentAccepted || !req.body.termsAccepted || !req.body.privacyAccepted)) {
         return res.status(400).json({ error: 'Patient Consent, Terms and Conditions, and Privacy Policy must be accepted' });
       }
@@ -169,7 +172,7 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
         `INSERT INTO app_users (full_name, email, mobile, password_hash, role, preferred_contact, preferred_otp_method, is_active, registration_status, registration_verification_required)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id, full_name, email, mobile, role, preferred_contact, is_active, registration_status, auth_version`,
-        [fullName, email, mobile, passwordHash, role, preferredContact, isPatient ? otpMethod : null, createdByAdmin && isPatient, isPatient ? 'approved' : 'pending', !createdByAdmin]
+        [fullName, email, mobile, passwordHash, role, preferredContact, !createdByAdmin ? otpMethod : null, createdByAdmin && isPatient, isPatient ? 'approved' : 'pending', !createdByAdmin]
       );
       const user = userResult.rows[0];
       let entityId = null;
@@ -256,7 +259,7 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
       purpose: 'registration',
       role,
       ...challenge,
-      preferredMethod: otpMethod,
+      preferredMethod: !createdByAdmin ? otpMethod : undefined,
       message: 'Verify your email address or mobile number to complete registration.',
     });
 

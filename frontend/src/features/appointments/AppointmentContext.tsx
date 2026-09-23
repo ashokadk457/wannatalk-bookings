@@ -166,20 +166,30 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
               <span>Status</span>
               <StatusPill status={appointment.status} />
             </div>
+            <div className="detail-row">
+              <span>Intake</span>
+              <strong>
+                {appointment.intake_requested ? 'Optional intake selected' : 'No intake selected'}
+              </strong>
+            </div>
+            <div className="detail-row">
+              <span>Online status</span>
+              <strong>
+                {appointment.mode.toLowerCase() === 'online'
+                  ? 'Online session'
+                  : 'In-person session'}
+              </strong>
+            </div>
             {appointment.note && (
               <div className="detail-row full">
                 <span>Note</span>
                 <strong className="preserve-lines">{appointment.note}</strong>
               </div>
             )}
-            {appointment.intake_requested && (
-              <div className="detail-row">
-                <span>Intake</span>
-                <strong>Optional intake selected</strong>
-              </div>
-            )}
           </div>
-          <MeetingLink url={appointment.meeting_url} />
+          {appointment.mode.toLowerCase() === 'online' && (
+            <MeetingLink url={appointment.meeting_url} showUnavailable />
+          )}
           {editing ? (
             <form onSubmit={reschedule}>
               <div className="form-grid space-top">
@@ -276,7 +286,7 @@ export function AppointmentActions({
             className="btn danger small"
             onClick={() => void actions.cancel(a)}
           >
-            Cancel
+            Cancel appointment
           </button>
         </>
       )}

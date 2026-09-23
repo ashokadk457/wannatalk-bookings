@@ -85,6 +85,23 @@ test('provider registration remains pending after verification', async ({ page }
   await expect(page.getByRole('navigation')).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('wannatalkApiToken'))).toBeNull();
 });
+test('provider registration sends OTP through the selected channel', async ({ page }) => {
+  const api = await mockApi(page, 'provider', false);
+  await page.goto('/login');
+  await page.getByRole('button', { name: '🩺 Provider' }).click();
+  await page.getByRole('button', { name: 'Register', exact: true }).click();
+  await page.getByLabel('Full name').fill('New Provider');
+  await page.getByLabel('Email', { exact: true }).fill('new-provider@example.test');
+  await page.getByLabel('Phone No. / Mobile').fill('+27 82 123 4567');
+  await page.getByLabel('Send code via phone no.').check();
+  await page.getByLabel('Professional title').fill('Counsellor');
+  await page.getByRole('checkbox', { name: 'Online', exact: true }).check();
+  await page.getByLabel('Password', { exact: true }).fill('test-password-123');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByRole('heading', { name: 'Security verification' })).toBeVisible();
+  expect(api.requests.find((r) => r.path === '/auth/register')?.body.otpMethod).toBe('sms');
+  expect(api.requests.find((r) => r.path === '/auth/mfa/send')?.body.method).toBe('sms');
+});
 for (const role of ['patient', 'provider', 'admin'] as Role[]) {
   test(`${role}: all pages, reload, and sidebar links`, async ({ page }) => {
     const api = await mockApi(page, role),
@@ -245,6 +262,9 @@ test('booking details escape user text, show meeting link, and cancel through th
     .click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('<img src=x');
+  await expect(dialog.getByText('Optional intake selected', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Online session', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Online session link', { exact: true })).toBeVisible();
   expect(
     await page.evaluate(() => (window as Window & { __unsafe?: boolean }).__unsafe),
   ).toBeUndefined();
@@ -252,7 +272,7 @@ test('booking details escape user text, show meeting link, and cancel through th
     'href',
     'https://example.test/session',
   );
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Cancel appointment', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   expect(
     api.requests.some(

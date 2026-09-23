@@ -97,6 +97,11 @@ function Event({
     <div
       className={`week-event calendar-booking ${statusClass(a.status)}`}
       tabIndex={0}
+      role="button"
+      aria-label={`View ${title} appointment at ${a.appointment_time}`}
+      onClick={(e) => {
+        if (!(e.target as HTMLElement).closest('button, a, select')) actions.open(a);
+      }}
       onDoubleClick={() => actions.open(a)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && e.target === e.currentTarget) actions.open(a);
