@@ -4,6 +4,7 @@ import LegalModal from '../../components/LegalModal';
 import { mutate } from '../../services/api';
 import { useApp } from '../../app/AppContext';
 import type { RegistrationInput, RegistrationResult, Role } from '../../types';
+import { countries } from '../../data/countries';
 type LegalAcceptance = 'consent';
 const LEGAL_DOCUMENT_HREF = {
   patient: '/legal/patient-consent.html',
@@ -32,7 +33,7 @@ export default function RegistrationForm({
     preferredContact: 'Email',
     identityDocument: '',
     dateOfBirth: '',
-    nationality: 'South Africa',
+    nationality: 'ZA',
     otpMethod: 'email',
     patientConsentAccepted: false,
     termsAccepted: false,
@@ -48,6 +49,23 @@ export default function RegistrationForm({
   const legalTriggerRef = useRef<HTMLInputElement | null>(null);
   const set = <K extends keyof RegistrationInput>(key: K, value: RegistrationInput[K]) =>
     setForm((previous) => ({ ...previous, [key]: value }));
+  function extractSouthAfricanIdDob(idNumber: string) {
+    if (!/^\d{13}$/.test(idNumber)) return null;
+    const yy = Number(idNumber.slice(0, 2));
+    const mm = Number(idNumber.slice(2, 4));
+    const dd = Number(idNumber.slice(4, 6));
+    const currentYear = new Date().getFullYear() % 100;
+    const fullYear = yy <= currentYear ? 2000 + yy : 1900 + yy;
+    const date = new Date(fullYear, mm - 1, dd);
+    if (date.getFullYear() !== fullYear || date.getMonth() !== mm - 1 || date.getDate() !== dd)
+      return null;
+    return `${fullYear}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  }
+  function updateIdentityDocument(value: string) {
+    const next = { identityDocument: value } as Partial<RegistrationInput>;
+    if (/^\d{13}$/.test(value)) next.dateOfBirth = extractSouthAfricanIdDob(value) || '';
+    setForm((previous) => ({ ...previous, ...next }));
+  }
   function handleLegalCheckbox(_key: LegalAcceptance, event: ChangeEvent<HTMLInputElement>) {
     if (event.target.checked) {
       // The checkbox stays controlled by form state, so skipping set() keeps it
@@ -73,6 +91,8 @@ export default function RegistrationForm({
     event.preventDefault();
     if (role === 'provider' && !form.locations.length)
       return notify('Choose at least one practice location');
+    if (/^\d{13}$/.test(form.identityDocument) && !extractSouthAfricanIdDob(form.identityDocument))
+      return notify('Enter a valid South African ID number or use a passport number');
     if (!administrator) {
       if (!form.patientConsentAccepted) {
         setActiveLegalModal('consent');
@@ -180,7 +200,9 @@ export default function RegistrationForm({
                     maxLength={30}
                     autoComplete="off"
                     value={form.identityDocument}
-                    onChange={(e) => set('identityDocument', e.target.value)}
+                    onChange={(e) => updateIdentityDocument(e.target.value.replace(/\s/g, ''))}
+                    pattern="(?:\d{13}|[A-Za-z0-9][A-Za-z0-9 -]{4,29})"
+                    title="Enter a valid 13-digit South African ID number or passport number"
                   />
                 </Field>
                 <Field label="Date of Birth">
@@ -199,19 +221,10 @@ export default function RegistrationForm({
                     value={form.nationality}
                     onChange={(e) => set('nationality', e.target.value)}
                   >
-                    {[
-                      'South Africa',
-                      'Botswana',
-                      'Eswatini',
-                      'Lesotho',
-                      'Malawi',
-                      'Mozambique',
-                      'Namibia',
-                      'Zambia',
-                      'Zimbabwe',
-                      'Other',
-                    ].map((nationality) => (
-                      <option key={nationality}>{nationality}</option>
+                    {countries.map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {country.name}
+                      </option>
                     ))}
                   </select>
                 </Field>
