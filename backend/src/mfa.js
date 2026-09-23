@@ -121,7 +121,10 @@ export async function verifyMfaCode({ challengeId, code }) {
   const verification = await withTransaction(async (client) => {
     const result = await client.query(
       `SELECT c.*, u.id AS account_id, u.full_name, u.email, u.mobile, u.role, u.is_active, u.registration_status,
-              u.auth_version, u.preferred_contact, COALESCE(p.id, pat.id) AS entity_id
+              u.auth_version, u.preferred_contact, u.title, u.first_name, u.last_name, u.id_or_passport_number,
+              u.date_of_birth, u.nationality, u.otp_authentication_method,
+              u.patient_consent, u.terms_accepted, u.privacy_policy_accepted,
+              COALESCE(p.id, pat.id) AS entity_id
        FROM auth_otp_challenges c
        JOIN app_users u ON u.id = c.user_id
        LEFT JOIN providers p ON p.user_id = u.id

@@ -81,11 +81,23 @@ async function requestIsAdmin(req) {
 
 authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
   const role = String(req.body.role || '').trim();
-  const fullName = cleanText(req.body.fullName, 100);
   const email = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
   const mobile = cleanText(req.body.mobile, 30) || null;
   const password = String(req.body.password || '');
   const preferredContact = cleanText(req.body.preferredContact, 30) || 'Email';
+
+  const isPatient = role === 'patient';
+
+  let fullName = cleanText(req.body.fullName, 100);
+  const firstName = cleanText(req.body.firstName, 50);
+  const lastName = cleanText(req.body.lastName, 50);
+
+  if (isPatient) {
+    if (!firstName || !lastName) {
+      return res.status(400).json({ error: 'First name and last name are required' });
+    }
+    fullName = `${firstName} ${lastName}`.trim();
+  }
 
   if (!roleMap.has(role) || !fullName || !/^\S+@\S+\.\S+$/.test(email)) {
     return res.status(400).json({ error: 'Valid name, email and account type are required' });
@@ -95,7 +107,6 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
     return res.status(400).json({ error: 'Password must be between 12 and 128 characters' });
   }
 
-  const isPatient = role === 'patient';
   const professionalTitle = cleanText(req.body.professionalTitle, 100) || 'Provider';
   const duration = [45, 60, 90].includes(Number(req.body.durationMinutes)) ? Number(req.body.durationMinutes) : 60;
   const bio = cleanText(req.body.bio, 500) || null;
@@ -106,15 +117,59 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
     return res.status(400).json({ error: 'Choose at least one practice location' });
   }
 
+  const title = cleanText(req.body.title, 20);
+  const idOrPassportNumber = cleanText(req.body.idOrPassportNumber, 50);
+  const dateOfBirth = req.body.dateOfBirth ? String(req.body.dateOfBirth).trim() : null;
+  const nationality = cleanText(req.body.nationality, 50) || 'South Africa';
+  const otpAuthenticationMethod = cleanText(req.body.otpAuthenticationMethod, 10);
+  const patientConsent = Boolean(req.body.patientConsent);
+  const termsAccepted = Boolean(req.body.termsAccepted);
+  const privacyPolicyAccepted = Boolean(req.body.privacyPolicyAccepted);
+
   try {
     const createdByAdmin = await requestIsAdmin(req);
+
+    if (isPatient && !createdByAdmin) {
+      if (!title) {
+        return res.status(400).json({ error: 'Title is required' });
+      }
+      if (!idOrPassportNumber) {
+        return res.status(400).json({ error: 'South African ID / Passport number is required' });
+      }
+      if (!dateOfBirth) {
+        return res.status(400).json({ error: 'Date of birth is required' });
+      }
+      const dob = new Date(dateOfBirth);
+      if (isNaN(dob.getTime()) || dob > new Date()) {
+        return res.status(400).json({ error: 'Invalid date of birth' });
+      }
+      if (!nationality) {
+        return res.status(400).json({ error: 'Nationality is required' });
+      }
+      if (!otpAuthenticationMethod || !['email', 'phone'].includes(otpAuthenticationMethod)) {
+        return res.status(400).json({ error: 'OTP authentication method (email or phone) is required' });
+      }
+      if (!patientConsent) {
+        return res.status(400).json({ error: 'Patient consent is required' });
+      }
+      if (!termsAccepted) {
+        return res.status(400).json({ error: 'Terms & Conditions must be accepted' });
+      }
+      if (!privacyPolicyAccepted) {
+        return res.status(400).json({ error: 'Privacy Policy must be accepted' });
+      }
+    }
+
     const registered = await withTransaction(async (client) => {
       const passwordHash = await bcrypt.hash(password, 12);
       const userResult = await client.query(
-        `INSERT INTO app_users (full_name, email, mobile, password_hash, role, preferred_contact, is_active, registration_status, registration_verification_required)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, full_name, email, mobile, role, preferred_contact, is_active, registration_status, auth_version`,
-        [fullName, email, mobile, passwordHash, role, preferredContact, createdByAdmin && isPatient, isPatient ? 'approved' : 'pending', !createdByAdmin]
+        `INSERT INTO app_users (full_name, email, mobile, password_hash, role, preferred_contact, is_active, registration_status, registration_verification_required,
+         title, first_name, last_name, id_or_passport_number, date_of_birth, nationality, otp_authentication_method, patient_consent, terms_accepted, privacy_policy_accepted)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+         RETURNING id, full_name, email, mobile, role, preferred_contact, is_active, registration_status, auth_version,
+         title, first_name, last_name, id_or_passport_number, date_of_birth, nationality, otp_authentication_method, patient_consent, terms_accepted, privacy_policy_accepted`,
+        [fullName, email, mobile, passwordHash, role, preferredContact, createdByAdmin && isPatient, isPatient ? 'approved' : 'pending', !createdByAdmin,
+         title || null, firstName || null, lastName || null, idOrPassportNumber || null, dateOfBirth || null, nationality || null, otpAuthenticationMethod || null, patientConsent, termsAccepted, privacyPolicyAccepted]
       );
       const user = userResult.rows[0];
       let entityId = null;
@@ -301,6 +356,9 @@ authRouter.post('/login', loginRateLimit, async (req, res, next) => {
     const result = await query(
       `SELECT u.id, u.full_name, u.email, u.mobile, u.password_hash, u.role, u.auth_version,
               u.preferred_contact, u.is_active, u.registration_status, u.registration_verification_required,
+              u.title, u.first_name, u.last_name, u.id_or_passport_number,
+              u.date_of_birth, u.nationality, u.otp_authentication_method,
+              u.patient_consent, u.terms_accepted, u.privacy_policy_accepted,
               COALESCE(p.id, pat.id) AS entity_id
        FROM app_users u
        LEFT JOIN providers p ON p.user_id = u.id
@@ -377,7 +435,10 @@ authRouter.post('/mfa/verify', async (req, res, next) => {
 authRouter.get('/me', authRequired(), async (req, res) => {
   const result = await query(
     `SELECT u.id, u.full_name, u.email, u.mobile, u.role, u.preferred_contact,
-            u.is_active, COALESCE(p.id, pat.id) AS entity_id
+            u.is_active, u.title, u.first_name, u.last_name, u.id_or_passport_number,
+            u.date_of_birth, u.nationality, u.otp_authentication_method,
+            u.patient_consent, u.terms_accepted, u.privacy_policy_accepted,
+            COALESCE(p.id, pat.id) AS entity_id
      FROM app_users u
      LEFT JOIN providers p ON p.user_id = u.id
      LEFT JOIN patients pat ON pat.user_id = u.id

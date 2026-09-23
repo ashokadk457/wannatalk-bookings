@@ -23,5 +23,15 @@ export function publicUser(row) {
     entityId: row.entity_id || null,
     preferredContact: row.preferred_contact,
     isActive: row.is_active,
+    title: row.title,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    idOrPassportNumber: row.id_or_passport_number,
+    dateOfBirth: row.date_of_birth,
+    nationality: row.nationality,
+    otpAuthenticationMethod: row.otp_authentication_method,
+    patientConsent: row.patient_consent,
+    termsAccepted: row.terms_accepted,
+    privacyPolicyAccepted: row.privacy_policy_accepted,
   };
 }

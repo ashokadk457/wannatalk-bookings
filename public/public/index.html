@@ -3809,6 +3809,16 @@
           password,
           contact: $("arClientContact").value,
           registeredByAdmin: true,
+          title: "Mr.",
+          firstName: name.split(' ')[0] || name,
+          lastName: name.split(' ').slice(1).join(' ') || name,
+          idOrPassportNumber: "Admin registered",
+          dateOfBirth: "1970-01-01",
+          nationality: "South Africa",
+          otpAuthenticationMethod: "email",
+          patientConsent: true,
+          termsAccepted: true,
+          privacyPolicyAccepted: true,
         });
         persist();
         [
@@ -5730,6 +5740,31 @@
         let modal = $("bookingModal");
         if (modal) modal.remove();
       }
+
+      function showTermsModal(event) {
+        event.preventDefault();
+        ensureBookingModalStyles();
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `<div id="termsModal" class="modal-backdrop" onclick="if(event.target.id==='termsModal')closeTermsModal()"><article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle"><div class="card-head"><div><h3 id="termsModalTitle" style="margin:0">Terms & Conditions</h3></div><button class="btn secondary" onclick="closeTermsModal()">Close</button></div><div style="max-height:60vh;overflow:auto;padding:10px 0"><h4>WannaTalk Terms & Conditions</h4><p><strong>Last updated:</strong> ${new Date().toLocaleDateString('en-ZA')}</p><ol><li><strong>Acceptance of Terms</strong> By creating an account and using WannaTalk services, you agree to these Terms & Conditions.</li><li><strong>Patient Registration</strong> You must provide accurate and complete information during registration. You are responsible for maintaining the confidentiality of your account credentials.</li><li><strong>Appointments</strong> Appointments are subject to provider availability. Cancellations must be made at least 24 hours in advance to avoid fees.</li><li><strong>Privacy</strong> Your personal information is handled in accordance with our Privacy Policy.</li><li><strong>Limitation of Liability</strong> WannaTalk is a booking platform and does not provide medical advice. Providers are independent practitioners.</li><li><strong>Governing Law</strong> These terms are governed by the laws of South Africa.</li></ol></div><div class="modal-actions"><button class="btn" onclick="closeTermsModal()">I understand</button></div></article></div>`,
+        );
+      }
+      function closeTermsModal() {
+        let modal = $("termsModal");
+        if (modal) modal.remove();
+      }
+      function showPrivacyPolicyModal(event) {
+        event.preventDefault();
+        ensureBookingModalStyles();
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `<div id="privacyModal" class="modal-backdrop" onclick="if(event.target.id==='privacyModal')closePrivacyPolicyModal()"><article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="privacyModalTitle"><div class="card-head"><div><h3 id="privacyModalTitle" style="margin:0">Privacy Policy</h3></div><button class="btn secondary" onclick="closePrivacyPolicyModal()">Close</button></div><div style="max-height:60vh;overflow:auto;padding:10px 0"><h4>WannaTalk Privacy Policy</h4><p><strong>Last updated:</strong> ${new Date().toLocaleDateString('en-ZA')}</p><ol><li><strong>Information We Collect</strong> We collect personal information you provide during registration (name, email, mobile, ID/passport, date of birth, nationality) and information about your appointments.</li><li><strong>How We Use Your Information</strong> To provide booking services, communicate about appointments, send reminders, and comply with legal obligations.</li><li><strong>Data Sharing</strong> We share your information with your healthcare provider for appointment purposes. We do not sell your data.</li><li><strong>Data Security</strong> We implement appropriate technical and organizational measures to protect your data.</li><li><strong>Your Rights</strong> You have the right to access, correct, or delete your personal information. Contact us to exercise these rights.</li><li><strong>Retention</strong> We retain your data for as long as your account is active and as required by law.</li><li><strong>Contact</strong> For privacy concerns, contact privacy@wannatalk.co.za</li></ol></div><div class="modal-actions"><button class="btn" onclick="closePrivacyPolicyModal()">I understand</button></div></article></div>`,
+        );
+      }
+      function closePrivacyPolicyModal() {
+        let modal = $("privacyModal");
+        if (modal) modal.remove();
+      }
       function appointmentParties(a) {
         return {
           patient: data.patients.find((x) => x.id === a.patientId),
@@ -6951,16 +6986,24 @@
           authRole === "provider"
             ? `<div class="field"><label>Professional title</label><input id="rRole" placeholder="Counsellor / Psychologist"></div><div class="field"><label>Session duration</label><select id="rDuration"><option value="45">45 minutes</option><option value="60" selected>60 minutes</option><option value="90">90 minutes</option></select></div><div class="field full"><label>Practice locations</label><div style="display:flex;gap:16px;flex-wrap:wrap;padding:12px;border:1px solid var(--line);border-radius:11px"><label><input id="rLocCenturion" type="checkbox" style="width:auto"> Centurion</label><label><input id="rLocEmalahleni" type="checkbox" style="width:auto"> Emalahleni</label><label><input id="rLocOnline" type="checkbox" style="width:auto"> Online</label></div></div><div class="field full"><label>Short bio</label><textarea id="rBio" maxlength="500" placeholder="Optional"></textarea></div>`
             : "";
+        let patientFields =
+          authRole === "patient"
+            ? `<div class="field"><label>Title</label><select id="rTitle" autocomplete="honorific-prefix"><option value="">Select title</option><option>Mr.</option><option>Mrs.</option><option>Ms.</option><option>Miss</option><option>Dr.</option><option>Prof.</option></select></div><div class="field"><label>First name</label><input id="rFirstName" autocomplete="given-name" maxlength="50"></div><div class="field"><label>Last name</label><input id="rLastName" autocomplete="family-name" maxlength="50"></div><div class="field"><label>South African ID / Passport No.</label><input id="rIdPassport" autocomplete="on" maxlength="50"></div><div class="field"><label>Date of birth</label><input id="rDob" type="date" max="${new Date().toISOString().split('T')[0]}"></div><div class="field"><label>Nationality</label><select id="rNationality" autocomplete="country"><option value="South Africa" selected>South Africa</option></select></div><div class="field full"><label>OTP Authentication Method</label><div style="display:flex;gap:16px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:7px"><input type="radio" name="rOtpMethod" value="email" checked style="width:auto"> Email</label><label style="display:flex;align-items:center;gap:7px"><input type="radio" name="rOtpMethod" value="phone" style="width:auto"> Phone</label></div></div>`
+            : "";
         let contactField =
           authRole === "patient"
             ? `<div class="field"><label>Preferred contact</label><select id="rContact"><option>WhatsApp</option><option>Email</option><option>Phone</option></select></div>`
+            : "";
+        let consentFields =
+          authRole === "patient"
+            ? `<div class="field full intake-option"><label><input type="checkbox" id="rPatientConsent" style="width:auto;margin-top:3px"><strong> I provide my consent as a patient.</strong></label></div><div class="field full intake-option"><label><input type="checkbox" id="rTermsAccepted" style="width:auto;margin-top:3px"><strong> I have read and agree to the <a href="#" onclick="showTermsModal(event)">Terms & Conditions</a>.</strong></label></div><div class="field full intake-option"><label><input type="checkbox" id="rPrivacyPolicyAccepted" style="width:auto;margin-top:3px"><strong> I have read and agree to the <a href="#" onclick="showPrivacyPolicyModal(event)">Privacy Policy</a>.</strong></label></div>`
             : "";
         let approvalNote =
           authRole === "patient"
             ? "Your patient account will be available immediately."
             : "An existing administrator must approve this account before login.";
         $("regFields").innerHTML =
-          `<div class="field"><label>Full name</label><input id="rName" autocomplete="name" maxlength="100"></div><div class="field"><label>Email</label><input id="rEmail" type="email" autocomplete="email" maxlength="254"></div><div class="field"><label>Mobile</label><input id="rMobile" autocomplete="tel" maxlength="30"></div>${contactField}${providerFields}<div class="field full"><label>Password</label><input id="rPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128"><div class="sub">Use at least 12 characters.</div></div><div class="notice field full" style="margin:0">${approvalNote}</div>`;
+          `<div class="field"><label>Email</label><input id="rEmail" type="email" autocomplete="email" maxlength="254"></div><div class="field"><label>Mobile</label><input id="rMobile" autocomplete="tel" maxlength="30"></div>${patientFields}${contactField}${providerFields}<div class="field full"><label>Password</label><input id="rPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128"><div class="sub">Use at least 12 characters.</div></div>${consentFields}<div class="notice field full" style="margin:0">${approvalNote}</div>`;
       };
 
       chooseRole = function (role) {
@@ -7601,7 +7644,6 @@
 
       async function submitRegistration() {
         let email = $("rEmail")?.value.trim(),
-          name = $("rName")?.value.trim(),
           password = $("rPassword")?.value || "",
           locations =
             authRole === "provider"
@@ -7613,8 +7655,39 @@
                   .filter(([id]) => $(id)?.checked)
                   .map(([, location]) => location)
               : [];
-        if (!name || !email || !password)
-          return toast("Name, email and password are required");
+
+        if (authRole === "patient") {
+          let title = $("rTitle")?.value.trim(),
+            firstName = $("rFirstName")?.value.trim(),
+            lastName = $("rLastName")?.value.trim(),
+            idPassport = $("rIdPassport")?.value.trim(),
+            dob = $("rDob")?.value,
+            nationality = $("rNationality")?.value.trim(),
+            otpMethod = document.querySelector('input[name="rOtpMethod"]:checked')?.value,
+            patientConsent = $("rPatientConsent")?.checked,
+            termsAccepted = $("rTermsAccepted")?.checked,
+            privacyPolicyAccepted = $("rPrivacyPolicyAccepted")?.checked;
+
+          if (!title) return toast("Title is required");
+          if (!firstName) return toast("First name is required");
+          if (!lastName) return toast("Last name is required");
+          if (!idPassport) return toast("South African ID / Passport number is required");
+          if (!dob) return toast("Date of birth is required");
+          if (!nationality) return toast("Nationality is required");
+          if (!otpMethod || !['email', 'phone'].includes(otpMethod)) return toast("OTP authentication method is required");
+          if (!patientConsent) return toast("Patient consent is required");
+          if (!termsAccepted) return toast("Terms & Conditions must be accepted");
+          if (!privacyPolicyAccepted) return toast("Privacy Policy must be accepted");
+
+          name = `${firstName} ${lastName}`.trim();
+          
+          if (!name || !email || !password)
+            return toast("Name, email and password are required");
+        } else {
+          let name = $("rName")?.value.trim();
+          if (!name || !email || !password)
+            return toast("Name, email and password are required");
+        }
         if (password.length < 12)
           return toast("Password must contain at least 12 characters");
         if (authRole === "provider" && !locations.length)
@@ -7628,6 +7701,8 @@
             body: JSON.stringify({
               role: authRole,
               fullName: name,
+              firstName: authRole === "patient" ? $("rFirstName")?.value.trim() : undefined,
+              lastName: authRole === "patient" ? $("rLastName")?.value.trim() : undefined,
               email,
               mobile: $("rMobile")?.value.trim(),
               password,
@@ -7636,6 +7711,14 @@
               durationMinutes: Number($("rDuration")?.value || 60),
               bio: $("rBio")?.value.trim(),
               locations,
+              title: authRole === "patient" ? $("rTitle")?.value.trim() : undefined,
+              idOrPassportNumber: authRole === "patient" ? $("rIdPassport")?.value.trim() : undefined,
+              dateOfBirth: authRole === "patient" ? $("rDob")?.value : undefined,
+              nationality: authRole === "patient" ? $("rNationality")?.value.trim() : undefined,
+              otpAuthenticationMethod: authRole === "patient" ? (document.querySelector('input[name="rOtpMethod"]:checked')?.value) : undefined,
+              patientConsent: authRole === "patient" ? $("rPatientConsent")?.checked : undefined,
+              termsAccepted: authRole === "patient" ? $("rTermsAccepted")?.checked : undefined,
+              privacyPolicyAccepted: authRole === "patient" ? $("rPrivacyPolicyAccepted")?.checked : undefined,
             }),
           });
           $("rPassword").value = "";
@@ -8166,10 +8249,20 @@
             body: JSON.stringify({
               role: "patient",
               fullName: name,
+              firstName: name.split(' ')[0] || name,
+              lastName: name.split(' ').slice(1).join(' ') || name,
               email,
               mobile,
               password,
               preferredContact: $("arClientContact").value,
+              title: "Mr.",
+              idOrPassportNumber: "Admin registered",
+              dateOfBirth: "1970-01-01",
+              nationality: "South Africa",
+              otpAuthenticationMethod: "email",
+              patientConsent: true,
+              termsAccepted: true,
+              privacyPolicyAccepted: true,
             }),
           });
           await reloadApiData();
