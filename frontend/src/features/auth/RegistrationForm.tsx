@@ -225,32 +225,20 @@ export default function RegistrationForm({
                     ))}
                   </select>
                 </Field>
-                {!administrator && (
-                  <fieldset className="otp-choice field full">
-                    <legend>Choose how you'd like to authenticate via OTP</legend>
-                    <label>
-                      <input
-                        type="radio"
-                        name="otpMethod"
-                        value="email"
-                        checked={form.otpMethod === 'email'}
-                        onChange={() => set('otpMethod', 'email')}
-                      />
-                      Send code via email
-                    </label>
-                    <label>
-                      <input
-                        type="radio"
-                        name="otpMethod"
-                        value="sms"
-                        checked={form.otpMethod === 'sms'}
-                        onChange={() => set('otpMethod', 'sms')}
-                      />
-                      Send code via phone no.
-                    </label>
-                  </fieldset>
-                )}
               </>
+            )}
+            {!administrator && (
+              <fieldset className="otp-choice field full">
+                <legend>Choose how you'd like to authenticate via OTP</legend>
+                <label>
+                  <input type="radio" name="otpMethod" value="email" checked={form.otpMethod === 'email'} onChange={() => set('otpMethod', 'email')} />
+                  Send code via email
+                </label>
+                <label>
+                  <input type="radio" name="otpMethod" value="sms" checked={form.otpMethod === 'sms'} onChange={() => set('otpMethod', 'sms')} />
+                  Send code via phone no.
+                </label>
+              </fieldset>
             )}
             {role === 'provider' && (
               <>
