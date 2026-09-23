@@ -112,7 +112,7 @@ export default function RegistrationForm({
         ...form,
         role,
         fullName:
-          role === 'patient' ? `${form.firstName.trim()} ${form.lastName.trim()}` : form.fullName,
+          `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
       });
       setForm(initial);
       if (administrator) {
@@ -165,17 +165,7 @@ export default function RegistrationForm({
                   />
                 </Field>
               </>
-            ) : (
-              <Field label="Full name">
-                <input
-                  required
-                  maxLength={100}
-                  autoComplete="name"
-                  value={form.fullName}
-                  onChange={(e) => set('fullName', e.target.value)}
-                />
-              </Field>
-            )}
+            ) : null}
             <Field label="Email">
               <input
                 required
@@ -254,8 +244,8 @@ export default function RegistrationForm({
                     <option value="">Select title</option><option>Dr.</option><option>Prof.</option><option>Mr.</option><option>Ms.</option>
                   </select>
                 </Field>
-                <Field label="First Name"><input required value={form.fullName.split(' ')[0] || ''} onChange={(e) => set('fullName', `${e.target.value} ${form.fullName.split(' ').slice(1).join(' ')}`.trim())} /></Field>
-                <Field label="Last Name"><input required value={form.fullName.split(' ').slice(1).join(' ')} onChange={(e) => set('fullName', `${form.fullName.split(' ')[0] || ''} ${e.target.value}`.trim())} /></Field>
+                <Field label="First Name"><input required autoComplete="given-name" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} /></Field>
+                <Field label="Last Name"><input required autoComplete="family-name" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} /></Field>
                 <Field label="Specialty (Optional)"><select value={form.specialty} onChange={(e) => { set('specialty', e.target.value); set('subSpecialties', []); }}><option value="">Select specialty</option>{doctorCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
                 <Field label="Sub Specialty (Optional)">
                   <div className="specialty-picker">

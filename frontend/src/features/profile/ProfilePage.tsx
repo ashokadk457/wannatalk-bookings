@@ -7,6 +7,8 @@ export default function ProfilePage() {
   const { user, data, run, refresh, notify } = useApp();
   const provider = data.providers.find((p) => p.id === user?.entityId);
   const [name, setName] = useState(user?.fullName || ''),
+    [firstName, setFirstName] = useState(provider ? (user?.fullName || '').trim().split(/\s+/)[0] || '' : ''),
+    [lastName, setLastName] = useState(provider ? (user?.fullName || '').trim().split(/\s+/).slice(1).join(' ') : ''),
     [mobile, setMobile] = useState(user?.mobile || ''),
     [contact, setContact] = useState(
       (['Email', 'SMS', 'Both'].includes(user?.preferredContact || '')
@@ -31,7 +33,7 @@ export default function ProfilePage() {
     setBusy(true);
     await run(async () => {
       await mutate(provider ? `/providers/${provider.id}/profile` : '/patients/me', 'PATCH', {
-        fullName: name,
+        fullName: provider ? `${firstName.trim()} ${lastName.trim()}`.trim() : name,
         mobile,
         preferredContact: contact,
         professionalTitle: title,
@@ -64,14 +66,11 @@ export default function ProfilePage() {
         <form onSubmit={submit}>
           <fieldset className="form-reset" disabled={busy}>
             <div className="form-grid">
-              <Field label={provider ? 'Display name' : 'Name'}>
-                <input
-                  required
-                  maxLength={100}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </Field>
+              {provider ? <>
+                <Field label="Title"><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
+                <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
+                <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
+              </> : <Field label="Name"><input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /></Field>}
               <Field label="Email">
                 <input type="email" disabled value={user?.email || ''} />
               </Field>
@@ -80,20 +79,15 @@ export default function ProfilePage() {
               </Field>
               {provider ? (
                 <>
-                  <Field label="Professional title">
-                    <input
-                      maxLength={100}
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Title"><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
                   <Field label="Specialty (Optional)"><select value={specialty} onChange={(e) => { setSpecialty(e.target.value); setSubSpecialties([]); }}><option value="">Select specialty</option>{doctorCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
                   <Field label="Sub Specialty (Optional)"><div className="specialty-picker"><div className="specialty-options">{doctorSubCategories.filter((s) => s.categoryId === specialty).map((s) => <label className={`specialty-option ${subSpecialties.includes(s.id) ? 'selected' : ''}`} key={s.id}><input type="checkbox" checked={subSpecialties.includes(s.id)} onChange={() => setSubSpecialties(subSpecialties.includes(s.id) ? subSpecialties.filter((id) => id !== s.id) : [...subSpecialties, s.id])} /><span>{s.name}</span></label>)}</div></div></Field>
                   <Field label="Medical Registration Number (Optional)"><input value={medicalRegistrationNumber} onChange={(e) => setMedicalRegistrationNumber(e.target.value)} /></Field>
                   <Field label="Practice No (Optional)"><input value={practiceNumber} onChange={(e) => setPracticeNumber(e.target.value)} /></Field>
                   <Field label="Practice Setting (Optional)"><select value={practiceSetting} onChange={(e) => setPracticeSetting(e.target.value)}><option value="">Select setting</option>{['Private Practice','Hospital','Clinic','Community Health Centre','Academic / Teaching'].map((v) => <option key={v}>{v}</option>)}</select></Field>
                   <Field label="Private Practice Name (Optional)"><input value={privatePracticeName} onChange={(e) => setPrivatePracticeName(e.target.value)} /></Field>
+                  <Field label="Professional title">
+                    <input maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} />
+                  </Field>
                   <Field label="Default session duration">
                     <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
                       {[45, 60, 90].map((n) => (
