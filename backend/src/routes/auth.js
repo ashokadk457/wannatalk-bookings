@@ -84,7 +84,7 @@ async function requestIsAdmin(req) {
 
 authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
   const role = String(req.body.role || '').trim();
-  const fullName = cleanText(req.body.fullName, 100);
+  const submittedFullName = cleanText(req.body.fullName, 100);
   const email = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
   const mobile = cleanText(req.body.mobile, 30) || null;
   const password = String(req.body.password || '');
@@ -96,6 +96,9 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
   const dateOfBirth = String(req.body.dateOfBirth || '').trim();
   const nationality = cleanText(req.body.nationality, 80);
   const otpMethod = String(req.body.otpMethod || 'email').trim().toLowerCase();
+  const fullName = role === 'patient' && firstName && lastName
+    ? `${firstName} ${lastName}`.slice(0, 100)
+    : submittedFullName;
 
   if (!roleMap.has(role) || !fullName || !/^\S+@\S+\.\S+$/.test(email)) {
     return res.status(400).json({ error: 'Valid name, email and account type are required' });
@@ -135,7 +138,13 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
       if (!identityDocument || identityDocument.length < 5) {
         return res.status(400).json({ error: 'A valid South African ID or passport number is required' });
       }
-      if (!parsedBirthDate || Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate < earliestBirthDate || parsedBirthDate >= tomorrow) {
+      if (
+        !parsedBirthDate ||
+        Number.isNaN(parsedBirthDate.getTime()) ||
+        parsedBirthDate.toISOString().slice(0, 10) !== dateOfBirth ||
+        parsedBirthDate < earliestBirthDate ||
+        parsedBirthDate >= tomorrow
+      ) {
         return res.status(400).json({ error: 'A valid date of birth is required' });
       }
       if (!nationality) return res.status(400).json({ error: 'Nationality is required' });

@@ -150,6 +150,7 @@ test('registration continues through contact verification', async ({ page }) => 
   await page.getByLabel(/I accept the Privacy Policy/).check();
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'Security verification' })).toBeVisible();
+  await expect(page.getByText(/Verification code sent by sms/)).toBeVisible();
   const registration = api.requests.find((r) => r.path === '/auth/register')?.body;
   expect(registration).toMatchObject({
     fullName: 'New Patient',
@@ -165,6 +166,7 @@ test('registration continues through contact verification', async ({ page }) => 
     termsAccepted: true,
     privacyAccepted: true,
   });
+  expect(api.requests.find((r) => r.path === '/auth/mfa/send')?.body.method).toBe('sms');
 });
 test('password reset link and forgot-password use the existing API', async ({ page }) => {
   const api = await mockApi(page, 'patient', false);

@@ -126,12 +126,16 @@ export async function mockApi(page: Page, role: Role, authenticated = true) {
         verificationRequired: true,
         purpose: path.endsWith('register') ? 'registration' : 'login',
         challengeId: 'challenge-1',
-        methods: [{ method: 'email', label: 'Email', destination: 'te**@example.test' }],
+        preferredMethod: path.endsWith('register') ? body.otpMethod : undefined,
+        methods: [
+          { method: 'email', label: 'Email', destination: 'te**@example.test' },
+          { method: 'sms', label: 'SMS', destination: '******4567' },
+        ],
       });
     if (path === '/auth/mfa/send')
       return json({
-        message: 'Verification code sent by email',
-        destination: 'te**@example.test',
+        message: `Verification code sent by ${body.method}`,
+        destination: body.method === 'sms' ? '******4567' : 'te**@example.test',
         expiresMinutes: 10,
       });
     if (path === '/auth/mfa/verify')
