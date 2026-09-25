@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 
 import { query, withTransaction } from './db.js';
 import { mailConfigurationStatus, sendOtpEmail } from './mail.js';
 import { sendSms, smsConfigurationStatus } from './sms.js';
+import { sendWhatsAppMsg, whatsAppConfigurationStatus } from './whatsapp.js';
 
 const otpTtlMinutes = Math.min(15, Math.max(5, Number(process.env.OTP_TTL_MINUTES || 10)));
 const trustedDeviceDays = Math.min(30, Math.max(1, Number(process.env.TRUSTED_DEVICE_DAYS || 14)));
@@ -32,6 +33,7 @@ export function availableMfaMethods(user) {
   const methods = [];
   if (mailConfigurationStatus().configured && user.email) methods.push({ method: 'email', label: 'Email', destination: maskEmail(user.email) });
   if (smsConfigurationStatus().configured && user.mobile) methods.push({ method: 'sms', label: 'SMS', destination: maskMobile(user.mobile) });
+  if (whatsAppConfigurationStatus().configured && user.mobile) methods.push({ method: 'whatsapp', label: 'WhatsApp', destination: maskMobile(user.mobile) });
   return methods;
 }
 
@@ -39,6 +41,7 @@ function unavailableMfaMethods(user) {
   const unavailable = [];
   if (!mailConfigurationStatus().configured) unavailable.push({ method: 'email', label: 'Email', reason: 'Email delivery is not configured' });
   if (!smsConfigurationStatus().configured) unavailable.push({ method: 'sms', label: 'SMS', reason: 'SMS delivery is not configured' });
+  if (!whatsAppConfigurationStatus().configured) unavailable.push({ method: 'whatsapp', label: 'WhatsApp', reason: 'WhatsApp delivery is not configured' });
   else if (!user.mobile) unavailable.push({ method: 'sms', label: 'SMS', reason: 'No mobile number is saved for this account' });
   return unavailable;
 }

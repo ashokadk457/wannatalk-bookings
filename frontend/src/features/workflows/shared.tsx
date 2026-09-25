@@ -11,7 +11,7 @@ export function Channels({
     <fieldset className="field full location-fields">
       <legend>Delivery channels</legend>
       <div className="workflow-checks">
-        {['email', 'sms'].map((channel) => (
+        {['email', 'sms', 'whatsapp'].map((channel) => (
           <label key={channel}>
             <input
               type="checkbox"
@@ -22,7 +22,7 @@ export function Channels({
                 )
               }
             />
-            {channel === 'sms' ? 'SMS' : 'Email'}
+            {channel === 'sms' ? 'SMS' : channel === 'email' ? 'Email' : channel === 'whatsapp' ? 'WhatsApp' : ''}
           </label>
         ))}
       </div>

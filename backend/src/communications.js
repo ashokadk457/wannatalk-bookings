@@ -1,9 +1,10 @@
 import { query } from './db.js';
 import { sendCommunicationEmail } from './mail.js';
 import { sendSms } from './sms.js';
+import { sendWhatsAppMsg } from "./whatsapp.js";
 
 export function cleanChannels(value) {
-  return [...new Set((Array.isArray(value) ? value : []).map((item) => String(item).toLowerCase()).filter((item) => ['email', 'sms'].includes(item)))];
+  return [...new Set((Array.isArray(value) ? value : []).map((item) => String(item).toLowerCase()).filter((item) => ['email', 'sms', 'whatsapp'].includes(item)))];
 }
 
 export async function sendPatientCommunication({
@@ -37,13 +38,14 @@ export async function sendPatientCommunication({
   }
   const deliveries = [];
   for (const channel of selectedChannels) {
-    const recipient = channel === 'email' ? patient.email : patient.mobile;
+    const recipient = channel === 'email' ? patient.email : channel === 'sms' ? patient.mobile : channel === 'whatsapp' ? patient.mobile : '';
     let status = 'sent';
     let errorMessage = null;
     try {
-      if (!recipient) throw new Error(channel === 'email' ? 'Patient has no email address' : 'Patient has no mobile number');
+      if (!recipient) throw new Error(channel === 'email' ? 'Patient has no email address' : channel === 'sms' ? 'Patient has no mobile number' : channel === 'whatsapp' ? 'Patient has no mobile number' : '');
       if (channel === 'email') await sendCommunicationEmail({ email: recipient, fullName: patient.full_name, subject, message });
-      else await sendSms({ phoneNumber: recipient, message });
+      else if (channel === 'sms') await sendSms({ phoneNumber: recipient, message });
+      else if (channel === 'whatsapp') await sendWhatsAppMsg({ phoneNumber: recipient, message })
     } catch (error) {
       status = 'failed';
       errorMessage = String(error.message || 'Delivery failed').slice(0, 500);

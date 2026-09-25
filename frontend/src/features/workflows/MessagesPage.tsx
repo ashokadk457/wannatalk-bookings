@@ -22,7 +22,7 @@ export default function MessagesPage() {
     ),
     [subject, setSubject] = useState(initial?.subject || 'Message from WannaTalk'),
     [message, setMessage] = useState(initial?.message || ''),
-    [channels, setChannels] = useState(['email', 'sms']),
+    [channels, setChannels] = useState(['email', 'sms', 'whatsapp']),
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState<Delivery | null>(null);
   async function send(e: FormEvent) {
