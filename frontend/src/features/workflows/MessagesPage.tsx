@@ -47,7 +47,7 @@ export default function MessagesPage() {
     <section>
       <Heading
         title="Messages"
-        subtitle="Send patient communications by Email or SMS and review delivery history."
+        subtitle="Send patient communications by Email, SMS, or WhatsApp and review delivery history."
       />
       <div className="grid two">
         <Card title="Send patient message">

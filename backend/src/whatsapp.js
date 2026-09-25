@@ -1,16 +1,18 @@
-const WhatsAppApiUrl = process.env.WHATSAPP_API_Url;
-const WhatsAppApiKey = process.env.WHATSAPP_API_KEY;
-
 export function whatsAppConfigurationStatus() {
+  const url = process.env.WHATSAPP_API_URL;
   return {
-    configured: Boolean(WhatsAppApiUrl && WhatsAppApiKey),
-    url: WhatsAppApiUrl || null,
+    configured: Boolean(url && process.env.WHATSAPP_API_KEY),
+    url: url || null,
   };
 }
 
 export async function sendWhatsAppMsg({ phoneNumber, message }) {
-  if (!WhatsAppApiUrl || !WhatsAppApiKey)
-    throw new Error("Whats App configuration is incomplete");
+  const WhatsAppApiUrl = process.env.WHATSAPP_API_URL;
+  const WhatsAppApiKey = process.env.WHATSAPP_API_KEY;
+  if (!WhatsAppApiUrl || !WhatsAppApiKey) throw new Error('WhatsApp configuration is incomplete');
+  let normalizedPhone = String(phoneNumber || '').replace(/\D/g, '');
+  if (normalizedPhone.startsWith('0')) normalizedPhone = `27${normalizedPhone.slice(1)}`;
+  if (!normalizedPhone) throw new Error('Patient has no valid mobile number');
 
   const response = await fetch(WhatsAppApiUrl, {
     method: "POST",
@@ -19,7 +21,7 @@ export async function sendWhatsAppMsg({ phoneNumber, message }) {
       "X-API-KEY": WhatsAppApiKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ phone: phoneNumber, message }),
+    body: JSON.stringify({ phone: normalizedPhone, message }),
     signal: AbortSignal.timeout(15000),
   });
   const payload = await response.json().catch(() => ({}));
