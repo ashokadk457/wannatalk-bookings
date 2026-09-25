@@ -14,6 +14,7 @@
     "format:check": "prettier --check src *.ts *.json index.html"
   },
   "dependencies": {
+    "@daypicker/react": "^10.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.0"

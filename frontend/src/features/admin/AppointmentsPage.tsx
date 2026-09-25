@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import type { DateRange } from '@daypicker/react';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, Heading } from '../../components/ui';
+import DateRangeFilter from '../../components/DateRangeFilter';
+import { isoDate } from '../../lib/dates';
 import { statuses } from '../../types';
 import AppointmentTable from '../appointments/AppointmentTable';
 import BookingCreator from './BookingCreator';
@@ -9,6 +12,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
   const [search, setSearch] = useState(''),
     [provider, setProvider] = useState(''),
     [status, setStatus] = useState(''),
+    [range, setRange] = useState<DateRange | undefined>(undefined),
     [sort, setSort] = useState('soonest'),
     [create, setCreate] = useState(false);
   const apps = data.appointments
@@ -17,6 +21,8 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
         (!cancellations || ['Cancelled', 'No-show'].includes(a.status)) &&
         (!provider || a.provider_id === provider) &&
         (!status || a.status === status) &&
+        (!range?.from || a.appointment_date >= isoDate(range.from)) &&
+        (!range?.to || a.appointment_date <= isoDate(range.to)) &&
         `${a.patient_name} ${a.provider_name} ${a.appointment_type} ${a.mode}`
           .toLowerCase()
           .includes(search.toLowerCase()),
@@ -71,6 +77,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               ))}
             </select>
           </Field>
+          <DateRangeFilter value={range} onChange={setRange} />
           <Field label="Sort appointments">
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="soonest">Soonest first</option>

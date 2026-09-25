@@ -389,7 +389,73 @@
   flex-shrink: 0;
 }
 .admin-filters {
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr 1.4fr 1fr;
+}
+.date-range-field {
+  position: relative;
+}
+.date-range-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.date-range-trigger:hover {
+  border-color: #9fc8ef;
+}
+.date-range-trigger:focus-visible,
+.date-range-trigger[aria-expanded='true'] {
+  border-color: var(--blue);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(21, 94, 168, 0.14);
+}
+.date-range-placeholder {
+  color: var(--muted);
+}
+.date-range-icon {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+.date-range-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 80;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 22px 55px rgba(7, 29, 53, 0.18);
+}
+.date-range-popover .rdp-root {
+  --rdp-accent-color: #155ea8;
+  --rdp-accent-background-color: #e8f2ff;
+}
+.date-range-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #edf2f7;
+}
+.date-range-hint {
+  color: var(--muted);
+  font-size: 12px;
 }
 .modal-card {
   max-width: calc(100vw - 28px);
