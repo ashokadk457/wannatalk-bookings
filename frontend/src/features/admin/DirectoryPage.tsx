@@ -12,6 +12,18 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
     [edit, setEdit] = useState<Patient | Provider | null>(null),
     [busy, setBusy] = useState(false),
     [activeFilter, setActiveFilter] = useState('');
+  const [importResults, setImportResults] = useState<{ row: number; status: string; email: string; reason: string }[]>([]);
+  function downloadCsv() {
+    const headers = ['Title','First Name','Last Name','Email','Phone','South African ID / Passport','Date of Birth','Nationality','Preferred Contact','Pwd'];
+    const lines = [headers, ...(!providers ? data.patients.map((p) => [p.title || '', p.first_name || p.full_name.split(' ')[0], p.last_name || p.full_name.split(' ').slice(1).join(' '), p.email, p.mobile || '', p.identity_document || '', p.date_of_birth || '', p.nationality || 'ZA', p.preferred_contact || 'Email', '']) : [])];
+    const csv = lines.map((row) => row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = providers ? 'providers.csv' : 'patients.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+  async function importCsv(file: File) {
+    const text = await file.text(), [head, ...body] = text.trim().split(/\r?\n/).map((line) => line.split(',').map((v) => v.replace(/^"|"$/g, '').replaceAll('""', '"')));
+    const rows = body.filter((r) => r.length).map((r) => Object.fromEntries(head.map((h, i) => [h.trim().toLowerCase().replaceAll(' ', ''), r[i] || ''])));
+    await run(async () => { const result = await mutate<{ created: string[]; errors: { row: number; error: string }[] }>('/patients/import', 'POST', { rows: rows.map((r) => ({ title: r.title, firstName: r.firstname, lastName: r.lastname, email: r.email, mobile: r.phone, identityDocument: r['southafricanid/passport'], dateOfBirth: r.dateofbirth, nationality: r.nationality, preferredContact: r.preferredcontact, pwd: r.pwd })) }); setImportResults([...result.created.map((email) => ({ row: 0, status: 'Success', email, reason: 'Imported successfully' })), ...result.errors.map((e) => ({ row: e.row, status: 'Failed', email: '', reason: e.error }))]); await refresh(); }, 'Import complete');
+  }
   const admin = user?.role === 'admin',
     source = providers ? data.providers : data.patients;
   const rows = source
@@ -71,6 +83,7 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
           <span className="pill">
             {source.filter((a) => a.is_active).length} active · {source.length} total
           </span>
+          {admin && !providers && <div className="actions"><button type="button" className="btn secondary small" onClick={downloadCsv}>Export patients</button><button type="button" className="btn secondary small" onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,text/csv'; input.onchange = () => input.files?.[0] && void importCsv(input.files[0]); input.click(); }}>Import CSV/Excel</button></div>}
         </div>
         {rows.length ? (
           <div className="dashboard-table">
@@ -190,6 +203,8 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
         )}
       </Card>
       {edit && <AccountEditor account={edit} onClose={() => setEdit(null)} />}
+      {importResults.length > 0 && <Card title="Import results" className="space-top"><table><thead><tr><th>Row</th><th>Email</th><th>Result</th><th>Reason</th></tr></thead><tbody>{importResults.map((result, index) => <tr key={`${result.row}-${index}`}><td>{result.row || '—'}</td><td>{result.email || '—'}</td><td><StatusPill status={result.status} /></td><td>{result.reason}</td></tr>)}</tbody></table></Card>}
     </section>
   );
 }
+

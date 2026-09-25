@@ -65,6 +65,12 @@ export interface Patient {
   mobile: string | null;
   preferred_contact: string | null;
   is_active: boolean;
+  title?: string;
+  first_name?: string;
+  last_name?: string;
+  identity_document?: string;
+  date_of_birth?: string;
+  nationality?: string;
 }
 export interface Appointment {
   id: string;

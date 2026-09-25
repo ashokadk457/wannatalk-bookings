@@ -1,8 +1,30 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import { query, withTransaction } from '../db.js';
 import { authRequired } from '../middleware/authRequired.js';
 
 export const patientsRouter = Router();
+
+patientsRouter.post('/import', authRequired(['admin']), async (req, res) => {
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+  if (!rows.length || rows.length > 1000) return res.status(400).json({ error: 'Provide between 1 and 1000 patient rows' });
+  const result = await withTransaction(async (client) => {
+    const created = [], errors = [];
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index] || {}, email = String(row.email || '').trim().toLowerCase(), password = String(row.pwd || '');
+      const firstName = String(row.firstName || '').trim(), lastName = String(row.lastName || '').trim();
+      if (!firstName || !lastName || !/^\S+@\S+\.\S+$/.test(email) || password.length < 12) { errors.push({ row: index + 2, error: 'First Name, Last Name, valid Email, and Pwd of at least 12 characters are required' }); continue; }
+      const duplicate = await client.query(`SELECT id FROM app_users WHERE lower(email) = lower($1)`, [email]);
+      if (duplicate.rows[0]) { errors.push({ row: index + 2, error: 'Email already exists' }); continue; }
+      const user = await client.query(`INSERT INTO app_users (full_name,email,password_hash,role,is_active,registration_status,preferred_contact) VALUES ($1,$2,$3,'patient',true,'approved',$4) RETURNING id`, [`${firstName} ${lastName}`, email, await bcrypt.hash(password, 12), String(row.preferredContact || 'Email')]);
+      const encryptionKey = process.env.PII_ENCRYPTION_KEY || process.env.JWT_SECRET;
+      await client.query(`INSERT INTO patients (user_id,title,first_name,last_name,identity_document_encrypted,date_of_birth,nationality) VALUES ($1,$2,$3,$4,CASE WHEN NULLIF($5,'') IS NULL THEN NULL ELSE pgp_sym_encrypt($5,$6,'cipher-algo=aes256') END,$7,$8)`, [user.rows[0].id, row.title || null, firstName, lastName, String(row.identityDocument || '').trim(), encryptionKey, row.dateOfBirth || null, row.nationality || 'ZA']);
+      created.push(email);
+    }
+    return { created, errors };
+  });
+  res.json(result);
+});
 
 patientsRouter.get('/me', authRequired(['patient']), async (req, res) => {
   const result = await query(
@@ -34,14 +56,16 @@ patientsRouter.get('/', authRequired(), async (req, res) => {
   }
 
   const result = await query(
-    `SELECT pat.id, u.full_name, u.email, u.mobile, u.preferred_contact, u.is_active
+    `SELECT pat.id, u.full_name, u.email, u.mobile, u.preferred_contact, u.is_active,
+            pat.title, pat.first_name, pat.last_name, pat.date_of_birth, pat.nationality,
+            pgp_sym_decrypt(pat.identity_document_encrypted, $${params.length + 1}) AS identity_document
      FROM patients pat
      JOIN app_users u ON u.id = pat.user_id
      ${where}
      ORDER BY u.full_name`,
-    params
+    [...params, process.env.PII_ENCRYPTION_KEY || process.env.JWT_SECRET]
   );
-  res.json({ patients: result.rows });
+  res.json({ patients: result.rows.map((row) => req.user.role === 'admin' || req.user.role === 'patient' ? row : (({ title, first_name, last_name, date_of_birth, nationality, identity_document, ...safe }) => safe)(row)) });
 });
 
 patientsRouter.patch('/me', authRequired(['patient']), async (req, res) => {
