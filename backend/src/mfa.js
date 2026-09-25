@@ -33,7 +33,7 @@ export function availableMfaMethods(user) {
   const methods = [];
   if (mailConfigurationStatus().configured && user.email) methods.push({ method: 'email', label: 'Email', destination: maskEmail(user.email) });
   if (smsConfigurationStatus().configured && user.mobile) methods.push({ method: 'sms', label: 'SMS', destination: maskMobile(user.mobile) });
-  if (whatsAppConfigurationStatus().configured && user.mobile) methods.push({ method: 'whatsapp', label: 'WhatsApp', destination: maskMobile(user.mobile) });
+  // if (whatsAppConfigurationStatus().configured && user.mobile) methods.push({ method: 'whatsapp', label: 'WhatsApp', destination: maskMobile(user.mobile) });
   return methods;
 }
 
@@ -41,7 +41,7 @@ function unavailableMfaMethods(user) {
   const unavailable = [];
   if (!mailConfigurationStatus().configured) unavailable.push({ method: 'email', label: 'Email', reason: 'Email delivery is not configured' });
   if (!smsConfigurationStatus().configured) unavailable.push({ method: 'sms', label: 'SMS', reason: 'SMS delivery is not configured' });
-  if (!whatsAppConfigurationStatus().configured) unavailable.push({ method: 'whatsapp', label: 'WhatsApp', reason: 'WhatsApp delivery is not configured' });
+  // if (!whatsAppConfigurationStatus().configured) unavailable.push({ method: 'whatsapp', label: 'WhatsApp', reason: 'WhatsApp delivery is not configured' });
   else if (!user.mobile) unavailable.push({ method: 'sms', label: 'SMS', reason: 'No mobile number is saved for this account' });
   return unavailable;
 }
