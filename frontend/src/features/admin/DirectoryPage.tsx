@@ -13,6 +13,7 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
     [busy, setBusy] = useState(false),
     [activeFilter, setActiveFilter] = useState('');
   const [importResults, setImportResults] = useState<{ row: number; status: string; email: string; reason: string }[]>([]);
+  const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(25);
   function downloadCsv() {
     const headers = ['Title','First Name','Last Name','Email','Phone','South African ID / Passport','Date of Birth','Nationality','Preferred Contact','Pwd'];
     const lines = [headers, ...(!providers ? data.patients.map((p) => [p.title || '', p.first_name || p.full_name.split(' ')[0], p.last_name || p.full_name.split(' ').slice(1).join(' '), p.email, p.mobile || '', p.identity_document || '', p.date_of_birth || '', p.nationality || 'ZA', p.preferred_contact || 'Email', '']) : [])];
@@ -38,6 +39,8 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
         ].some((v) => v?.toLowerCase().includes(search.toLowerCase())),
     )
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
   async function toggle(account: Patient | Provider) {
     const action = account.is_active ? 'deactivate' : 'reactivate';
     if (
@@ -70,11 +73,11 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
               type="search"
               placeholder="Name, email, mobile or title"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
           </Field>
           <Field label="Account status">
-            <select value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
+            <select value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }}>
               <option value="">All accounts</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -84,6 +87,7 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
             {source.filter((a) => a.is_active).length} active · {source.length} total
           </span>
           {admin && !providers && <div className="actions"><button type="button" className="btn secondary small" onClick={downloadCsv}>Export patients</button><button type="button" className="btn secondary small" onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,text/csv'; input.onchange = () => input.files?.[0] && void importCsv(input.files[0]); input.click(); }}>Import CSV/Excel</button></div>}
+          <label className="pagination-size">Rows <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></label>
         </div>
         {rows.length ? (
           <div className="dashboard-table">
@@ -99,7 +103,7 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
                 </tr>
               </thead>
               <tbody>
-                {rows.map((account) => {
+                {visibleRows.map((account) => {
                   const p = 'professional_title' in account ? account : null,
                     apps = data.appointments.filter((a) =>
                       providers ? a.provider_id === account.id : a.patient_id === account.id,
@@ -203,6 +207,7 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
         )}
       </Card>
       {edit && <AccountEditor account={edit} onClose={() => setEdit(null)} />}
+        {rows.length > 0 && <div className="pagination-controls"><span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, rows.length)} of {rows.length}</span><div className="actions"><button type="button" className="btn secondary small" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</button><span className="pill">Page {page} of {pageCount}</span><button type="button" className="btn secondary small" disabled={page === pageCount} onClick={() => setPage((current) => current + 1)}>Next</button></div></div>}
       {importResults.length > 0 && <Card title="Import results" className="space-top"><table><thead><tr><th>Row</th><th>Email</th><th>Result</th><th>Reason</th></tr></thead><tbody>{importResults.map((result, index) => <tr key={`${result.row}-${index}`}><td>{result.row || '—'}</td><td>{result.email || '—'}</td><td><StatusPill status={result.status} /></td><td>{result.reason}</td></tr>)}</tbody></table></Card>}
     </section>
   );
