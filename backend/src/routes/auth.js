@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
+import { envNumber } from '../env.js';
 import { publicUser, signToken, verifyToken } from '../auth.js';
 import { sendPasswordResetEmail } from '../mail.js';
 import { authRequired } from '../middleware/authRequired.js';
@@ -23,7 +24,7 @@ const registrationAttempts = new Map();
 const passwordResetAttempts = new Map();
 const loginAttempts = new Map();
 const passwordResetMessage = 'If an active account exists for that email address, a password reset link has been sent.';
-const resetTokenTtlMinutes = Math.min(120, Math.max(10, Number(process.env.RESET_TOKEN_TTL_MINUTES || 30)));
+const resetTokenTtlMinutes = envNumber('RESET_TOKEN_TTL_MINUTES', 30, { min: 10, max: 120 });
 
 function registrationRateLimit(req, res, next) {
   const now = Date.now();
@@ -299,7 +300,7 @@ authRouter.post('/forgot-password', passwordResetRateLimit, async (req, res, nex
         );
         await client.query(
           `INSERT INTO password_reset_tokens (user_id, token_hash, requested_ip, expires_at)
-           VALUES ($1, $2, $3, now() + ($4 * interval '1 minute'))`,
+           VALUES ($1, $2, $3, now() + ($4::float8 * interval '1 minute'))`,
           [user.id, tokenHash, req.ip || req.socket.remoteAddress || null, resetTokenTtlMinutes]
         );
         await client.query(

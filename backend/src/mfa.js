@@ -1,11 +1,12 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { query, withTransaction } from './db.js';
+import { envNumber } from './env.js';
 import { mailConfigurationStatus, sendOtpEmail } from './mail.js';
 import { sendSms, smsConfigurationStatus } from './sms.js';
 import { sendWhatsAppMsg, whatsAppConfigurationStatus } from './whatsapp.js';
 
-const otpTtlMinutes = Math.min(15, Math.max(5, Number(process.env.OTP_TTL_MINUTES || 10)));
-const trustedDeviceDays = Math.min(30, Math.max(1, Number(process.env.TRUSTED_DEVICE_DAYS || 14)));
+const otpTtlMinutes = envNumber('OTP_TTL_MINUTES', 10, { min: 5, max: 15 });
+const trustedDeviceDays = envNumber('TRUSTED_DEVICE_DAYS', 14, { min: 1, max: 30 });
 const otpPepper = process.env.OTP_PEPPER || process.env.JWT_SECRET;
 const trustedCookieName = 'wt_trusted_device';
 
@@ -98,7 +99,7 @@ export async function sendMfaCode({ challengeId, method }) {
   await query(
     `UPDATE auth_otp_challenges
      SET delivery_method = $1, destination_masked = $2, code_hash = $3,
-         attempts = 0, last_sent_at = now(), expires_at = now() + ($4 * interval '1 minute')
+         attempts = 0, last_sent_at = now(), expires_at = now() + ($4::float8 * interval '1 minute')
      WHERE id = $5`,
     [method, selected.destination, otpHash(challenge.id, code), otpTtlMinutes, challenge.id]
   );
@@ -199,7 +200,7 @@ export async function rememberTrustedDevice({ req, res, userId }) {
   const deviceLabel = userAgent.slice(0, 120) || 'Browser';
   await query(
     `INSERT INTO trusted_devices (user_id, token_hash, device_label, user_agent, last_ip, expires_at)
-     VALUES ($1, $2, $3, $4, $5, now() + ($6 * interval '1 day'))`,
+     VALUES ($1, $2, $3, $4, $5, now() + ($6::float8 * interval '1 day'))`,
     [userId, sha256(token), deviceLabel, userAgent, req.ip || req.socket.remoteAddress || null, trustedDeviceDays]
   );
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
