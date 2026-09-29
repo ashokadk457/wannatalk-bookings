@@ -8,6 +8,18 @@
 .block {
   display: block;
 }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 .actions {
   display: flex;
   gap: 8px;
@@ -187,7 +199,6 @@
     flex: 1;
   }
 }
-.rolecard,
 .provider-option {
   text-align: left;
   color: inherit;
@@ -198,9 +209,6 @@
 .provider-option {
   width: 100%;
   padding: 16px;
-}
-.rolecard {
-  font: inherit;
 }
 .loading-screen {
   min-height: 70vh;
@@ -867,5 +875,375 @@ button.month-event.unavailable {
   }
   .booking-dialog .modal-actions .btn {
     flex: 1 1 100%;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Auth entry screen (frontend/src/features/auth/AuthPage.tsx)
+   Pixel port of the "WannaTalk booking entry" reference design. Everything is
+   scoped under #auth so no other screen or component is affected.
+   --------------------------------------------------------------------------- */
+#auth {
+  --wt-green: #5fce28;
+  --wt-green-bright: #83ff56;
+  --wt-deep: #053f22;
+  --wt-ink: #102033;
+  --wt-muted: #657487;
+  --wt-soft: #eef6f1;
+  --wt-line: #d9e5ef;
+  --wt-card: #ffffff;
+  --wt-shadow: rgba(31, 70, 98, 0.14);
+}
+#auth.auth-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 10px;
+  color: var(--wt-ink);
+  background: #f4f9fd;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+#auth .wt-shell {
+  width: min(980px, 100%);
+  display: grid;
+  grid-template-columns: 0.86fr 1.14fr;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d6e5f3;
+  border-radius: 18px;
+  background: var(--wt-card);
+  box-shadow: 0 28px 80px var(--wt-shadow);
+  backdrop-filter: none;
+}
+#auth .wt-hero {
+  position: relative;
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px 42px 40px;
+  color: #ffffff;
+  text-shadow: none;
+  background-image:
+    linear-gradient(180deg, rgba(5, 20, 17, 0.18), rgba(2, 8, 8, 0.78)),
+    url("/assets/booking-hero-bg.png");
+  background-position: center;
+  background-size: cover;
+}
+#auth .wt-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.04)),
+    radial-gradient(
+      circle at 18% 100%,
+      rgba(95, 206, 40, 0.16),
+      transparent 34%
+    );
+}
+#auth .wt-hero > * {
+  position: relative;
+  z-index: 1;
+}
+#auth .wt-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+}
+#auth .wt-brand-mark {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 4px solid var(--wt-green);
+  border-radius: 50%;
+  color: var(--wt-green);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 28px;
+  font-weight: 700;
+}
+#auth .wt-brand-name {
+  color: #050807;
+  font-size: 43px;
+  line-height: 1;
+  font-weight: 700;
+}
+#auth .wt-brand-name span {
+  color: var(--wt-green);
+}
+#auth .wt-tagline {
+  margin: 8px 0 0 70px;
+  color: #07100c;
+  font-size: 17px;
+  font-weight: 500;
+}
+#auth .wt-hero-copy h2 {
+  margin: 0 0 16px;
+  color: #ffffff;
+  font-size: 44px;
+  line-height: 1.08;
+  letter-spacing: 0;
+  font-weight: 700;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.22);
+}
+#auth .wt-hero-copy p {
+  margin: 0;
+  max-width: 380px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 18px;
+  line-height: 1.55;
+}
+#auth .wt-content {
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  padding: 56px 50px 38px;
+}
+#auth .wt-title {
+  margin: 0 0 10px;
+  color: var(--wt-deep);
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+#auth .wt-intro {
+  margin: 0 0 24px;
+  max-width: 610px;
+  color: var(--wt-muted);
+  font-size: 17px;
+  line-height: 1.45;
+}
+#auth .wt-role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+#auth .wt-role-card,
+#auth .wt-intake-card {
+  border: 1px solid var(--wt-line);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(23, 52, 78, 0.06);
+}
+#auth .wt-role-card {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px;
+  color: var(--wt-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#auth .wt-role-card.featured {
+  border-color: rgba(95, 206, 40, 0.42);
+  background: linear-gradient(180deg, #ffffff 0%, #f6fff2 100%);
+}
+#auth .wt-role-card:focus-visible {
+  outline: 3px solid rgba(95, 206, 40, 0.45);
+  outline-offset: 2px;
+}
+#auth .wt-role-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+#auth .wt-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--wt-deep);
+  background: var(--wt-soft);
+}
+#auth .wt-icon svg {
+  width: 25px;
+  height: 25px;
+  display: block;
+}
+#auth .wt-role-heading {
+  min-width: 0;
+}
+#auth .wt-role-name {
+  display: block;
+  color: var(--wt-ink);
+  font-size: 23px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+#auth .wt-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: var(--wt-deep);
+  background: rgba(95, 206, 40, 0.14);
+  font-size: 12px;
+  font-weight: 700;
+}
+#auth .wt-role-copy {
+  display: block;
+  margin: 16px 0 18px;
+  color: var(--wt-muted);
+  font-size: 15px;
+  line-height: 1.42;
+}
+#auth .wt-card-action {
+  display: block;
+  color: var(--wt-deep);
+  font-size: 15px;
+  font-weight: 700;
+}
+#auth .wt-intake-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  background:
+    radial-gradient(circle at 8% 20%, rgba(95, 206, 40, 0.1), transparent 30%),
+    #fbfefb;
+}
+#auth .wt-intake-card h2 {
+  margin: 0 0 6px;
+  color: var(--wt-deep);
+  font-size: 20px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+#auth .wt-intake-card p {
+  margin: 0;
+  color: var(--wt-muted);
+  font-size: 15px;
+  line-height: 1.42;
+}
+#auth .wt-primary-button {
+  appearance: none;
+  min-height: 50px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 14px;
+  color: #041106;
+  background: linear-gradient(135deg, var(--wt-green-bright), var(--wt-green));
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 14px 28px rgba(95, 206, 40, 0.24);
+  cursor: pointer;
+}
+#auth .wt-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 12px;
+  color: #8794a5;
+  font-size: 14px;
+}
+#auth .wt-powered {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #758397;
+  font-size: 14px;
+  font-weight: 600;
+}
+#auth .wt-powered-mark {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  color: var(--wt-green);
+  font-size: 13px;
+  line-height: 1;
+}
+#auth .wt-powered strong {
+  color: var(--wt-deep);
+  font-weight: 700;
+}
+#auth .wt-admin {
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #7f8b9a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+#auth .wt-admin:hover {
+  text-decoration: underline;
+}
+#auth .wt-admin:focus-visible {
+  outline: 3px solid rgba(95, 206, 40, 0.45);
+  outline-offset: 2px;
+}
+#auth .wt-copyright {
+  grid-column: 1 / -1;
+  padding: 16px 18px;
+  border-top: 1px solid #e6eef5;
+  background: #fbfdff;
+  color: #8391a2;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+#auth .wt-copyright small {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+@media (max-width: 760px) {
+  #auth.auth-wrap {
+    padding: 12px;
+  }
+  #auth .wt-shell {
+    grid-template-columns: 1fr;
+  }
+  #auth .wt-hero {
+    min-height: 300px;
+    padding: 30px 24px;
+  }
+  #auth .wt-brand-name {
+    font-size: 36px;
+  }
+  #auth .wt-hero-copy h2 {
+    font-size: 34px;
+  }
+  #auth .wt-content {
+    min-height: auto;
+    padding: 34px 24px 26px;
+  }
+  #auth .wt-role-grid {
+    grid-template-columns: 1fr;
+  }
+  #auth .wt-intake-card {
+    grid-template-columns: 1fr;
+  }
+  #auth .wt-primary-button {
+    width: 100%;
   }
 }

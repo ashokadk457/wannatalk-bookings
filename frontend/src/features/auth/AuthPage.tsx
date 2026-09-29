@@ -95,40 +95,30 @@ export default function AuthPage() {
   }
   return (
     <div id="auth" className="auth-wrap">
-      <div className="card auth-card">
-        <section
-          className="auth-brand"
-          style={{
-            backgroundImage:
-              'linear-gradient(180deg,rgba(4,18,36,.16),rgba(4,18,36,.7)),url(/assets/welcome.jpg)',
-          }}
-        >
+      <div className="card auth-card wt-shell">
+        <aside className="auth-brand wt-hero">
           <div>
-            <div className="brand">
+            <div className="brand wt-brand">
               <img
                 className="brand-logo"
-                src="/assets/logo-transparent.png"
+                src="/assets/logo.svg"
                 alt="WannaTalk — You are not alone"
+                style={{ height: "70px", width: "70px" }}
               />
+              <div className="wt-brand-name">
+                Wanna<span>Talk</span>
+              </div>
             </div>
-            <h2 style={{ fontSize: 34, marginTop: 40 }}>
-              One booking system.
-              <br />
-              Simple, connected care.
-            </h2>
-            <p style={{ opacity: 0.8, lineHeight: 1.7 }}>
-              Patients book available sessions while providers manage their calendars and
-              communication in one place.
+            <div className="wt-tagline">You are not alone.</div>
+          </div>
+          <div className="wt-hero-copy">
+            <h2>Care starts with the right connection.</h2>
+            <p>
+              Book sessions, complete intake, and stay connected with your care team in one place.
             </p>
           </div>
-          <small>Copyright WannaTalk™ 2026</small>
-        </section>
-        <section className="auth-panel">
-          <img
-            className="auth-mobile-logo"
-            src="/assets/logo-transparent.png"
-            alt="WannaTalk — You are not alone"
-          />
+        </aside>
+        <section className="auth-panel wt-content">
           {resetToken ? (
             <form onSubmit={reset}>
               <h2>Create new password</h2>
@@ -184,20 +174,110 @@ export default function AuthPage() {
             />
           ) : !role ? (
             <>
-              <h2>Welcome</h2>
-              <p className="sub">Choose how you want to enter the system.</p>
-              <div className="rolechoice">
-                <button className="rolecard" onClick={() => choose('patient')}>
-                  <h3>👤 Patient</h3>
-                  <span className="sub">Book and manage sessions.</span>
+              <h1 className="wt-title">How would you like to continue?</h1>
+              <p className="wt-intro">
+                Patients can book available sessions or start with an intake. Providers can manage
+                bookings, calendars, and availability.
+              </p>
+              <div className="wt-role-grid">
+                <button
+                  type="button"
+                  className="wt-role-card featured"
+                  onClick={() => choose('patient')}
+                >
+                  <span className="wt-role-body">
+                    <span className="wt-role-top">
+                      <span className="wt-icon" aria-hidden="true">
+                        <svg viewBox="0 0 32 32" fill="none">
+                          <path
+                            d="M16 16.5a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                          />
+                          <path
+                            d="M6 28c1.5-5.3 5.1-8.2 10-8.2S24.5 22.7 26 28"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="wt-role-heading">
+                        {/* Keeps the existing accessible name ("👤 Patient") announced by screen
+                            readers and used by the Playwright specs. */}
+                        <span className="wt-role-name">
+                          <span className="visually-hidden">👤 </span>
+                          Patient
+                        </span>
+                        <span className="wt-badge">Most common</span>
+                      </span>
+                    </span>
+                    <span className="wt-role-copy">
+                      Book a session, manage appointments, or continue your intake.
+                    </span>
+                  </span>
+                  <span className="wt-card-action">Continue as patient →</span>
                 </button>
-                <button className="rolecard" onClick={() => choose('provider')}>
-                  <h3>🩺 Provider</h3>
-                  <span className="sub">Manage bookings and availability.</span>
+                <button type="button" className="wt-role-card" onClick={() => choose('provider')}>
+                  <span className="wt-role-body">
+                    <span className="wt-role-top">
+                      <span className="wt-icon" aria-hidden="true">
+                        <svg viewBox="0 0 32 32" fill="none">
+                          <path
+                            d="M11 6v6M21 6v6"
+                            stroke="currentColor"
+                            strokeWidth="2.3"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M8 10h16a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V13a3 3 0 0 1 3-3Z"
+                            stroke="currentColor"
+                            strokeWidth="2.3"
+                          />
+                          <path
+                            d="M10 17h12M10 22h7"
+                            stroke="currentColor"
+                            strokeWidth="2.3"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="wt-role-heading">
+                        <span className="wt-role-name">
+                          <span className="visually-hidden">🩺 </span>
+                          Provider
+                        </span>
+                      </span>
+                    </span>
+                    <span className="wt-role-copy">
+                      Manage bookings, availability, and patient communication.
+                    </span>
+                  </span>
+                  <span className="wt-card-action">Continue as provider →</span>
                 </button>
               </div>
-              <div className="admin-access">
-                <button onClick={() => choose('admin')}>Administration access</button>
+              <section className="wt-intake-card" aria-label="Start intake">
+                <div>
+                  <h2>Not sure where to start?</h2>
+                  <p>
+                    Complete a guided intake first so our team can understand your needs before your
+                    first session.
+                  </p>
+                </div>
+                <button className="wt-primary-button" type="button" onClick={() => {window.open('https://intake.wannatalk.co.za/','_blank')}}>
+                  Begin Intake →
+                </button>
+              </section>
+              <div className="wt-footer">
+                <span className="wt-powered">
+                  <span className="wt-powered-mark" aria-hidden="true">
+                    ✓
+                  </span>
+                  Powered by <strong>WannaTalk</strong>
+                </span>
+                <button type="button" className="wt-admin" onClick={() => choose('admin')}>
+                  Admin access
+                </button>
               </div>
             </>
           ) : (
@@ -300,6 +380,9 @@ export default function AuthPage() {
             </>
           )}
         </section>
+        <div className="wt-copyright">
+          <small>Copyright WannaTalk™ 2026</small>
+        </div>
       </div>
     </div>
   );
