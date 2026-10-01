@@ -38,6 +38,11 @@ export const isPast = (date: string, time: string) =>
 export const rescheduleAllowed = (date: string, time: string) =>
   new Date(`${date}T${time}`).getTime() - Date.now() > 10 * 60 * 1000;
 export const active = (a: Appointment) => !['Cancelled', 'No-show', 'Completed'].includes(a.status);
+/** A valid online appointment may still be joined after its scheduled end time. */
+export const joinAllowed = (a: Appointment) =>
+  a.mode.toLowerCase() === 'online' &&
+  !['Cancelled', 'No-show'].includes(a.status) &&
+  Boolean(a.meeting_url);
 export const occupiesSlot = (a: Appointment) => !['Cancelled', 'No-show'].includes(a.status);
 export const statusClass = (status: string) => status.toLowerCase();
 export const initials = (name: string) =>

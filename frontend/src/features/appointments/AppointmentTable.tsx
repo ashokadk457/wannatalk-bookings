@@ -1,7 +1,7 @@
 import { useApp } from '../../app/AppContext';
 import { MeetingLink } from '../../components/MeetingLink';
 import { Empty, StatusPill } from '../../components/ui';
-import { formatDate } from '../../lib/dates';
+import { formatDate, joinAllowed } from '../../lib/dates';
 import { AppointmentActions, useAppointments } from './AppointmentContext';
 import { statuses, type Appointment, type Status } from '../../types';
 export default function AppointmentTable({
@@ -51,7 +51,7 @@ export default function AppointmentTable({
               <td>
                 {a.appointment_type}
                 <div className="sub">📍 {a.location_name || a.mode}</div>
-                {a.status !== 'Cancelled' && <MeetingLink url={a.meeting_url} />}
+                {joinAllowed(a) && <MeetingLink url={a.meeting_url} />}
                 {a.intake_requested && <div className="intake-badge">Intake selected</div>}
               </td>
               <td>

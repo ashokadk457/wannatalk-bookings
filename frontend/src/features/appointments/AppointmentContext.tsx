@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useApp } from '../../app/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { active, formatDate, minutes, rescheduleAllowed, slotProblem, timeString, today } from '../../lib/dates';
+import { active, formatDate, joinAllowed, minutes, rescheduleAllowed, slotProblem, timeString, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import { MeetingLink } from '../../components/MeetingLink';
 import { Field, StatusPill } from '../../components/ui';
@@ -191,7 +191,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
-          {appointment.status !== 'Cancelled' && appointment.mode.toLowerCase() === 'online' && (
+          {joinAllowed(appointment) && (
             <MeetingLink url={appointment.meeting_url} showUnavailable />
           )}
           {editing ? (
