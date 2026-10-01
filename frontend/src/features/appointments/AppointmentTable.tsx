@@ -51,7 +51,7 @@ export default function AppointmentTable({
               <td>
                 {a.appointment_type}
                 <div className="sub">📍 {a.location_name || a.mode}</div>
-                <MeetingLink url={a.meeting_url} />
+                {a.status !== 'Cancelled' && <MeetingLink url={a.meeting_url} />}
                 {a.intake_requested && <div className="intake-badge">Intake selected</div>}
               </td>
               <td>

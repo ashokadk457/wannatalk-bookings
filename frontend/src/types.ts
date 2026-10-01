@@ -32,6 +32,7 @@ export interface TimeBlock {
   reason: string;
 }
 export interface BusyTime {
+  id?: string;
   appointment_date: string;
   appointment_time: string;
   end_time: string;

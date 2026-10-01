@@ -35,6 +35,8 @@ export const timeString = (n: number) =>
 export const isPast = (date: string, time: string) =>
   !Number.isFinite(new Date(`${date}T${time}`).getTime()) ||
   new Date(`${date}T${time}`) <= new Date();
+export const rescheduleAllowed = (date: string, time: string) =>
+  new Date(`${date}T${time}`).getTime() - Date.now() > 10 * 60 * 1000;
 export const active = (a: Appointment) => !['Cancelled', 'No-show', 'Completed'].includes(a.status);
 export const occupiesSlot = (a: Appointment) => !['Cancelled', 'No-show'].includes(a.status);
 export const statusClass = (status: string) => status.toLowerCase();
@@ -74,12 +76,11 @@ export function slotProblem(
   )
     return 'The provider is unavailable during that time';
   if (
-    !excludeId &&
     provider.busy.some((b) => {
       const busyDate = String(b.appointment_date).slice(0, 10);
       const busyStart = minutes(String(b.appointment_time).slice(0, 5));
       const busyEnd = minutes(String(b.end_time).slice(0, 5));
-      return busyDate === date && Number.isFinite(busyStart) && Number.isFinite(busyEnd) && start < busyEnd && end > busyStart;
+      return b.id !== excludeId && busyDate === date && Number.isFinite(busyStart) && Number.isFinite(busyEnd) && start < busyEnd && end > busyStart;
     })
   )
     return 'That booking slot is already taken';

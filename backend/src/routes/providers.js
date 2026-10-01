@@ -38,7 +38,7 @@ providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
       [req.params.id]
     ),
     query(
-      `SELECT appointment_date::text AS appointment_date,
+      `SELECT id, appointment_date::text AS appointment_date,
               appointment_time::text AS appointment_time,
               (appointment_time + (duration_minutes * interval '1 minute'))::time::text AS end_time
        FROM appointments

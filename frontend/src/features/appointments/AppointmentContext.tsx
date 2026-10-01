@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useApp } from '../../app/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { active, formatDate, minutes, slotProblem, timeString, today } from '../../lib/dates';
+import { active, formatDate, minutes, rescheduleAllowed, slotProblem, timeString, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import { MeetingLink } from '../../components/MeetingLink';
 import { Field, StatusPill } from '../../components/ui';
@@ -42,6 +42,10 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     setSelected(null);
   }
   function open(a: Appointment, reschedule = false) {
+    if (reschedule && !rescheduleAllowed(a.appointment_date, a.appointment_time)) {
+      notify('Rescheduling is unavailable within 10 minutes of the appointment start time');
+      return;
+    }
     setDate(a.appointment_date);
     setTime(a.appointment_time);
     setEditing(reschedule);
@@ -187,7 +191,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
-          {appointment.mode.toLowerCase() === 'online' && (
+          {appointment.status !== 'Cancelled' && appointment.mode.toLowerCase() === 'online' && (
             <MeetingLink url={appointment.meeting_url} showUnavailable />
           )}
           {editing ? (
@@ -274,13 +278,13 @@ export function AppointmentActions({
       )}
       {active(a) && (
         <>
-          <button
+          {rescheduleAllowed(a.appointment_date, a.appointment_time) && <button
             disabled={actions.busy}
             className="btn secondary small"
             onClick={() => actions.open(a, true)}
           >
             Reschedule
-          </button>
+          </button>}
           <button
             disabled={actions.busy}
             className="btn danger small"
