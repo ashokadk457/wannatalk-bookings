@@ -2,6 +2,8 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { query, withTransaction } from '../db.js';
 import { authRequired } from '../middleware/authRequired.js';
+import { sendCommunicationEmail } from '../mail.js';
+import { sendSms } from '../sms.js';
 
 export const appointmentsRouter = Router();
 
@@ -26,6 +28,22 @@ function isOnlineMode(value) {
 
 function createMeetingUrl() {
   return `${meetingBaseUrl()}/wannatalk-${crypto.randomBytes(9).toString('hex')}`;
+}
+
+async function notifyProvider(appointmentId, event) {
+  try {
+    const result = await query(`SELECT a.appointment_date::date::text AS appointment_date, a.appointment_time::time::text AS appointment_time, a.appointment_type, a.mode, pu.full_name AS patient_name, pr.full_name AS provider_name, pr.email AS provider_email, pr.mobile AS provider_mobile FROM appointments a JOIN patients pat ON pat.id = a.patient_id JOIN app_users pu ON pu.id = pat.user_id JOIN providers pro ON pro.id = a.provider_id JOIN app_users pr ON pr.id = pro.user_id WHERE a.id = $1`, [appointmentId]);
+    const a = result.rows[0];
+    if (!a) return;
+    const subject = `Appointment ${event}: ${a.patient_name}`;
+    const message = `Appointment ${event}.\nPatient: ${a.patient_name}\nDate: ${a.appointment_date}\nTime: ${a.appointment_time}\nType: ${a.appointment_type}\nMode: ${a.mode}`;
+    await Promise.allSettled([
+      a.provider_email ? sendCommunicationEmail({ email: a.provider_email, fullName: a.provider_name, subject, message }) : Promise.resolve(),
+      a.provider_mobile ? sendSms({ phoneNumber: a.provider_mobile, message }) : Promise.resolve(),
+    ]);
+  } catch (error) {
+    console.error('Provider appointment notification failed', error);
+  }
 }
 
 async function assertProviderAvailable(client, { providerId, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null }) {
@@ -191,6 +209,7 @@ appointmentsRouter.post('/', authRequired(['patient', 'admin']), asyncHandler(as
   });
 
   res.status(201).json({ appointment });
+  void notifyProvider(appointment.id, 'booked');
 }));
 
 appointmentsRouter.patch('/:id/reschedule', authRequired(['admin', 'provider', 'patient']), asyncHandler(async (req, res) => {
@@ -233,6 +252,7 @@ appointmentsRouter.patch('/:id/reschedule', authRequired(['admin', 'provider', '
   });
 
   res.json({ appointment });
+  void notifyProvider(appointment.id, 'rescheduled');
 }));
 
 appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'patient']), asyncHandler(async (req, res) => {
@@ -261,6 +281,7 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
     [req.user.id, req.user.name || req.user.email || req.user.role, req.user.role, status === 'Cancelled' ? 'Cancelled booking' : 'Changed booking status', req.params.id, JSON.stringify({ status })]
   );
   res.json({ appointment: result.rows[0] });
+  if (status === 'Cancelled') void notifyProvider(result.rows[0].id, 'cancelled');
 }));
 
 appointmentsRouter.delete('/:id', authRequired(['admin']), asyncHandler(async (req, res) => {
