@@ -13,6 +13,7 @@ export const navigation: Record<Role, { path: string; label: string; icon: strin
     { path: 'patients', label: 'Patients', icon: '◉' },
     { path: 'followups', label: 'Follow-ups', icon: '✓' },
     { path: 'messages', label: 'Messages', icon: '✉' },
+    { path: 'appointment-messages', label: 'Appointment reminders', icon: '◉' },
     { path: 'profile', label: 'Provider Profile', icon: '⚙' },
   ],
   admin: [

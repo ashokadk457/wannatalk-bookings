@@ -57,3 +57,19 @@ communicationsRouter.post('/send', authRequired(['admin', 'provider']), async (r
   );
   res.status(201).json({ deliveries: result.deliveries });
 });
+
+communicationsRouter.post('/bulk-send', authRequired(['admin', 'provider']), async (req, res) => {
+  const patientIds = [...new Set(Array.isArray(req.body.patientIds) ? req.body.patientIds.map(String).filter(Boolean) : [])];
+  const channels = cleanChannels(req.body.channels);
+  const subject = String(req.body.subject || 'Message from WannaTalk').trim().slice(0, 160);
+  const message = String(req.body.message || '').trim().slice(0, 1000);
+  if (!patientIds.length || !message || !channels.length) return res.status(400).json({ error: 'Patients, message, and delivery channel are required' });
+  const providerId = req.user.role === 'provider' ? await providerForUser(req.user.id) : (req.body.providerId ? String(req.body.providerId) : null);
+  if (req.user.role === 'provider' && !providerId) return res.status(403).json({ error: 'Provider account is not linked' });
+  const results = [];
+  for (const patientId of patientIds) {
+    if (req.user.role === 'provider' && !(await providerMayContactPatient(providerId, patientId))) continue;
+    results.push(await sendPatientCommunication({ patientId, providerId, sentByUserId: req.user.id, channels, subject, message }));
+  }
+  res.status(201).json({ patients: results.length, deliveries: results.flatMap((item) => item.deliveries) });
+});

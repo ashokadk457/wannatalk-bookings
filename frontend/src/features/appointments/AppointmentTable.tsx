@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { MeetingLink } from '../../components/MeetingLink';
 import { Empty, StatusPill } from '../../components/ui';
@@ -7,18 +9,26 @@ import { statuses, type Appointment, type Status } from '../../types';
 export default function AppointmentTable({
   appointments,
   editable = false,
+  bulkMessaging = false,
 }: {
   appointments: Appointment[];
   editable?: boolean;
+  bulkMessaging?: boolean;
 }) {
   const { user } = useApp(),
-    actions = useAppointments();
+    actions = useAppointments(),
+    navigate = useNavigate();
+  const [selected, setSelected] = useState<string[]>([]);
+  const patientIds = [...new Set(appointments.map((a) => a.patient_id))];
+  const selectedPatients = selected.filter((id) => patientIds.includes(id));
+  const selectAll = () => setSelected(selectedPatients.length === patientIds.length ? [] : patientIds);
   if (!appointments.length) return <Empty>No appointments match this view.</Empty>;
   return (
     <div className="dashboard-table">
       <table>
         <thead>
           <tr>
+            {bulkMessaging && user?.role !== 'patient' && <th><input type="checkbox" aria-label="Select all patients" checked={patientIds.length > 0 && selectedPatients.length === patientIds.length} onChange={selectAll} /></th>}
             <th>Date</th>
             <th>Time</th>
             {user?.role !== 'patient' && <th>Patient</th>}
@@ -31,7 +41,8 @@ export default function AppointmentTable({
         <tbody>
           {appointments.map((a) => (
             <tr key={a.id} onDoubleClick={() => actions.open(a)}>
-              <td>{formatDate(a.appointment_date)}</td>
+                {bulkMessaging && user?.role !== 'patient' && <td><input type="checkbox" aria-label={`Select ${a.patient_name}`} checked={selected.includes(a.patient_id)} onChange={(e) => setSelected((current) => e.target.checked ? [...current, a.patient_id] : current.filter((id) => id !== a.patient_id))} /></td>}
+                <td>{formatDate(a.appointment_date)}</td>
               <td>
                 <strong>{a.appointment_time}</strong>
                 <div className="sub">{a.duration_minutes} min</div>
@@ -85,6 +96,9 @@ export default function AppointmentTable({
           ))}
         </tbody>
       </table>
+      {bulkMessaging && user?.role !== 'patient' && selectedPatients.length > 0 && (
+        <div className="modal-actions space-top"><span>{selectedPatients.length} patient(s) selected</span><button className="btn" onClick={() => navigate(`/${user?.role}/appointment-messages`, { state: { patientIds: selectedPatients } })}>Message selected patients</button></div>
+      )}
     </div>
   );
 }

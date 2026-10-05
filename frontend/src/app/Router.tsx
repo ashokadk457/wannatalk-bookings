@@ -17,6 +17,7 @@ const Registrations = lazy(() => import('../features/admin/RegistrationsPage'));
 const Audit = lazy(() => import('../features/admin/AuditPage'));
 const Health = lazy(() => import('../features/admin/HealthPage'));
 const Messages = lazy(() => import('../features/workflows/MessagesPage'));
+const AppointmentMessages = lazy(() => import('../features/workflows/AppointmentMessagesPage'));
 const FollowUps = lazy(() => import('../features/workflows/FollowUpsPage'));
 const Waiting = lazy(() => import('../features/workflows/WaitingPage'));
 export default function Router() {
@@ -75,6 +76,7 @@ export default function Router() {
           <Route path="patients" element={<Directory />} />
           <Route path="followups" element={<FollowUps />} />
           <Route path="messages" element={<Messages />} />
+          <Route path="appointment-messages" element={<AppointmentMessages />} />
           <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="/admin" element={<Layout role="admin" />}>

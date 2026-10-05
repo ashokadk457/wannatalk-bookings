@@ -56,8 +56,8 @@ export default function DashboardPage() {
         />
       </div>
       <div className="grid two space-top flex-box">
-        <Card title={admin ? 'Upcoming appointments' : "Today's appointments"}>
-          <AppointmentTable appointments={admin ? upcoming : todays} />
+        <Card title={admin ? 'Upcoming appointments' : 'Upcoming appointments'}>
+          <AppointmentTable appointments={admin ? upcoming : apps.filter((a) => a.appointment_date >= today() && !['Cancelled', 'No-show'].includes(a.status)).slice(0, 20)} bulkMessaging={user?.role === 'provider'} />
         </Card>
         <div className="grid">
           <Card title={admin ? 'Practice health' : "Today's overview"}>
