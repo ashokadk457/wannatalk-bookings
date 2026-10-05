@@ -7,7 +7,8 @@ import { useResource } from '../../hooks/useResource';
 import { mutate } from '../../services/api';
 import { Channels, deliverySummary, PatientSelect, ProviderSelect, ResourceState } from './shared';
 import type { Delivery } from '../../types';
-export default function MessagesPage({ appointmentMode = false, defaultPatientIds = [], defaultSubject, defaultMessage }: { appointmentMode?: boolean; defaultPatientIds?: string[]; defaultSubject?: string; defaultMessage?: string }) {
+import type { Appointment } from '../../types';
+export default function MessagesPage({ appointmentMode = false, appointmentOptions = [], defaultPatientIds = [], defaultSubject, defaultMessage }: { appointmentMode?: boolean; appointmentOptions?: Appointment[]; defaultPatientIds?: string[]; defaultSubject?: string; defaultMessage?: string }) {
   const { user, run, notify } = useApp(),
     resource = useResource<{ deliveries: Delivery[] }>('/communications');
   const initial = useLocation().state as {
@@ -61,7 +62,7 @@ export default function MessagesPage({ appointmentMode = false, defaultPatientId
           <form onSubmit={send}>
             <fieldset className="form-reset" disabled={busy}>
               <div className="form-grid">
-                {patientIds.length ? <div className="notice">Patients selected from the appointment list: {patientIds.length}</div> : <PatientSelect value={patientId} onChange={setPatient} />}
+                {appointmentMode ? <fieldset className="field full location-fields"><legend>Select appointment patients</legend><div className="notice">Only upcoming active appointments are shown. Uncheck anyone who should not receive this reminder.</div><div className="workflow-checks">{appointmentOptions.length ? appointmentOptions.map((a) => <label key={a.id} className="appointment-recipient"><input type="checkbox" checked={patientIds.includes(a.patient_id)} onChange={(e) => setPatientIds((current) => e.target.checked ? [...new Set([...current, a.patient_id])] : current.filter((id) => id !== a.patient_id))} /><span><strong>{a.patient_name}</strong><small>{a.appointment_date} · {a.appointment_time} · {a.mode}</small></span></label>) : <span>No upcoming appointments found.</span>}</div></fieldset> : patientIds.length ? <div className="notice">Patients selected from the appointment list: {patientIds.length}</div> : <PatientSelect value={patientId} onChange={setPatient} />}
                 {user?.role === 'admin' && (
                   <ProviderSelect value={providerId} onChange={setProvider} optional />
                 )}
