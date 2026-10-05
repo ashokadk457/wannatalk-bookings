@@ -50,6 +50,15 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
   async function send(e: FormEvent) {
     e.preventDefault();
     if (!channels.length) return notify('Choose Email, SMS, or both');
+    if (appointmentMode) {
+      const allowed = new Set(placeholders);
+      const found = message.match(/\{\{[^}]*\}\}/g) || [];
+      const invalid = found.filter((token) => !allowed.has(token));
+      const hasUnfinished = (message.match(/\{\{/g) || []).length !== (message.match(/\}\}/g) || []).length;
+      if (invalid.length || hasUnfinished) {
+        return notify(`Invalid appointment placeholder${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ') || 'unfinished {{...}} token'}. Use the buttons above to insert valid placeholders.`);
+      }
+    }
     if (!window.confirm('Send this message by the selected channels now?')) return;
     setBusy(true);
     await run(async () => {
