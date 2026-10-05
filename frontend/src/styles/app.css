@@ -1203,6 +1203,10 @@ button.month-event.unavailable {
 }
 #auth .wt-copyright {
   grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   padding: 16px 18px;
   border-top: 1px solid #e6eef5;
   background: #fbfdff;
@@ -1215,6 +1219,38 @@ button.month-event.unavailable {
   color: inherit;
   font-size: inherit;
   font-weight: inherit;
+}
+#auth .wt-social {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 8px;
+}
+#auth .wt-social a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #758397;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+#auth .wt-social a svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+#auth .wt-social a:hover {
+  color: var(--wt-deep);
+  background: var(--wt-soft);
+}
+#auth .wt-social a:focus-visible {
+  outline: 3px solid rgba(95, 206, 40, 0.45);
+  outline-offset: 2px;
 }
 @media (max-width: 760px) {
   #auth.auth-wrap {
