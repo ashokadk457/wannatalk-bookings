@@ -1283,3 +1283,7 @@ button.month-event.unavailable {
     width: 100%;
   }
 }
+
+.placeholder-toolbar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
+.placeholder-toolbar .btn { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; }
+

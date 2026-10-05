@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, Empty, Field, Heading, StatusPill } from '../../components/ui';
@@ -30,6 +30,20 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
     [selected, setSelected] = useState<Delivery | null>(null),
     [logSearch, setLogSearch] = useState(''),
     [logPage, setLogPage] = useState(1);
+  const messageRef = useRef<HTMLTextAreaElement>(null);
+  const placeholders = ['{{patient_name}}', '{{provider_name}}', '{{appointment_date}}', '{{start_time}}', '{{end_time}}', '{{mode}}'];
+  function insertPlaceholder(value: string) {
+    const textarea = messageRef.current;
+    if (!textarea) return setMessage((current) => `${current}${current ? ' ' : ''}${value}`);
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    setMessage((current) => `${current.slice(0, start)}${value}${current.slice(end)}`);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const position = start + value.length;
+      textarea.setSelectionRange(position, position);
+    });
+  }
   const pageSize = 20;
   const filteredDeliveries = (resource.value?.deliveries || []).filter((d) => `${d.patient_name} ${d.provider_name || ''} ${d.channel} ${d.status} ${d.subject}`.toLowerCase().includes(logSearch.toLowerCase()));
   const pagedDeliveries = filteredDeliveries.slice((logPage - 1) * pageSize, logPage * pageSize);
@@ -39,8 +53,9 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
     if (!window.confirm('Send this message by the selected channels now?')) return;
     setBusy(true);
     await run(async () => {
+      const selectedAppointmentIds = [...new Set(patientIds.map((id) => appointmentOptions.find((a) => a.patient_id === id)?.id).filter((id): id is string => Boolean(id)))];
       const result = await mutate<{ deliveries: Delivery[] }>(patientIds.length ? '/communications/bulk-send' : '/communications/send', 'POST', {
-        ...(patientIds.length ? { patientIds } : { patientId }),
+        ...(patientIds.length ? { patientIds, appointmentIds: selectedAppointmentIds } : { patientId }),
         providerId: providerId || null,
         subject,
         message,
@@ -62,7 +77,7 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
           <form onSubmit={send}>
             <fieldset className="form-reset" disabled={busy}>
               <div className="form-grid">
-                {appointmentMode ? <fieldset className="field full location-fields"><legend>Select appointment patients</legend><div className="notice">Only upcoming active appointments are shown. Uncheck anyone who should not receive this reminder.</div><div className="workflow-checks">{appointmentOptions.length ? appointmentOptions.map((a) => <label key={a.id} className="appointment-recipient"><input type="checkbox" checked={patientIds.includes(a.patient_id)} onChange={(e) => setPatientIds((current) => e.target.checked ? [...new Set([...current, a.patient_id])] : current.filter((id) => id !== a.patient_id))} /><span><strong>{a.patient_name}</strong><small>{a.appointment_date} · {a.appointment_time} · {a.mode}</small></span></label>) : <span>No upcoming appointments found.</span>}</div></fieldset> : patientIds.length ? <div className="notice">Patients selected from the appointment list: {patientIds.length}</div> : <PatientSelect value={patientId} onChange={setPatient} />}
+                {appointmentMode ? <fieldset className="field full location-fields"><legend>Select appointment patients</legend><div className="notice">Use placeholders in the message: <code>{'{{patient_name}}'}</code> <code>{'{{appointment_date}}'}</code> <code>{'{{start_time}}'}</code> <code>{'{{end_time}}'}</code> <code>{'{{mode}}'}</code>. They are replaced for each patient’s appointment.</div><div className="workflow-checks">{appointmentOptions.length ? appointmentOptions.map((a) => <label key={a.id} className="appointment-recipient"><input type="checkbox" checked={patientIds.includes(a.patient_id)} onChange={(e) => setPatientIds((current) => e.target.checked ? [...new Set([...current, a.patient_id])] : current.filter((id) => id !== a.patient_id))} /><span><strong>{a.patient_name}</strong><small>{a.appointment_date} · {a.appointment_time} · {a.mode}</small></span></label>) : <span>No upcoming appointments found.</span>}</div></fieldset> : patientIds.length ? <div className="notice">Patients selected from the appointment list: {patientIds.length}</div> : <PatientSelect value={patientId} onChange={setPatient} />}
                 {user?.role === 'admin' && (
                   <ProviderSelect value={providerId} onChange={setProvider} optional />
                 )}
@@ -75,7 +90,12 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
                   />
                 </Field>
                 <Field label="Message" full>
+                  {appointmentMode && <div className="placeholder-toolbar" aria-label="Insert appointment placeholder">
+                    <span className="sub">Insert field:</span>
+                    {placeholders.map((placeholder) => <button type="button" className="btn secondary small" key={placeholder} onClick={() => insertPlaceholder(placeholder)}>{placeholder}</button>)}
+                  </div>}
                   <textarea
+                    ref={messageRef}
                     required
                     maxLength={1000}
                     value={message}
