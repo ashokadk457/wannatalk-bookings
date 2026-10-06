@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Card, Field } from '../../components/ui';
 import { days, minutes, shortTime } from '../../lib/dates';
 import { mutate } from '../../services/api';
+import { api } from '../../services/api';
 export default function AvailabilityPage() {
   const { user, data, run, refresh, notify } = useApp(),
     provider = data.providers.find((p) => p.id === user?.entityId);
@@ -17,7 +18,14 @@ export default function AvailabilityPage() {
         };
       }),
     ),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [locationId, setLocationId] = useState(''),
+    [unavailableDate, setUnavailableDate] = useState(''),
+    [unavailableStart, setUnavailableStart] = useState(''),
+    [unavailableEnd, setUnavailableEnd] = useState(''),
+    [unavailableReason, setUnavailableReason] = useState('');
+  const locationOptions = data.locations.filter((l) => provider?.locations.includes(l.name));
+  useEffect(() => { if (!locationId && locationOptions[0]) setLocationId(locationOptions[0].id); }, [locationId, locationOptions]);
   function change(day: number, patch: Partial<(typeof rows)[number]>) {
     setRows((v) => v.map((a, i) => (i === day ? { ...a, ...patch } : a)));
   }
@@ -31,6 +39,16 @@ export default function AvailabilityPage() {
       await mutate(`/providers/${provider.id}/availability`, 'PUT', { availability: rows });
       await refresh();
     }, 'Availability saved to WannaTalk');
+    setBusy(false);
+  }
+  async function saveUnavailable(e: FormEvent) {
+    e.preventDefault(); if (!provider || !unavailableDate) return;
+    await run(async () => { await mutate(`/providers/${provider.id}/unavailable`, 'POST', { locationId: locationId || null, date: unavailableDate, startTime: unavailableStart || null, endTime: unavailableEnd || null, reason: unavailableReason }); await refresh(); setUnavailableDate(''); setUnavailableStart(''); setUnavailableEnd(''); setUnavailableReason(''); }, 'Unavailable period saved');
+  }
+  async function saveLocationSchedule() {
+    if (!provider || !locationId) return notify('Choose a location first');
+    setBusy(true);
+    await run(async () => { await mutate(`/providers/${provider.id}/location-availability`, 'PUT', { locationId, availability: rows }); await refresh(); }, 'Location schedule saved');
     setBusy(false);
   }
   return (
@@ -76,6 +94,13 @@ export default function AvailabilityPage() {
             </button>
           </fieldset>
         </form>
+        <hr />
+        <h3>Location schedule</h3>
+        <div className="notice">Set the selected location’s schedule. Existing global hours remain the fallback for locations without a saved schedule.</div>
+        <Field label="Location"><select value={locationId} onChange={(e) => setLocationId(e.target.value)}><option value="">All locations / global schedule</option>{locationOptions.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></Field>
+        <button className="btn secondary space-top" type="button" disabled={busy} onClick={() => void saveLocationSchedule()}>Save this location schedule</button>
+        <h3 className="space-top">Unavailable day or time slot</h3>
+        <form onSubmit={saveUnavailable}><div className="form-grid"><Field label="Date"><input required type="date" value={unavailableDate} onChange={(e) => setUnavailableDate(e.target.value)} /></Field><Field label="Start time (optional)"><input type="time" value={unavailableStart} onChange={(e) => setUnavailableStart(e.target.value)} /></Field><Field label="End time (optional)"><input type="time" value={unavailableEnd} onChange={(e) => setUnavailableEnd(e.target.value)} /></Field><Field label="Reason"><input value={unavailableReason} onChange={(e) => setUnavailableReason(e.target.value)} /></Field></div><button className="btn space-top">Save unavailable period</button></form>
         {!!provider?.blocks.length && (
           <>
             <h3>Blocked times</h3>
