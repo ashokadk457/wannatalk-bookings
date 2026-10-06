@@ -21,8 +21,8 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     locations = data.locations.filter((l) => provider?.locations.includes(l.name)),
     location = locations.find((l) => l.id === locationId);
   const slots = provider
-    ? providerTimes(provider, date).filter(
-        (t) => !slotProblem(provider, date, t, data.appointments),
+    ? providerTimes(provider, date, location?.name).filter(
+        (t) => !slotProblem(provider, date, t, data.appointments, undefined, location?.name),
       )
     : [];
   async function save(e: FormEvent) {

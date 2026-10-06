@@ -38,7 +38,7 @@ async function fetchData(user: User): Promise<AppData> {
   ]);
   const withAvailability = await Promise.all(
     providers.providers.map(async (p) => {
-      const result = await api<Pick<Provider, 'availability' | 'blocks' | 'busy'>>(
+      const result = await api<Pick<Provider, 'availability' | 'blocks' | 'busy' | 'locationAvailability' | 'unavailableDays' | 'unavailableSlots'>>(
         `/providers/${p.id}/availability`,
       );
       return {
@@ -46,6 +46,9 @@ async function fetchData(user: User): Promise<AppData> {
         availability: result.availability,
         blocks: result.blocks || [],
         busy: result.busy || [],
+        locationAvailability: result.locationAvailability || [],
+        unavailableDays: result.unavailableDays || [],
+        unavailableSlots: result.unavailableSlots || [],
       };
     }),
   );

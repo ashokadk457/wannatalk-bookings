@@ -68,8 +68,10 @@ async function assertProviderAvailable(client, { providerId, locationId = null, 
   }
 
   if (locationId) {
-    const locationSchedule = await client.query(`SELECT is_available, start_time, end_time FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate]);
-    if (locationSchedule.rows[0] && !locationSchedule.rows[0].is_available) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
+    const locationSchedule = await client.query(`SELECT is_available, start_time, end_time,
+      (is_available = true AND start_time <= $4::time AND end_time >= ($4::time + ($5 * interval '1 minute'))::time) AS slot_allowed
+      FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
+    if (locationSchedule.rows[0] && !locationSchedule.rows[0].slot_allowed) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
     const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, locationId, appointmentDate]);
     if (unavailableDay.rows[0]) { const error = new Error('The provider is unavailable at this location on that day'); error.statusCode = 409; throw error; }
     const unavailableSlot = await client.query(`SELECT 1 FROM provider_unavailable_slots WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3 AND start_time < ($4::time + ($5 * interval '1 minute'))::time AND end_time > $4::time LIMIT 1`, [providerId, locationId, appointmentDate, appointmentTime, duration]);

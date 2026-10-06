@@ -41,13 +41,13 @@ export default function SlotCalendar({
     addDays(start, i),
   );
   const times = [
-    ...new Set(dates.flatMap((d) => providers.flatMap((p) => providerTimes(p, d)))),
+    ...new Set(dates.flatMap((d) => providers.flatMap((p) => providerTimes(p, d, location)))),
   ].sort();
   function slots(d: string, t: string, compact = false) {
     return providers
-      .filter((p) => providerTimes(p, d).includes(t))
+      .filter((p) => providerTimes(p, d, location).includes(t))
       .map((p) => {
-        const problem = slotProblem(p, d, t, data.appointments),
+        const problem = slotProblem(p, d, t, data.appointments, undefined, location),
           past = problem?.startsWith('Past'),
           chosen = d === date && selectedTime === t && selectedProvider === p.id;
         return (

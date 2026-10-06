@@ -37,6 +37,9 @@ export interface BusyTime {
   appointment_time: string;
   end_time: string;
 }
+export interface LocationAvailability extends Availability { location_id: string; location_name: string; }
+export interface UnavailableDay { id: string; location_id: string | null; unavailable_date: string; reason: string | null; }
+export interface UnavailableSlot extends UnavailableDay { start_time: string; end_time: string; }
 export interface Provider {
   id: string;
   full_name: string;
@@ -58,6 +61,9 @@ export interface Provider {
   availability: Availability[];
   blocks: TimeBlock[];
   busy: BusyTime[];
+  locationAvailability?: LocationAvailability[];
+  unavailableDays?: UnavailableDay[];
+  unavailableSlots?: UnavailableSlot[];
 }
 export interface Patient {
   id: string;

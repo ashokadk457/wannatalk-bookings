@@ -4,6 +4,7 @@ import { useApp } from '../../app/AppContext';
 import { Card, Heading, ProviderStatus } from '../../components/ui';
 import { days, initials, minutes, shortTime } from '../../lib/dates';
 import Calendar from '../appointments/Calendar';
+import AvailabilityEditor from '../provider/AvailabilityEditor';
 export default function AvailabilityPage() {
   const { data } = useApp(),
     state = useLocation().state as { providerId?: string } | null;
@@ -81,6 +82,7 @@ export default function AvailabilityPage() {
           <div className="notice">No providers configured.</div>
         )}
       </div>
+      {provider && <div className="space-top"><AvailabilityEditor key={provider.id} provider={provider} /></div>}
     </section>
   );
 }
