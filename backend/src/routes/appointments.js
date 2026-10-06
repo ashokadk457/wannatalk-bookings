@@ -46,7 +46,7 @@ async function notifyProvider(appointmentId, event) {
   }
 }
 
-async function assertProviderAvailable(client, { providerId, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null }) {
+async function assertProviderAvailable(client, { providerId, locationId = null, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null }) {
   const duration = Number(durationMinutes);
   if (!Number.isInteger(duration) || duration < 15 || duration > 240) {
     const error = new Error('Invalid appointment duration');
@@ -65,6 +65,15 @@ async function assertProviderAvailable(client, { providerId, appointmentDate, ap
     const error = new Error('Provider not found or inactive');
     error.statusCode = 404;
     throw error;
+  }
+
+  if (locationId) {
+    const locationSchedule = await client.query(`SELECT is_available, start_time, end_time FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate]);
+    if (locationSchedule.rows[0] && !locationSchedule.rows[0].is_available) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
+    const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, locationId, appointmentDate]);
+    if (unavailableDay.rows[0]) { const error = new Error('The provider is unavailable at this location on that day'); error.statusCode = 409; throw error; }
+    const unavailableSlot = await client.query(`SELECT 1 FROM provider_unavailable_slots WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3 AND start_time < ($4::time + ($5 * interval '1 minute'))::time AND end_time > $4::time LIMIT 1`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
+    if (unavailableSlot.rows[0]) { const error = new Error('The provider is unavailable during that slot'); error.statusCode = 409; throw error; }
   }
 
   const weeklyAvailability = await client.query(
@@ -195,7 +204,7 @@ appointmentsRouter.post('/', authRequired(['patient', 'admin']), asyncHandler(as
   }
 
   const appointment = await withTransaction(async (client) => {
-    await assertProviderAvailable(client, { providerId, appointmentDate, appointmentTime, durationMinutes });
+    await assertProviderAvailable(client, { providerId, locationId, appointmentDate, appointmentTime, durationMinutes });
     const meetingUrl = isOnlineMode(mode) ? createMeetingUrl() : null;
 
     const inserted = await client.query(
@@ -235,6 +244,7 @@ appointmentsRouter.patch('/:id/reschedule', authRequired(['admin', 'provider', '
 
     await assertProviderAvailable(client, {
       providerId: current.rows[0].provider_id,
+      locationId: current.rows[0].location_id,
       appointmentDate,
       appointmentTime,
       durationMinutes: current.rows[0].duration_minutes,

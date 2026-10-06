@@ -22,7 +22,7 @@ providersRouter.get('/', authRequired(), async (req, res) => {
 });
 
 providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
-  const [availabilityResult, blocksResult, busyResult] = await Promise.all([
+  const [availabilityResult, blocksResult, busyResult, locationAvailabilityResult, unavailableDaysResult, unavailableSlotsResult] = await Promise.all([
     query(
       `SELECT day_of_week, is_available, start_time, end_time
        FROM provider_availability
@@ -47,8 +47,35 @@ providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
        ORDER BY appointment_date, appointment_time`,
       [req.params.id, ['Booked', 'Confirmed', 'Arrived', 'Completed']]
     ),
+    query(`SELECT pla.provider_id, pla.location_id, l.name AS location_name, pla.day_of_week, pla.is_available, pla.start_time, pla.end_time FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id WHERE pla.provider_id = $1 ORDER BY pla.location_id, pla.day_of_week`, [req.params.id]),
+    query(`SELECT id, provider_id, location_id, unavailable_date, reason FROM provider_unavailable_days WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date`, [req.params.id]),
+    query(`SELECT id, provider_id, location_id, unavailable_date, start_time, end_time, reason FROM provider_unavailable_slots WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date, start_time`, [req.params.id]),
   ]);
-  res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows });
+  res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows, locationAvailability: locationAvailabilityResult.rows, unavailableDays: unavailableDaysResult.rows, unavailableSlots: unavailableSlotsResult.rows });
+});
+
+providersRouter.put('/:id/location-availability', authRequired(['provider', 'admin']), async (req, res) => {
+  if (req.user.role === 'provider' && !(await query(`SELECT id FROM providers WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])).rows[0]) return res.status(403).json({ error: 'Not allowed' });
+  const locationId = String(req.body.locationId || '');
+  const availability = Array.isArray(req.body.availability) ? req.body.availability : [];
+  if (!locationId || availability.length !== 7) return res.status(400).json({ error: 'Location and all seven days are required' });
+  await withTransaction(async (client) => {
+    for (const item of availability) {
+      if (!Number.isInteger(Number(item.dayOfWeek)) || Number(item.dayOfWeek) < 0 || Number(item.dayOfWeek) > 6 || !item.startTime || !item.endTime) throw Object.assign(new Error('Invalid availability entry'), { statusCode: 400 });
+      await client.query(`INSERT INTO provider_location_availability (provider_id, location_id, day_of_week, is_available, start_time, end_time) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (provider_id, location_id, day_of_week) DO UPDATE SET is_available=EXCLUDED.is_available,start_time=EXCLUDED.start_time,end_time=EXCLUDED.end_time`, [req.params.id, locationId, Number(item.dayOfWeek), Boolean(item.isAvailable), item.startTime, item.endTime]);
+    }
+  });
+  res.json({ ok: true });
+});
+
+providersRouter.post('/:id/unavailable', authRequired(['provider', 'admin']), async (req, res) => {
+  if (req.user.role === 'provider' && !(await query(`SELECT id FROM providers WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])).rows[0]) return res.status(403).json({ error: 'Not allowed' });
+  const locationId = req.body.locationId || null, date = String(req.body.date || ''), startTime = req.body.startTime || null, endTime = req.body.endTime || null, reason = String(req.body.reason || '').slice(0, 200);
+  if (!date) return res.status(400).json({ error: 'Date is required' });
+  const result = startTime && endTime
+    ? await query(`INSERT INTO provider_unavailable_slots (provider_id, location_id, unavailable_date, start_time, end_time, reason) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [req.params.id, locationId, date, startTime, endTime, reason || null])
+    : await query(`INSERT INTO provider_unavailable_days (provider_id, location_id, unavailable_date, reason) VALUES ($1,$2,$3,$4) ON CONFLICT (provider_id, location_id, unavailable_date) DO UPDATE SET reason=EXCLUDED.reason RETURNING *`, [req.params.id, locationId, date, reason || null]);
+  res.status(201).json({ unavailable: result.rows[0] });
 });
 
 providersRouter.patch('/:id/status', authRequired(['provider', 'admin']), async (req, res) => {
