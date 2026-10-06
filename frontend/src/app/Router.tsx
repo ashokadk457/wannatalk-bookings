@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useApp } from './AppContext';
 import Layout from './Layout';
 import { homePath } from './navigation';
+import SplashScreen from '../components/SplashScreen';
 const Auth = lazy(() => import('../features/auth/AuthPage'));
 const Book = lazy(() => import('../features/patient/BookPage'));
 const PatientAppointments = lazy(() => import('../features/patient/AppointmentsPage'));
@@ -30,12 +31,7 @@ export default function Router() {
         <Auth />
       </Suspense>
     );
-  if (loading)
-    return (
-      <div className="loading-screen" role="status">
-        Loading WannaTalk…
-      </div>
-    );
+  if (loading) return <SplashScreen />;
   if (error)
     return (
       <div className="loading-screen">
