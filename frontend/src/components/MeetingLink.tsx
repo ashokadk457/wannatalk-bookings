@@ -24,9 +24,9 @@ export function MeetingLink({
       <a className="btn meeting-join-btn" href={url} target="_blank" rel="noopener noreferrer">
         Join session
       </a>
-      <a className="meeting-url" href={url} target="_blank" rel="noopener noreferrer">
+      {/* <a className="meeting-url" href={url} target="_blank" rel="noopener noreferrer">
         {url}
-      </a>
+      </a> */}
     </div>
   ) : showUnavailable ? (
     <div className="meeting-link-box unavailable" role="status">
