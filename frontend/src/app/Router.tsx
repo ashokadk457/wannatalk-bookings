@@ -49,9 +49,7 @@ export default function Router() {
   return (
     <Suspense
       fallback={
-        <div className="loading-screen" role="status">
-          Loading page…
-        </div>
+        <SplashScreen />
       }
     >
       <Routes>
