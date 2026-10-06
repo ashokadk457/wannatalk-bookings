@@ -67,7 +67,7 @@ export default function ProfilePage() {
           <fieldset className="form-reset" disabled={busy}>
             <div className="form-grid">
               {provider ? <>
-                <Field label="Title" full><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
+                <Field label="Title" full><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Mrs.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
                 <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
                 <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
               </> : <>

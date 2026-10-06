@@ -242,7 +242,7 @@ export default function RegistrationForm({
               <>
                 <Field label="Title" full>
                   <select required value={form.title} onChange={(e) => set('title', e.target.value)}>
-                    <option value="">Select title</option><option>Dr.</option><option>Prof.</option><option>Mr.</option><option>Ms.</option>
+                    <option value="">Select title</option><option>Dr.</option><option>Prof.</option><option>Mr.</option><option>Mrs.</option><option>Ms.</option>
                   </select>
                 </Field>
                 <Field label="First Name"><input required autoComplete="given-name" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} /></Field>
