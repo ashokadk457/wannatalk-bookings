@@ -1351,3 +1351,31 @@ button.month-event.unavailable {
 .placeholder-toolbar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
 .placeholder-toolbar .btn { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; }
 
+/* Compact data tables keep appointment and directory rows readable on one line. */
+.dashboard-table table {
+  width: 100%;
+  font-size: 0.82rem;
+}
+.dashboard-table th,
+.dashboard-table td {
+  padding: 8px 7px;
+  line-height: 1.25;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.dashboard-table th {
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+}
+.dashboard-table .sub {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.dashboard-table .btn.small,
+.dashboard-table select,
+.dashboard-table input {
+  font-size: 0.76rem;
+  min-height: 30px;
+  padding: 5px 7px;
+}
+

@@ -70,7 +70,7 @@ providersRouter.put('/:id/location-availability', authRequired(['provider', 'adm
 
 providersRouter.post('/:id/unavailable', authRequired(['provider', 'admin']), async (req, res) => {
   if (req.user.role === 'provider' && !(await query(`SELECT id FROM providers WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])).rows[0]) return res.status(403).json({ error: 'Not allowed' });
-  const locationId = req.body.locationId || null, date = String(req.body.date || ''), startTime = req.body.startTime || null, endTime = req.body.endTime || null, reason = String(req.body.reason || '').slice(0, 200);
+  const locationId = null, date = String(req.body.date || ''), startTime = req.body.startTime || null, endTime = req.body.endTime || null, reason = String(req.body.reason || '').slice(0, 200);
   if (!date) return res.status(400).json({ error: 'Date is required' });
   const result = startTime && endTime
     ? await query(`INSERT INTO provider_unavailable_slots (provider_id, location_id, unavailable_date, start_time, end_time, reason) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [req.params.id, locationId, date, startTime, endTime, reason || null])

@@ -36,7 +36,7 @@ export default function BookPage() {
     selected = providers.find((p) => p.id === providerId);
   async function confirm() {
     if (!selected || !location || !time) return notify('Choose location, provider, date and time');
-    const problem = slotProblem(selected, date, time, data.appointments);
+    const problem = slotProblem(selected, date, time, data.appointments, undefined, location);
     if (problem) return notify(problem);
     setSaving(true);
     const ok = await run(async () => {

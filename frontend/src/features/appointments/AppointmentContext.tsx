@@ -326,6 +326,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
       time,
       data.appointments,
       appointment.id,
+      appointment.location_name || undefined,
     );
     if (problem) return notify(problem);
     await update(
