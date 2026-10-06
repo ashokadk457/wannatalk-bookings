@@ -50,7 +50,11 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
           </button>
         )}
       </div>
-      <Card>
+      <Card className="appointments-admin-card">
+        <div className="appointments-toolbar">
+          <div><strong>{apps.length} appointment{apps.length === 1 ? '' : 's'}</strong><span className="sub"> matching the current filters</span></div>
+          {(search || provider || status || range || sort !== 'soonest') && <button className="btn secondary small" onClick={() => { setSearch(''); setProvider(''); setStatus(''); setRange(undefined); setSort('soonest'); }}>Clear filters</button>}
+        </div>
         <div className="admin-filters">
           <Field label="Search appointments">
             <input

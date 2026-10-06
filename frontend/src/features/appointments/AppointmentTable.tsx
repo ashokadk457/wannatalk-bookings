@@ -32,6 +32,7 @@ export default function AppointmentTable({
             {bulkMessaging && user?.role !== 'patient' && (
               <th>
                 <input
+                  className="compact-check"
                   type="checkbox"
                   aria-label="Select all patients"
                   checked={patientIds.length > 0 && selectedPatients.length === patientIds.length}
@@ -54,6 +55,7 @@ export default function AppointmentTable({
               {bulkMessaging && user?.role !== 'patient' && (
                 <td>
                   <input
+                    className="compact-check"
                     type="checkbox"
                     aria-label={`Select ${a.patient_name}`}
                     checked={selected.includes(a.patient_id)}
