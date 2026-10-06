@@ -91,6 +91,7 @@ export default function Router() {
           <Route path="audit" element={<Audit />} />
           <Route path="health" element={<Health />} />
           <Route path="messages" element={<Messages />} />
+          <Route path="appointment-messages" element={<AppointmentMessages />} />
           <Route path="followups" element={<FollowUps />} />
           <Route path="waiting" element={<Waiting />} />
         </Route>

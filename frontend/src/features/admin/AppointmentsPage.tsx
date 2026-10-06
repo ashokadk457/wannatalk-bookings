@@ -85,7 +85,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
             </select>
           </Field>
         </div>
-        <AppointmentTable appointments={apps} editable />
+        <AppointmentTable appointments={apps} editable bulkMessaging />
       </Card>
       {create && <BookingCreator onClose={() => setCreate(false)} />}
     </section>

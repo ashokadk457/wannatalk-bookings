@@ -26,6 +26,7 @@ export const navigation: Record<Role, { path: string; label: string; icon: strin
     { path: 'followups', label: 'Follow-ups', icon: '✓' },
     { path: 'waiting', label: 'Waiting list', icon: '◷' },
     { path: 'messages', label: 'Messages', icon: '✉' },
+    { path: 'appointment-messages', label: 'Appointment reminders', icon: '◉' },
     { path: 'health', label: 'System health', icon: '♥' },
     { path: 'registrations', label: 'Registrations', icon: '＋' },
     { path: 'audit', label: 'Audit Log', icon: '▤' },
