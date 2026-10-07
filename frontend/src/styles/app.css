@@ -1380,8 +1380,8 @@ button.month-event.unavailable {
 }
 
 /* Consistent compact checks across registration, filters and tables. */
-.app input[type='checkbox'],
-.app input[type='radio'] {
+table input[type='checkbox'],
+table input[type='radio'] {
   width: 16px !important;
   height: 16px !important;
   min-width: 16px !important;
