@@ -2272,8 +2272,9 @@ textarea {
 }
 
 .meeting-link-box a {
-    color: #08704c;
-    font-weight: 900
+    color: #FFF;
+    font-weight: 900;
+    background: var(--navy-2);
 }
 
 .online-pill {
