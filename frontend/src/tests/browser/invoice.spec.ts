@@ -46,6 +46,12 @@ test('invoice page fills dynamic values and supports download and email', async 
   await expect(page.locator('#invoiceItems')).toContainText('Seen by: Dr Test Provider');
   await expect(page.locator('#invoiceItems')).toContainText('Assessment, consultation, counselling and/or therapy (individual)');
   await expect(page.locator('.invoice-total')).toHaveText('R 250,50');
+  await expect(page.locator('.bank-box')).toContainText('Louw Alberts Psychology Practice');
+  await expect(page.locator('.bank-box')).toContainText('First National Bank (FNB)');
+  await expect(page.locator('.bank-box')).toContainText('63191320620');
+  await expect(page.locator('.bank-box')).toContainText('Cheque Account');
+  await expect(page.locator('.bank-box')).toContainText('WT-2027-000001');
+  await expect(page.locator('.address-box')).toContainText('309 Friederiche Street');
 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download PDF' }).click();
