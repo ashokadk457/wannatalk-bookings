@@ -48,7 +48,7 @@ async function notifyProvider(appointmentId, event) {
 
 async function assertProviderAvailable(client, { providerId, locationId = null, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null }) {
   const duration = Number(durationMinutes);
-  if (!Number.isInteger(duration) || duration < 15 || duration > 240) {
+  if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
     const error = new Error('Invalid appointment duration');
     error.statusCode = 400;
     throw error;
@@ -189,13 +189,18 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
   res.json({ appointments: result.rows });
 }));
 
-appointmentsRouter.post('/', authRequired(['patient', 'admin']), asyncHandler(async (req, res) => {
+appointmentsRouter.post('/', authRequired(['patient', 'provider', 'admin']), asyncHandler(async (req, res) => {
   const { providerId, patientId, locationId, appointmentDate, appointmentTime, durationMinutes = 60, appointmentType, mode, note, intakeRequested = false } = req.body;
 
   let effectivePatientId = patientId;
   if (req.user.role === 'patient') {
     const patient = await query(`SELECT id FROM patients WHERE user_id = $1`, [req.user.id]);
     effectivePatientId = patient.rows[0]?.id;
+  } else if (req.user.role === 'provider') {
+    const provider = await query(`SELECT id FROM providers WHERE user_id = $1`, [req.user.id]);
+    if (!provider.rows[0] || provider.rows[0].id !== providerId) return res.status(403).json({ error: 'Providers can only create bookings for themselves' });
+    const patientAccess = await query(`SELECT 1 FROM appointments WHERE provider_id = $1 AND patient_id = $2 LIMIT 1`, [providerId, effectivePatientId]);
+    if (!patientAccess.rows[0]) return res.status(403).json({ error: 'You may only create bookings for your own patients' });
   }
 
   if (!providerId || !effectivePatientId || !appointmentDate || !appointmentTime || !appointmentType || !mode) {

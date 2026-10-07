@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, ProviderStatus, Stat } from '../../components/ui';
 import { today } from '../../lib/dates';
 import Calendar from '../appointments/Calendar';
 import AppointmentTable from '../appointments/AppointmentTable';
+import BookingCreator from '../admin/BookingCreator';
 export default function DashboardPage() {
   const { user, data } = useApp(),
     admin = user?.role === 'admin';
+  const [createBooking, setCreateBooking] = useState(false);
   const apps = [...data.appointments].sort((a, b) =>
     (a.appointment_date + a.appointment_time).localeCompare(
       b.appointment_date + b.appointment_time,
@@ -21,6 +24,7 @@ export default function DashboardPage() {
       .slice(0, 6);
   return (
     <section>
+      {user?.role === 'provider' && <div className="dashboard-primary-action"><div><strong>Create an appointment</strong><span className="sub">Choose one of your patients, duration, location and available time.</span></div><button className="btn" onClick={() => setCreateBooking(true)}>＋ New booking</button></div>}
       <div className="grid stats">
         <Stat
           icon="▣"
@@ -105,6 +109,7 @@ export default function DashboardPage() {
       <div className="space-top">
         <Calendar appointments={apps} />
       </div>
+      {createBooking && <BookingCreator onClose={() => setCreateBooking(false)} />}
     </section>
   );
 }
