@@ -218,6 +218,19 @@ export async function mockApi(page: Page, role: Role, authenticated = true) {
       }
       return json({ appointment: a });
     }
+    if (path === '/invoices' && method === 'POST')
+      return json({ invoice: { id: 'invoice-1', invoice_number: 'WT-2027-000001' } }, 201);
+    if (path === '/invoices/invoice-1' && method === 'GET')
+      return json({ invoice: {
+        id: 'invoice-1', invoice_number: 'WT-2027-000001', issued_at: '2027-01-01',
+        patient_title: 'Mr', patient_name: patient.full_name, patient_email: patient.email,
+        patient_date_of_birth: '1969-12-15', total_amount: 250.5,
+        items: [{ appointment_id: appointment.id, appointment_date: appointmentDate, appointment_time: '10:00', description: appointment.appointment_type, provider_name: provider.full_name, amount: 250.5 }],
+      } });
+    if (path === '/invoices/invoice-1/pdf' && method === 'GET')
+      return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4 invoice test' });
+    if (path === '/invoices/invoice-1/email' && method === 'POST')
+      return json({ success: true, message: 'Invoice WT-2027-000001 emailed successfully.' });
     if (path.endsWith('/invoice/pdf') && method === 'GET')
       return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4 invoice test' });
     if (path.endsWith('/invoice/email') && method === 'POST')
