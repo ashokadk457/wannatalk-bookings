@@ -111,7 +111,7 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
 
   const isPatient = role === 'patient';
   const professionalTitle = cleanText(req.body.professionalTitle, 100) || 'Provider';
-  const duration = [45, 60, 90].includes(Number(req.body.durationMinutes)) ? Number(req.body.durationMinutes) : 60;
+  const duration = [30, 60, 90, 120].includes(Number(req.body.durationMinutes)) ? Number(req.body.durationMinutes) : 60;
   const bio = cleanText(req.body.bio, 500) || null;
   const providerTitle = cleanText(req.body.title, 20) || null;
   const specialty = cleanText(req.body.specialty, 100) || null;

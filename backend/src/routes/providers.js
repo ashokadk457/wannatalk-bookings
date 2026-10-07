@@ -104,7 +104,7 @@ providersRouter.patch('/:id/profile', authRequired(['provider', 'admin']), async
   const requestedEmail = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
   const mobile = String(req.body.mobile || '').trim().slice(0, 30);
   const professionalTitle = String(req.body.professionalTitle || '').trim().slice(0, 100) || 'Provider';
-  const duration = [45, 60, 90].includes(Number(req.body.durationMinutes)) ? Number(req.body.durationMinutes) : 60;
+  const duration = [30, 60, 90, 120].includes(Number(req.body.durationMinutes)) ? Number(req.body.durationMinutes) : 60;
   const bio = String(req.body.bio || '').trim().slice(0, 500) || null;
   const requestedLocations = Array.isArray(req.body.locations) ? [...new Set(req.body.locations.map((value) => String(value || '').trim()).filter(Boolean))] : [];
   if (!fullName || !requestedLocations.length) return res.status(400).json({ error: 'Name and at least one practice location are required' });

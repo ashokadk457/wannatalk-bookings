@@ -83,7 +83,7 @@ export default function AccountEditor({
                 </Field>
                 <Field label="Session duration">
                   <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-                    {[45, 60, 90].map((n) => (
+                    {[30, 60, 90, 120].map((n) => (
                       <option value={n} key={n}>
                         {n} minutes
                       </option>

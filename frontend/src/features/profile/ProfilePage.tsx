@@ -97,7 +97,7 @@ export default function ProfilePage() {
                   </Field>
                   <Field label="Default session duration">
                     <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-                      {[45, 60, 90].map((n) => (
+                      {[30, 60, 90, 120].map((n) => (
                         <option key={n} value={n}>
                           {n} minutes
                         </option>
