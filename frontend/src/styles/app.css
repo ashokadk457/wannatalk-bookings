@@ -1545,3 +1545,25 @@ table input[type='radio'] {
 }
 .app .sidebar .logout:hover { background: rgba(255,255,255,.12); color: #fff; }
 
+/* Layout topbar is the single page title for provider and admin workspaces. */
+#providerShell .page-heading,
+#adminShell .page-heading {
+  display: none;
+}
+.availability-duration-bar {
+  display: grid;
+  grid-template-columns: minmax(180px,1fr) minmax(130px,180px) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(135deg,#f4fbf7,#edf8f1);
+}
+.availability-duration-bar > div { display: grid; gap: 3px; }
+.availability-duration-bar select { min-height: 38px; }
+@media (max-width: 720px) {
+  .availability-duration-bar { grid-template-columns: 1fr; align-items: stretch; }
+}
+

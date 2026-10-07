@@ -52,7 +52,7 @@ export function Card({
 }
 export function Heading({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="section-title">
+    <div className="section-title page-heading">
       <div>
         <h2>{title}</h2>
         {subtitle && <p>{subtitle}</p>}
