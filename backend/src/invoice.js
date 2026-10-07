@@ -122,13 +122,32 @@ export async function renderInvoiceHtml({ patientTitle, patientName, patientDate
 let browserPromise = null;
 
 async function launchBrowser() {
-  const args = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--no-first-run',
+    '--no-zygote',
+    '--disable-crash-reporter',
+    '--disable-features=Crashpad',
+  ];
+
   try {
-    return await puppeteer.launch({ args });
+    return await puppeteer.launch({
+      executablePath: '/opt/google/chrome/google-chrome',
+      headless: true,
+      args,
+    });
   } catch (error) {
-    // The bundled Chromium download is disabled for this project, so fall back
-    // to an installed system Chrome/Edge when the bundled browser is missing.
-    return await puppeteer.launch({ channel: 'chrome', args });
+    console.error('Failed to launch system Chrome:', error);
+
+    // Fallback to Puppeteer's Chrome channel if available.
+    return await puppeteer.launch({
+      channel: 'chrome',
+      headless: true,
+      args,
+    });
   }
 }
 
