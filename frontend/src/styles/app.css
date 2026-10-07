@@ -1448,3 +1448,100 @@ table input[type='radio'] {
   gap: 5px;
 }
 
+/* Shared professional sidebar for patient, provider and admin workspaces. */
+.app .sidebar {
+  background: linear-gradient(180deg, #073f2b 0%, #07583a 48%, #087a4a 100%);
+  border-right: 1px solid rgba(255,255,255,.1);
+  box-shadow: 10px 0 34px rgba(4,45,30,.14);
+  padding: 18px 14px 16px;
+  gap: 12px;
+}
+.app .sidebar .brand {
+  min-height: 82px;
+  padding: 10px 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.13);
+}
+.app .sidebar .brand-logo {
+  width: min(174px, 100%);
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,.12));
+}
+.nav-section-label {
+  padding: 8px 12px 2px;
+  color: rgba(255,255,255,.58);
+  font-size: .67rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.app .sidebar .nav {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+}
+.app .sidebar .nav button {
+  display: grid;
+  grid-template-columns: 34px minmax(0,1fr) 14px;
+  align-items: center;
+  width: 100%;
+  min-height: 43px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(255,255,255,.78);
+  font-size: .82rem;
+  font-weight: 650;
+  text-align: left;
+  transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+}
+.app .sidebar .nav button:hover {
+  color: #fff;
+  background: rgba(255,255,255,.09);
+  transform: translateX(2px);
+}
+.app .sidebar .nav button.active {
+  color: #073f2b;
+  background: linear-gradient(135deg,#fff,#e9f8ef);
+  border-color: rgba(255,255,255,.55);
+  box-shadow: 0 8px 20px rgba(0,33,21,.2);
+}
+.nav-icon {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.09);
+}
+.nav-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nav button.active .nav-icon { background: rgba(8,122,69,.12); color: #087a45; }
+.nav-chevron { opacity: .45; font-size: 1.15rem; text-align: right; }
+.nav button.active .nav-chevron { opacity: .8; }
+.app .sidebar .provider-card {
+  margin-top: auto;
+  padding: 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 13px;
+  background: rgba(255,255,255,.08);
+  backdrop-filter: blur(8px);
+}
+.app .sidebar .provider-card strong { color: #fff; font-size: .82rem; }
+.app .sidebar .provider-card span { color: rgba(255,255,255,.65); font-size: .7rem; }
+.app .sidebar .provider-card .avatar { width: 34px; height: 34px; font-size: .75rem; background: #fff; color: #087a45; }
+.app .sidebar .logout {
+  min-height: 38px;
+  border-color: rgba(255,255,255,.18);
+  background: rgba(0,0,0,.08);
+  color: rgba(255,255,255,.82);
+  font-size: .78rem;
+}
+.app .sidebar .logout:hover { background: rgba(255,255,255,.12); color: #fff; }
+

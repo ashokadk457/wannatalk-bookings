@@ -85,6 +85,28 @@ function MobileIcon({ name }: { name: string }) {
   );
 }
 
+function NavIcon({ path }: { path: string }) {
+  const icon = path.includes('appointment') || path === 'calendar' ? 'calendar'
+    : path.includes('availability') || path === 'waiting' ? 'clock'
+    : path.includes('patient') || path.includes('provider') ? 'patients'
+    : path.includes('message') ? 'mail'
+    : path === 'profile' ? 'profile'
+    : path === 'audit' || path === 'health' ? 'audit'
+    : path === 'registrations' || path === 'book' ? 'register'
+    : 'home';
+  const paths: Record<string, React.ReactNode> = {
+    home: <><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10.5V19h11v-8.5"/></>,
+    calendar: <><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></>,
+    clock: <><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></>,
+    patients: <><circle cx="9" cy="9" r="3"/><path d="M4 19c.5-3.2 2.1-5 5-5s4.5 1.8 5 5M15 8.5a2.5 2.5 0 0 1 0 5M16 14.5c2.2.5 3.4 2 3.8 4.5"/></>,
+    mail: <><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="m5 7 7 6 7-6"/></>,
+    profile: <><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-4.2 2.9-6.5 7-6.5s6.4 2.3 7 6.5"/></>,
+    audit: <><path d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M9 8h6M9 12h6M9 16h4"/></>,
+    register: <><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/></>,
+  };
+  return <span className="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true">{paths[icon]}</svg></span>;
+}
+
 export default function Layout({ role }: { role: Role }) {
   const { user, data, logout, run, refresh } = useApp(),
     location = useLocation(),
@@ -143,6 +165,7 @@ export default function Layout({ role }: { role: Role }) {
             alt="WannaTalk — You are not alone"
           />
         </div>
+        <div className="nav-section-label">{role === 'admin' ? 'Practice management' : role === 'provider' ? 'Provider workspace' : 'Patient portal'}</div>
         <nav className="nav" aria-label={`${role} navigation`}>
           {navigation[role].map((item) => (
             <button
@@ -151,7 +174,7 @@ export default function Layout({ role }: { role: Role }) {
               className={item === current ? 'active' : ''}
               onClick={() => navigate(`/${role}/${item.path}`)}
             >
-              {item.icon} {item.label}
+              <NavIcon path={item.path} /><span>{item.label}</span><span className="nav-chevron">›</span>
             </button>
           ))}
         </nav>
