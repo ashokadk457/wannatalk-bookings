@@ -1397,6 +1397,24 @@ table input[type='radio'] {
   min-width: 15px !important;
   min-height: 15px !important;
 }
+.modal-card:has(.invoice-form) { width:min(760px, calc(100vw - 28px)); }
+.invoice-form { width:100%; }
+.invoice-patient { display:grid; gap:2px; margin:4px 0 12px; padding:14px 16px; border-radius:12px; background:#eff9f5; }
+.invoice-patient span { color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.invoice-patient strong { color:#075f49; font-size:16px; }
+.invoice-patient small { color:var(--muted); }
+.invoice-item-list { display:grid; gap:8px; max-height:360px; margin-top:12px; padding-right:4px; overflow:auto; }
+.invoice-item { display:grid; grid-template-columns:auto minmax(0,1fr) 150px; align-items:center; gap:12px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fff; cursor:pointer; }
+.invoice-item.selected { border-color:#63c8a4; background:#f5fcf9; box-shadow:0 0 0 1px #b8ead7 inset; }
+.invoice-item-copy { display:grid; min-width:0; gap:3px; }
+.invoice-item-copy small { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.invoice-amount { display:flex; align-items:center; gap:6px; }
+.invoice-amount b { color:var(--muted); }
+.invoice-amount input { min-width:0; width:100%; padding:8px 9px; text-align:right; }
+.invoice-form-total { display:flex; justify-content:flex-end; align-items:baseline; gap:18px; margin-top:16px; padding-top:14px; border-top:1px solid var(--line); }
+.invoice-form-total span { color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.invoice-form-total strong { color:#075f49; font-size:22px; }
+@media (max-width:620px) { .invoice-form{width:auto}.invoice-item{grid-template-columns:auto minmax(0,1fr)}.invoice-amount{grid-column:2}.invoice-item-copy small{white-space:normal} }
 .appointments-admin-card {
   padding: 18px;
 }

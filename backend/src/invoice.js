@@ -35,10 +35,19 @@ export function parseInvoiceAmount(value) {
 }
 
 function formatAmount(amount) {
-  return amount.toLocaleString('en-US', {
+  return Number(amount).toLocaleString('en-ZA', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value || '');
+}
+
+function formatTime(value) {
+  return String(value || '').slice(0, 5);
 }
 
 function formatDateOfBirth(value) {
@@ -56,23 +65,57 @@ function fillPlaceholder(html, className, value) {
  * replaces only the dynamic placeholders (patient, provider and amount) with
  * escaped values. Everything else in the template is left untouched.
  */
-export async function renderInvoiceHtml({ patientTitle, patientName, patientDateOfBirth, providerName, amount }) {
+export async function renderStoredInvoiceHtml(invoice) {
   const template = await readFile(templatePath(), 'utf8');
-  for (const field of ['invoice-patient-name', 'invoice-patient-summary', 'invoice-provider-name', 'invoice-amount']) {
+  for (const field of ['invoice-number', 'invoice-issued-date', 'invoice-patient-name', 'invoice-patient-summary', 'invoice-total']) {
     if (!template.includes(`class="${field}"`)) {
       const error = new Error(`Invoice template is missing the ${field} placeholder`);
       error.statusCode = 500;
       throw error;
     }
   }
-  const displayName = [String(patientTitle || '').trim(), String(patientName || '').trim()].filter(Boolean).join(' ');
-  const summary = [String(patientName || '').trim(), formatDateOfBirth(patientDateOfBirth)].filter(Boolean).join(' ');
+  if (!template.includes('<!-- invoice-items -->')) {
+    const error = new Error('Invoice template is missing the invoice-items placeholder');
+    error.statusCode = 500;
+    throw error;
+  }
+  const displayName = [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
+  const summary = [String(invoice.patient_name || '').trim(), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
+  const rows = invoice.items.map((item) => `<tr>
+    <td><strong>${escapeHtml(formatDate(item.appointment_date))}</strong><span>${escapeHtml(formatTime(item.appointment_time))}</span><span>81305</span></td>
+    <td><strong>${escapeHtml(item.description)}</strong><span>${escapeHtml(item.mode || '')}</span></td>
+    <td>${escapeHtml(item.provider_name)}</td>
+    <td>Z71.9</td>
+    <td>00004510</td>
+    <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
+  </tr>`).join('');
   let html = template;
+  html = fillPlaceholder(html, 'invoice-number', invoice.invoice_number);
+  html = fillPlaceholder(html, 'invoice-issued-date', formatDate(invoice.issued_at));
   html = fillPlaceholder(html, 'invoice-patient-name', displayName);
   html = fillPlaceholder(html, 'invoice-patient-summary', summary);
-  html = fillPlaceholder(html, 'invoice-provider-name', String(providerName || '').trim());
-  html = fillPlaceholder(html, 'invoice-amount', formatAmount(amount));
+  html = fillPlaceholder(html, 'invoice-total', `R ${formatAmount(invoice.total_amount)}`);
+  html = html.replace('<!-- invoice-items -->', rows);
   return html;
+}
+
+export async function renderInvoiceHtml({ patientTitle, patientName, patientDateOfBirth, providerName, amount }) {
+  return renderStoredInvoiceHtml({
+    invoice_number: 'Preview',
+    issued_at: new Date().toISOString().slice(0, 10),
+    patient_title: patientTitle,
+    patient_name: patientName,
+    patient_date_of_birth: patientDateOfBirth,
+    total_amount: amount,
+    items: [{
+      appointment_date: new Date().toISOString().slice(0, 10),
+      appointment_time: '',
+      description: 'Professional consultation',
+      mode: '',
+      provider_name: providerName,
+      amount,
+    }],
+  });
 }
 
 let browserPromise = null;
@@ -111,6 +154,21 @@ async function withBrowser(work) {
  */
 export async function generateInvoicePdf({ patientTitle, patientName, patientDateOfBirth, providerName, amount }) {
   const html = await renderInvoiceHtml({ patientTitle, patientName, patientDateOfBirth, providerName, amount });
+  return withBrowser(async (browser) => {
+    const page = await browser.newPage();
+    try {
+      await page.setJavaScriptEnabled(false);
+      await page.setContent(html, { waitUntil: 'load', timeout: 20000 });
+      const pdf = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true });
+      return Buffer.from(pdf);
+    } finally {
+      await page.close().catch(() => {});
+    }
+  });
+}
+
+export async function generateStoredInvoicePdf(invoice) {
+  const html = await renderStoredInvoiceHtml(invoice);
   return withBrowser(async (browser) => {
     const page = await browser.newPage();
     try {

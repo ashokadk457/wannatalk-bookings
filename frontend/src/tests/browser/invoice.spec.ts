@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockApi } from './fixtures';
+import { appointmentDate, mockApi } from './fixtures';
 
 test('admin can generate an invoice with a validated amount', async ({ page }) => {
   const api = await mockApi(page, 'admin');
@@ -12,17 +12,18 @@ test('admin can generate an invoice with a validated amount', async ({ page }) =
   const dialog = page.getByRole('dialog');
 
   // invalid amounts are rejected and no invoice tab is opened
-  await page.getByLabel('Invoice Amount').fill('-5');
-  await dialog.getByRole('button', { name: 'Generate Invoice' }).click();
-  await expect(page.locator('.toast')).toHaveText('Enter a valid invoice amount greater than 0');
+  await page.getByLabel(`Amount for ${appointmentDate}`).fill('-5');
+  await dialog.getByRole('button', { name: 'Create Invoice' }).click();
+  await expect(page.locator('.toast')).toHaveText('Enter a valid amount greater than 0 for every selected appointment');
   await expect(dialog).toBeVisible();
 
   // a valid decimal amount opens the invoice in a new tab
-  await page.getByLabel('Invoice Amount').fill('250.5');
+  await page.getByLabel(`Amount for ${appointmentDate}`).fill('250.5');
   const popupPromise = page.waitForEvent('popup');
-  await dialog.getByRole('button', { name: 'Generate Invoice' }).click();
+  await dialog.getByRole('button', { name: 'Create Invoice' }).click();
   const popup = await popupPromise;
-  expect(popup.url()).toContain('/invoice.html?appointmentId=appointment-1&amount=250.50');
+  await popup.waitForURL(/invoice\.html\?invoiceId=invoice-1/);
+  expect(popup.url()).toContain('/invoice.html?invoiceId=invoice-1');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(api.unexpected).toEqual([]);
 });
@@ -35,18 +36,21 @@ test('invoice button is not shown to non-admin users', async ({ page }) => {
 
 test('invoice page fills dynamic values and supports download and email', async ({ page }) => {
   await mockApi(page, 'admin');
-  await page.goto('/invoice.html?appointmentId=appointment-1&amount=250.50');
+  await page.goto('/invoice.html?invoiceId=invoice-1');
   await expect(page.locator('.invoice-patient-name')).toHaveText('Mr Test Patient');
-  await expect(page.locator('.invoice-patient-summary')).toHaveText('Test Patient 15/12/1969');
-  await expect(page.locator('.invoice-provider-name')).toHaveText('Dr Test Provider');
-  await expect(page.locator('.invoice-amount').first()).toHaveText('250.50');
+  await expect(page.locator('.invoice-patient-summary')).toHaveText('Test Patient · 15/12/1969');
+  await expect(page.locator('#invoiceItems')).toContainText('Dr Test Provider');
+  await expect(page.locator('#invoiceItems')).toContainText('81305');
+  await expect(page.locator('#invoiceItems')).toContainText('Z71.9');
+  await expect(page.locator('#invoiceItems')).toContainText('00004510');
+  await expect(page.locator('.invoice-total')).toHaveText('R 250,50');
 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download PDF' }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('invoice-appointment-1.pdf');
+  expect(download.suggestedFilename()).toBe('WT-2027-000001.pdf');
 
   await page.getByRole('button', { name: 'Email Invoice' }).click();
-  await expect(page.locator('#invoiceStatus')).toHaveText('Invoice emailed successfully.');
+  await expect(page.locator('#invoiceStatus')).toHaveText('Invoice WT-2027-000001 emailed successfully.');
   await expect(page.getByRole('button', { name: 'Email Invoice' })).toBeEnabled();
 });

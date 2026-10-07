@@ -37,7 +37,8 @@
     .invoice-toolbar button{font:inherit;font-size:13px;padding:8px 16px;border:1px solid #444;background:#fff;color:#111;cursor:pointer}
     .invoice-toolbar button:hover{background:#f2f2f2}
     .invoice-toolbar button:disabled{opacity:.55;cursor:default}
-    @media print{.page{border:0;padding:0}.invoice-toolbar{display:none}}
+    body{background:#eef5f3;color:#102f3d}.page{max-width:900px;min-height:0;margin:14px auto 30px;padding:42px 48px;border:0;border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(12,63,47,.13)}.page:before{content:"";display:block;height:8px;margin:-42px -48px 34px;background:linear-gradient(90deg,#00a978,#83df51)}.top{align-items:start;padding-bottom:26px;margin-bottom:28px;border-bottom:1px solid #dce8e4}.practice h1{color:#087b5b;font-size:24px}.doc-title{text-align:right;color:#087b5b;font-size:32px;letter-spacing:.08em}.account-name{margin:0 0 24px;color:#075f49}.meta{margin:0 0 28px;width:100%;padding:16px 18px;border-radius:12px;background:#eff9f5}.billing-table th{padding:12px 14px;border:0;background:#edf8f4;color:#116b52;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase}.billing-table td{padding:16px 14px;border-bottom:1px solid #e4ece9}.totals{border-collapse:separate;margin-top:24px}.totals th,.totals td{border:0;background:#102f3d;color:#fff}.totals th{border-radius:12px 12px 0 0}.totals td{border-radius:0 0 12px 12px;font-size:20px}.invoice-toolbar{max-width:900px;margin:18px auto 0}.invoice-toolbar button{border-color:#b8d8cc;border-radius:9px;color:#075f49;font-weight:700}.invoice-toolbar button:first-of-type{border-color:#07966d;background:#07966d;color:#fff}
+    @media print{body{background:#fff}.page{max-width:none;margin:0;border:0;border-radius:0;padding:24px 28px;box-shadow:none}.page:before{margin:-24px -28px 24px}.invoice-toolbar{display:none}}
   </style>
 </head>
 <body>
@@ -60,50 +61,30 @@ Wierdapark
     </section>
 
     <div class="doc-title">Invoice</div>
-    <p class="account-name"><span class="invoice-patient-name"></span></p>
+    <p class="account-name"><span class="invoice-patient-name"></span><br><span class="invoice-patient-summary"></span></p>
 
     <section class="meta">
-      <div class="row"><strong>Date:</strong><span>07/10/2026</span></div>
-      <div class="row"><strong>Account No.:</strong><span>000252</span></div>
-      <div class="row"><strong>Invoice No.:</strong><span>INV-20261007-0001</span></div>
-      <div class="row"><strong>Doc.No.:</strong><span>00004510</span></div>
+      <div class="row"><strong>Issued:</strong><span class="invoice-issued-date"></span></div>
+      <div class="row"><strong>Invoice No.:</strong><span class="invoice-number"></span></div>
     </section>
 
     <table class="billing-table">
       <thead>
         <tr>
-          <th>Date / Time<br>Codes / NAPPI</th>
-          <th>Patient / Description</th>
-          <th>In hosp?</th>
+          <th>Date &amp; Time</th>
+          <th>Appointment</th>
+          <th>Provider</th>
           <th>ICD</th>
-          <th>Doc.No.</th>
-          <th>Qty</th>
+          <th>Doc.No</th>
           <th>Amount</th>
-          <th>Outstanding</th>
         </tr>
       </thead>
-      <tbody>
-        <tr>
-          <td><strong>07/10/2026 11:00</strong><br><br><span class="code">81305</span></td>
-          <td class="desc">
-            <div class="service-main">00 <span class="invoice-patient-summary"></span></div>
-            <div class="service-sub">Seen by: <span class="invoice-provider-name"></span></div>
-            <br>
-            Assessment, consultation, counselling and/or therapy (individual)
-          </td>
-          <td></td>
-          <td class="code">Z71.9</td>
-          <td class="code">00004510</td>
-          <td class="amount">2</td>
-          <td class="amount"><span class="invoice-amount"></span></td>
-          <td class="amount"><span class="invoice-amount"></span></td>
-        </tr>
-      </tbody>
+      <tbody id="invoiceItems"><!-- invoice-items --></tbody>
     </table>
 
     <table class="totals">
       <tr><th>Total due</th></tr>
-      <tr><td><strong><span class="invoice-amount"></span></strong></td></tr>
+      <tr><td><strong><span class="invoice-total"></span></strong></td></tr>
     </table>
 
     <section class="footer">
@@ -116,6 +97,7 @@ CHEQUE ACCOUNT</div>
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
+      var invoiceId = (params.get('invoiceId') || '').trim();
       var appointmentId = (params.get('appointmentId') || '').trim();
       var amountParam = (params.get('amount') || '').trim();
       var statusEl = document.getElementById('invoiceStatus');
@@ -147,7 +129,36 @@ CHEQUE ACCOUNT</div>
       }
 
       function formatAmount(value) {
-        return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function formatInvoiceDate(value) {
+        var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+        return match ? match[3] + '/' + match[2] + '/' + match[1] : String(value || '');
+      }
+
+      function renderItems(items) {
+        var body = document.getElementById('invoiceItems');
+        body.textContent = '';
+        items.forEach(function (item) {
+          var row = document.createElement('tr');
+          var values = [
+            formatInvoiceDate(item.appointment_date) + ' ' + String(item.appointment_time || '').slice(0, 5) + '\n81305',
+            item.description,
+            item.provider_name,
+            'Z71.9',
+            '00004510',
+            'R ' + formatAmount(Number(item.amount)),
+          ];
+          values.forEach(function (value, index) {
+            var cell = document.createElement('td');
+            if (index === 5) cell.className = 'amount';
+            if (index === 0) cell.style.whiteSpace = 'pre-line';
+            cell.textContent = value || '';
+            row.appendChild(cell);
+          });
+          body.appendChild(row);
+        });
       }
 
       function authHeaders() {
@@ -175,6 +186,26 @@ CHEQUE ACCOUNT</div>
       }
 
       async function load() {
+        if (invoiceId) {
+          try {
+            var savedResponse = await fetch('/api/invoices/' + encodeURIComponent(invoiceId), { headers: authHeaders() });
+            if (!savedResponse.ok) throw httpError(savedResponse);
+            var invoice = (await savedResponse.json()).invoice;
+            setText('invoice-number', invoice.invoice_number);
+            setText('invoice-issued-date', formatInvoiceDate(invoice.issued_at));
+            setText('invoice-patient-name', [invoice.patient_title, invoice.patient_name].filter(Boolean).join(' '));
+            setText('invoice-patient-summary', [invoice.patient_name, formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' · '));
+            setText('invoice-total', 'R ' + formatAmount(Number(invoice.total_amount)));
+            renderItems(invoice.items || []);
+            document.title = 'Invoice ' + invoice.invoice_number;
+            setStatus('');
+            setReady(true);
+          } catch (error) {
+            setReady(false);
+            setStatus(messageFor(error, 'Unable to load invoice. Please try again.'), 'error');
+          }
+          return;
+        }
         if (!appointmentId) {
           setReady(false);
           setStatus('Appointment not found.', 'error');
@@ -199,6 +230,10 @@ CHEQUE ACCOUNT</div>
           setText('invoice-patient-summary', [name, formatDateOfBirth(patient.dateOfBirth)].filter(Boolean).join(' '));
           setText('invoice-provider-name', String(provider.name || '').trim());
           setText('invoice-amount', formatAmount(amount));
+          setText('invoice-number', 'Preview');
+          setText('invoice-issued-date', formatInvoiceDate(new Date().toISOString()));
+          setText('invoice-total', 'R ' + formatAmount(amount));
+          renderItems([{ appointment_date: data.appointment.date, appointment_time: data.appointment.time, description: data.appointment.type, provider_name: provider.name, amount: amount }]);
           setStatus('');
           setReady(true);
         } catch (error) {
@@ -213,7 +248,9 @@ CHEQUE ACCOUNT</div>
         downloadButton.textContent = 'Preparing…';
         try {
           var response = await fetch(
-            '/api/appointments/' + encodeURIComponent(appointmentId) + '/invoice/pdf?amount=' + encodeURIComponent(amountParam),
+            invoiceId
+              ? '/api/invoices/' + encodeURIComponent(invoiceId) + '/pdf'
+              : '/api/appointments/' + encodeURIComponent(appointmentId) + '/invoice/pdf?amount=' + encodeURIComponent(amountParam),
             { headers: authHeaders() }
           );
           if (!response.ok) throw httpError(response);
@@ -221,7 +258,7 @@ CHEQUE ACCOUNT</div>
           var url = URL.createObjectURL(blob);
           var link = document.createElement('a');
           link.href = url;
-          link.download = 'invoice-' + appointmentId + '.pdf';
+          link.download = invoiceId ? ((document.querySelector('.invoice-number').textContent || 'invoice') + '.pdf') : 'invoice-' + appointmentId + '.pdf';
           document.body.appendChild(link);
           link.click();
           link.remove();
@@ -241,7 +278,7 @@ CHEQUE ACCOUNT</div>
         emailButton.disabled = true;
         emailButton.textContent = 'Sending…';
         try {
-          var response = await fetch('/api/appointments/' + encodeURIComponent(appointmentId) + '/invoice/email', {
+          var response = await fetch(invoiceId ? '/api/invoices/' + encodeURIComponent(invoiceId) + '/email' : '/api/appointments/' + encodeURIComponent(appointmentId) + '/invoice/email', {
             method: 'POST',
             headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
             body: JSON.stringify({ amount: amount }),
