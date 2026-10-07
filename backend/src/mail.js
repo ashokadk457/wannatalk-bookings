@@ -106,3 +106,20 @@ export async function sendCommunicationEmail({ email, fullName, subject, message
   const html = `<!doctype html><html><body style="margin:0;background:#f2f8f4;font-family:Arial,sans-serif;color:#163d2b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:28px 12px;background:#f2f8f4"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border:1px solid #d7eadf;border-radius:18px;overflow:hidden"><tr><td style="padding:26px 32px;background:linear-gradient(135deg,#16a56f,#064d2f);color:#fff"><div style="font-size:25px;font-weight:800">WannaTalk</div><div style="margin-top:5px;font-size:13px;opacity:.88">You are not alone.</div></td></tr><tr><td style="padding:32px"><h1 style="margin:0 0 18px;font-size:24px;color:#064d2f">${escapeHtml(safeSubject)}</h1><p style="font-size:16px;line-height:1.6">Hello ${safeName},</p><p style="font-size:16px;line-height:1.7">${safeMessage}</p><p style="font-size:13px;line-height:1.6;color:#587064">For your privacy, reply only with information you are comfortable sharing by email.</p></td></tr><tr><td style="padding:18px 32px;background:#eff8f2;color:#587064;font-size:12px">Copyright WannaTalkTM 2026</td></tr></table></td></tr></table></body></html>`;
   return transporter().sendMail({ from: mailFrom, replyTo: mailReplyTo, to: email, subject: safeSubject, text, html });
 }
+
+export async function sendInvoiceEmail({ email, fullName, subject, message, pdfBuffer, filename }) {
+  const safeName = escapeHtml(fullName || 'WannaTalk patient');
+  const safeSubject = String(subject || 'Your WannaTalk invoice').slice(0, 160);
+  const safeMessage = escapeHtml(String(message || '')).replace(/\n/g, '<br>');
+  const text = [`Hello ${fullName || 'WannaTalk patient'},`, '', String(message || '')].join('\n');
+  const html = `<!doctype html><html><body style="margin:0;background:#f2f8f4;font-family:Arial,sans-serif;color:#163d2b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:28px 12px;background:#f2f8f4"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border:1px solid #d7eadf;border-radius:18px;overflow:hidden"><tr><td style="padding:26px 32px;background:linear-gradient(135deg,#16a56f,#064d2f);color:#fff"><div style="font-size:25px;font-weight:800">WannaTalk</div><div style="margin-top:5px;font-size:13px;opacity:.88">You are not alone.</div></td></tr><tr><td style="padding:32px"><h1 style="margin:0 0 18px;font-size:24px;color:#064d2f">${escapeHtml(safeSubject)}</h1><p style="font-size:16px;line-height:1.6">Hello ${safeName},</p><p style="font-size:16px;line-height:1.7">${safeMessage}</p><p style="font-size:16px;line-height:1.7">Your invoice is attached as a PDF.</p><p style="font-size:13px;line-height:1.6;color:#587064">For your privacy, reply only with information you are comfortable sharing by email.</p></td></tr><tr><td style="padding:18px 32px;background:#eff8f2;color:#587064;font-size:12px">Copyright WannaTalkTM 2026</td></tr></table></td></tr></table></body></html>`;
+  return transporter().sendMail({
+    from: mailFrom,
+    replyTo: mailReplyTo,
+    to: email,
+    subject: safeSubject,
+    text,
+    html,
+    attachments: [{ filename: String(filename || 'invoice.pdf'), content: pdfBuffer }],
+  });
+}

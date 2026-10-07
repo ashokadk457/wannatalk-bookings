@@ -2,7 +2,8 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { query, withTransaction } from '../db.js';
 import { authRequired } from '../middleware/authRequired.js';
-import { sendCommunicationEmail } from '../mail.js';
+import { generateInvoicePdf, parseInvoiceAmount } from '../invoice.js';
+import { sendCommunicationEmail, sendInvoiceEmail } from '../mail.js';
 import { sendSms } from '../sms.js';
 
 export const appointmentsRouter = Router();
@@ -307,4 +308,125 @@ appointmentsRouter.delete('/:id', authRequired(['admin']), asyncHandler(async (r
     await client.query(`DELETE FROM appointments WHERE id = $1`, [req.params.id]);
   });
   res.status(204).send();
+}));
+
+/* =================================================================
+   INVOICES (admin only) — patient/provider data is always loaded
+   server side from the appointment, never trusted from the client.
+   ================================================================= */
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const patientEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function loadInvoiceData(appointmentId) {
+  if (!uuidPattern.test(String(appointmentId || ''))) return null;
+  const result = await query(
+    `SELECT a.id, a.appointment_date::date::text AS appointment_date, a.appointment_time::time::text AS appointment_time, a.appointment_type,
+            pu.full_name AS patient_name, pu.email AS patient_email,
+            pat.title AS patient_title, pat.date_of_birth::date::text AS patient_date_of_birth,
+            pr.full_name AS provider_name, pro.professional_title
+     FROM appointments a
+     JOIN patients pat ON pat.id = a.patient_id
+     JOIN app_users pu ON pu.id = pat.user_id
+     JOIN providers pro ON pro.id = a.provider_id
+     JOIN app_users pr ON pr.id = pro.user_id
+     WHERE a.id = $1`,
+    [appointmentId]
+  );
+  return result.rows[0] || null;
+}
+
+function invoicePdfValues(appointment, amount) {
+  return {
+    patientTitle: appointment.patient_title,
+    patientName: appointment.patient_name,
+    patientDateOfBirth: appointment.patient_date_of_birth,
+    providerName: appointment.provider_name,
+    amount,
+  };
+}
+
+/** Keeps the stored appointment time (HH:MM:SS text) as professional HH:MM without any timezone conversion. */
+function formatInvoiceTime(value) {
+  const match = /^(\d{2}:\d{2})/.exec(String(value || ''));
+  return match ? match[1] : String(value || '');
+}
+
+appointmentsRouter.get('/:id/invoice', authRequired(['admin']), asyncHandler(async (req, res) => {
+  const appointment = await loadInvoiceData(req.params.id);
+  if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+  res.json({
+    appointmentId: appointment.id,
+    appointment: {
+      date: appointment.appointment_date,
+      time: appointment.appointment_time,
+      type: appointment.appointment_type,
+    },
+    patient: {
+      name: appointment.patient_name,
+      title: appointment.patient_title || null,
+      email: appointment.patient_email,
+      dateOfBirth: appointment.patient_date_of_birth || null,
+    },
+    provider: {
+      name: appointment.provider_name,
+      professionalTitle: appointment.professional_title || null,
+    },
+  });
+}));
+
+appointmentsRouter.get('/:id/invoice/pdf', authRequired(['admin']), asyncHandler(async (req, res) => {
+  const amount = parseInvoiceAmount(req.query.amount);
+  if (!amount) return res.status(400).json({ error: 'A valid invoice amount is required' });
+
+  const appointment = await loadInvoiceData(req.params.id);
+  if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+
+  let pdf;
+  try {
+    pdf = await generateInvoicePdf(invoicePdfValues(appointment, amount));
+  } catch (error) {
+    console.error('Invoice PDF generation failed', error);
+    return res.status(500).json({ error: 'Unable to generate invoice. Please try again.' });
+  }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="invoice-${appointment.id}.pdf"`);
+  res.send(pdf);
+}));
+
+appointmentsRouter.post('/:id/invoice/email', authRequired(['admin']), asyncHandler(async (req, res) => {
+  const amount = parseInvoiceAmount(req.body.amount);
+  if (!amount) return res.status(400).json({ error: 'A valid invoice amount is required' });
+
+  const appointment = await loadInvoiceData(req.params.id);
+  if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+
+  const patientEmail = String(appointment.patient_email || '').trim();
+  if (!patientEmailPattern.test(patientEmail)) {
+    return res.status(400).json({ error: 'The patient email for this appointment is missing or invalid' });
+  }
+
+  let pdf;
+  try {
+    pdf = await generateInvoicePdf(invoicePdfValues(appointment, amount));
+  } catch (error) {
+    console.error('Invoice PDF generation failed', error);
+    return res.status(500).json({ error: 'Unable to generate invoice. Please try again.' });
+  }
+
+  try {
+    await sendInvoiceEmail({
+      email: patientEmail,
+      fullName: appointment.patient_name,
+      subject: `Invoice for your WannaTalk appointment on ${appointment.appointment_date}`,
+      message: `Please find attached your invoice for your appointment on ${appointment.appointment_date} at ${formatInvoiceTime(appointment.appointment_time)}.\n\nWannaTalk — You are not alone.`,
+      pdfBuffer: pdf,
+      filename: `invoice-${appointment.id}.pdf`,
+    });
+  } catch (error) {
+    console.error('Invoice email failed', error);
+    return res.status(500).json({ error: 'Unable to email the invoice. Please try again.' });
+  }
+
+  res.json({ success: true, message: 'Invoice emailed successfully.' });
 }));

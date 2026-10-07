@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Example Invoice - WannaTalk Billing</title>
+  <style>
+    @page{size:A4;margin:12mm}
+    *{box-sizing:border-box}
+    body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:12px}
+    .page{min-height:270mm;border:1px solid #999;padding:8px 10px 22px}
+    .top{display:grid;grid-template-columns:1.1fr 1.1fr .8fr;gap:36px;margin-bottom:42px}
+    .practice h1{font-size:20px;margin:0 0 2px}
+    .practice p,.address{white-space:pre-line;margin:0;line-height:1.25}
+    .doc-title{text-align:center;font-size:20px;font-weight:800;margin:20px 0}
+    .account-name{font-size:18px;font-weight:700;margin:0 0 72px 86px}
+    .meta{margin-left:auto;width:310px;font-size:14px;line-height:1.65}
+    .meta .row{display:flex;justify-content:space-between;gap:12px}
+    .billing-table{width:100%;border-collapse:collapse;margin-top:10px}
+    .billing-table th{border:1px solid #444;padding:6px 4px;text-align:center;font-size:12px}
+    .billing-table td{padding:7px 4px;vertical-align:top}
+    .amount{text-align:right;white-space:nowrap}
+    .code{text-align:center;width:70px}
+    .desc{width:42%}
+    .service-main{font-weight:700}
+    .service-sub{font-size:12px}
+    .totals{margin-left:auto;width:300px;border-collapse:collapse;margin-top:14px}
+    .totals td,.totals th{border:1px solid #444;padding:7px;text-align:right}
+    .totals th{text-align:center}
+    .footer{margin-top:38px}
+    .ageing{border-collapse:collapse;width:460px}
+    .ageing th,.ageing td{border:1px solid #555;padding:6px;text-align:right}
+    .bank{white-space:pre-line;line-height:1.3;margin-top:18px}
+    .invoice-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:10px 0 12px;font-family:Arial,Helvetica,sans-serif}
+    .invoice-toolbar .invoice-status{margin-right:auto;font-size:13px;color:#444}
+    .invoice-toolbar .invoice-status.error{color:#b00020}
+    .invoice-toolbar .invoice-status.success{color:#0a7d38}
+    .invoice-toolbar button{font:inherit;font-size:13px;padding:8px 16px;border:1px solid #444;background:#fff;color:#111;cursor:pointer}
+    .invoice-toolbar button:hover{background:#f2f2f2}
+    .invoice-toolbar button:disabled{opacity:.55;cursor:default}
+    @media print{.page{border:0;padding:0}.invoice-toolbar{display:none}}
+  </style>
+</head>
+<body>
+  <div class="invoice-toolbar">
+    <span id="invoiceStatus" class="invoice-status" role="status"></span>
+    <button id="downloadInvoice" type="button" disabled>Download PDF</button>
+    <button id="emailInvoice" type="button" disabled>Email Invoice</button>
+  </div>
+  <main class="page">
+    <section class="top">
+      <div class="practice">
+        <h1>Louw Alberts Psychology Practice</h1>
+        <p>BHF Practice No. 0810000415863</p>
+      </div>
+      <div class="address">309 Friederiche Street
+Centurion
+Wierdapark
+0157</div>
+      <div>0828563940</div>
+    </section>
+
+    <div class="doc-title">Invoice</div>
+    <p class="account-name"><span class="invoice-patient-name"></span></p>
+
+    <section class="meta">
+      <div class="row"><strong>Date:</strong><span>07/10/2026</span></div>
+      <div class="row"><strong>Account No.:</strong><span>000252</span></div>
+      <div class="row"><strong>Invoice No.:</strong><span>INV-20261007-0001</span></div>
+      <div class="row"><strong>Doc.No.:</strong><span>00004510</span></div>
+    </section>
+
+    <table class="billing-table">
+      <thead>
+        <tr>
+          <th>Date / Time<br>Codes / NAPPI</th>
+          <th>Patient / Description</th>
+          <th>In hosp?</th>
+          <th>ICD</th>
+          <th>Doc.No.</th>
+          <th>Qty</th>
+          <th>Amount</th>
+          <th>Outstanding</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>07/10/2026 11:00</strong><br><br><span class="code">81305</span></td>
+          <td class="desc">
+            <div class="service-main">00 <span class="invoice-patient-summary"></span></div>
+            <div class="service-sub">Seen by: <span class="invoice-provider-name"></span></div>
+            <br>
+            Assessment, consultation, counselling and/or therapy (individual)
+          </td>
+          <td></td>
+          <td class="code">Z71.9</td>
+          <td class="code">00004510</td>
+          <td class="amount">2</td>
+          <td class="amount"><span class="invoice-amount"></span></td>
+          <td class="amount"><span class="invoice-amount"></span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="totals">
+      <tr><th>Total due</th></tr>
+      <tr><td><strong><span class="invoice-amount"></span></strong></td></tr>
+    </table>
+
+    <section class="footer">
+      <div class="bank">Louw Alberts
+FNB
+ACC NR 63191320620
+CHEQUE ACCOUNT</div>
+    </section>
+  </main>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var appointmentId = (params.get('appointmentId') || '').trim();
+      var amountParam = (params.get('amount') || '').trim();
+      var statusEl = document.getElementById('invoiceStatus');
+      var downloadButton = document.getElementById('downloadInvoice');
+      var emailButton = document.getElementById('emailInvoice');
+      var ready = false;
+
+      function parseAmount(value) {
+        if (!/^\d+(\.\d+)?$/.test(value)) return null;
+        var parsed = Number(value);
+        if (!isFinite(parsed) || parsed <= 0) return null;
+        return Math.round(parsed * 100) / 100;
+      }
+      var amount = parseAmount(amountParam);
+
+      function setStatus(message, kind) {
+        statusEl.textContent = message || '';
+        statusEl.className = 'invoice-status' + (kind ? ' ' + kind : '');
+      }
+
+      function setText(className, value) {
+        var nodes = document.querySelectorAll('.' + className);
+        for (var i = 0; i < nodes.length; i++) nodes[i].textContent = value;
+      }
+
+      function formatDateOfBirth(value) {
+        var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+        return match ? match[3] + '/' + match[2] + '/' + match[1] : '';
+      }
+
+      function formatAmount(value) {
+        return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function authHeaders() {
+        return { Authorization: 'Bearer ' + (localStorage.getItem('wannatalkApiToken') || '') };
+      }
+
+      function httpError(response) {
+        var error = new Error('Request failed');
+        error.status = response.status;
+        return error;
+      }
+
+      function messageFor(error, fallback) {
+        if (error && error.status === 401) return 'Your session has expired. Please log in again.';
+        if (error && error.status === 403) return 'You do not have permission to view this invoice.';
+        if (error && error.status === 404) return 'Appointment not found.';
+        if (error && error.status === 400) return 'A valid invoice amount is required.';
+        return fallback;
+      }
+
+      function setReady(value) {
+        ready = value;
+        downloadButton.disabled = !ready;
+        emailButton.disabled = !ready;
+      }
+
+      async function load() {
+        if (!appointmentId) {
+          setReady(false);
+          setStatus('Appointment not found.', 'error');
+          return;
+        }
+        if (amount === null) {
+          setReady(false);
+          setStatus('A valid invoice amount is required.', 'error');
+          return;
+        }
+        try {
+          var response = await fetch('/api/appointments/' + encodeURIComponent(appointmentId) + '/invoice', {
+            headers: authHeaders(),
+          });
+          if (!response.ok) throw httpError(response);
+          var data = await response.json();
+          var patient = data.patient || {};
+          var provider = data.provider || {};
+          var title = String(patient.title || '').trim();
+          var name = String(patient.name || '').trim();
+          setText('invoice-patient-name', [title, name].filter(Boolean).join(' '));
+          setText('invoice-patient-summary', [name, formatDateOfBirth(patient.dateOfBirth)].filter(Boolean).join(' '));
+          setText('invoice-provider-name', String(provider.name || '').trim());
+          setText('invoice-amount', formatAmount(amount));
+          setStatus('');
+          setReady(true);
+        } catch (error) {
+          setReady(false);
+          setStatus(messageFor(error, 'Unable to generate invoice. Please try again.'), 'error');
+        }
+      }
+      downloadButton.addEventListener('click', async function () {
+        if (!ready || downloadButton.disabled) return;
+        var label = downloadButton.textContent;
+        downloadButton.disabled = true;
+        downloadButton.textContent = 'Preparing…';
+        try {
+          var response = await fetch(
+            '/api/appointments/' + encodeURIComponent(appointmentId) + '/invoice/pdf?amount=' + encodeURIComponent(amountParam),
+            { headers: authHeaders() }
+          );
+          if (!response.ok) throw httpError(response);
+          var blob = await response.blob();
+          var url = URL.createObjectURL(blob);
+          var link = document.createElement('a');
+          link.href = url;
+          link.download = 'invoice-' + appointmentId + '.pdf';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+          setStatus('Invoice PDF downloaded.', 'success');
+        } catch (error) {
+          setStatus(messageFor(error, 'Unable to generate invoice. Please try again.'), 'error');
+        } finally {
+          downloadButton.textContent = label;
+          downloadButton.disabled = !ready;
+        }
+      });
+
+      emailButton.addEventListener('click', async function () {
+        if (!ready || emailButton.disabled) return;
+        var label = emailButton.textContent;
+        emailButton.disabled = true;
+        emailButton.textContent = 'Sending…';
+        try {
+          var response = await fetch('/api/appointments/' + encodeURIComponent(appointmentId) + '/invoice/email', {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+            body: JSON.stringify({ amount: amount }),
+          });
+          if (!response.ok) throw httpError(response);
+          var data = await response.json().catch(function () { return {}; });
+          setStatus(data.message || 'Invoice emailed successfully.', 'success');
+        } catch (error) {
+          setStatus(messageFor(error, 'Unable to email the invoice. Please try again.'), 'error');
+        } finally {
+          emailButton.textContent = label;
+          emailButton.disabled = !ready;
+        }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

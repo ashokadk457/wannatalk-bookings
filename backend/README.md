@@ -41,6 +41,9 @@ node scripts/set-password.js sarah@test.co.za "new-password"
 - `PATCH /api/appointments/:id/reschedule`
 - `PATCH /api/appointments/:id/status`
 - `DELETE /api/appointments/:id`
+- `GET /api/appointments/:id/invoice`
+- `GET /api/appointments/:id/invoice/pdf`
+- `POST /api/appointments/:id/invoice/email`
 - `GET /api/audit-logs`
 - `GET /api/registrations`
 - `PATCH /api/registrations/:id/approve`

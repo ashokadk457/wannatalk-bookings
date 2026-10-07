@@ -218,6 +218,17 @@ export async function mockApi(page: Page, role: Role, authenticated = true) {
       }
       return json({ appointment: a });
     }
+    if (path.endsWith('/invoice/pdf') && method === 'GET')
+      return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4 invoice test' });
+    if (path.endsWith('/invoice/email') && method === 'POST')
+      return json({ success: true, message: 'Invoice emailed successfully.' });
+    if (path.endsWith('/invoice') && method === 'GET')
+      return json({
+        appointmentId: 'appointment-1',
+        appointment: { date: appointmentDate, time: '10:00', type: appointment.appointment_type },
+        patient: { name: patient.full_name, title: 'Mr', email: patient.email, dateOfBirth: '1969-12-15' },
+        provider: { name: provider.full_name, professionalTitle: provider.professional_title },
+      });
     if (path.startsWith('/appointments/') && method === 'DELETE') {
       appointments = appointments.filter((a) => a.id !== path.split('/')[2]);
       return route.fulfill({ status: 204 });

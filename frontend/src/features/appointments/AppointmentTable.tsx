@@ -5,6 +5,7 @@ import { MeetingLink } from '../../components/MeetingLink';
 import { Empty, StatusPill } from '../../components/ui';
 import { formatDate, joinAllowed } from '../../lib/dates';
 import { AppointmentActions, useAppointments } from './AppointmentContext';
+import InvoiceDialog from './InvoiceDialog';
 import { statuses, type Appointment, type Status } from '../../types';
 export default function AppointmentTable({
   appointments,
@@ -18,7 +19,8 @@ export default function AppointmentTable({
   const { user } = useApp(),
     actions = useAppointments(),
     navigate = useNavigate();
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>([]),
+    [invoiceAppointment, setInvoiceAppointment] = useState<Appointment | null>(null);
   const patientIds = [...new Set(appointments.map((a) => a.patient_id))];
   const selectedPatients = selected.filter((id) => patientIds.includes(id));
   const selectAll = () =>
@@ -120,6 +122,14 @@ export default function AppointmentTable({
                   </button>
                   
                 )}
+                {user?.role === 'admin' && (
+                  <button
+                    className="btn secondary small"
+                    onClick={() => setInvoiceAppointment(a)}
+                  >
+                    Generate Invoice
+                  </button>
+                )}
                 </div>
               </td>
             </tr>
@@ -140,6 +150,12 @@ export default function AppointmentTable({
             Message selected patients
           </button>
         </div>
+      )}
+      {invoiceAppointment && (
+        <InvoiceDialog
+          appointment={invoiceAppointment}
+          onClose={() => setInvoiceAppointment(null)}
+        />
       )}
     </div>
   );
