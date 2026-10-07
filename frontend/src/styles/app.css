@@ -973,7 +973,7 @@ button.month-event.unavailable {
     sans-serif;
 }
 #auth .wt-shell {
-  width: min(980px, 100%);
+  width: min(1150px, 100%);
   display: grid;
   grid-template-columns: 0.86fr 1.14fr;
   padding: 0;
@@ -1597,3 +1597,64 @@ table input[type='radio'] {
   .dashboard-primary-action { align-items: stretch; flex-direction: column; }
 }
 
+
+
+    .trust {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 18px;
+      align-items: stretch;
+      margin-top: 6px;
+    }
+
+    .trust-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 16px;
+      align-items: center;
+      min-height: 116px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #ffffff;
+    }
+
+    .trust-card img {
+      display: block;
+      max-width: 150px;
+      max-height: 76px;
+      object-fit: contain;
+    }
+
+    .trust-card.partner img {
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+    }
+
+    .trust-label {
+      color: #7a8797;
+      font-size: 14px;
+      font-weight: 780;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .trust-title {
+      margin-top: 4px;
+      color: #064422;
+      font-size: 18px;
+      font-weight: 850;
+      line-height: 1.18;
+    }
+
+    .trust-url {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    a{
+      text-decoration: none;
+    }
