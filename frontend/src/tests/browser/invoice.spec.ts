@@ -43,6 +43,8 @@ test('invoice page fills dynamic values and supports download and email', async 
   await expect(page.locator('#invoiceItems')).toContainText('81305');
   await expect(page.locator('#invoiceItems')).toContainText('Z71.9');
   await expect(page.locator('#invoiceItems')).toContainText('00004510');
+  await expect(page.locator('#invoiceItems')).toContainText('Seen by: Dr Test Provider');
+  await expect(page.locator('#invoiceItems')).toContainText('Assessment, consultation, counselling and/or therapy (individual)');
   await expect(page.locator('.invoice-total')).toHaveText('R 250,50');
 
   const downloadPromise = page.waitForEvent('download');

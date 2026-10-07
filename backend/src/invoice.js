@@ -81,12 +81,13 @@ export async function renderStoredInvoiceHtml(invoice) {
   }
   const displayName = [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
   const summary = [String(invoice.patient_name || '').trim(), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
+  const patientSummary = [String(invoice.patient_name || '').trim(), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
   const rows = invoice.items.map((item) => `<tr>
-    <td><strong>${escapeHtml(formatDate(item.appointment_date))}</strong><span>${escapeHtml(formatTime(item.appointment_time))}</span><span>81305</span></td>
-    <td><strong>${escapeHtml(item.description)}</strong><span>${escapeHtml(item.mode || '')}</span></td>
-    <td>${escapeHtml(item.provider_name)}</td>
-    <td>Z71.9</td>
-    <td>00004510</td>
+    <td><strong>${escapeHtml(formatDate(item.appointment_date))} ${escapeHtml(formatTime(item.appointment_time))}</strong><br><br><span class="code">81305</span></td>
+    <td class="desc"><div class="service-main">00 ${escapeHtml(patientSummary)}</div><div class="service-sub">Seen by: ${escapeHtml(item.provider_name)}</div><br><div class="service-description">Assessment, consultation, counselling and/or therapy (individual)</div></td>
+    <td class="code">Z71.9</td>
+    <td class="code">00004510</td>
+    <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
     <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
   </tr>`).join('');
   let html = template;

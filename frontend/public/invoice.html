@@ -71,12 +71,12 @@ Wierdapark
     <table class="billing-table">
       <thead>
         <tr>
-          <th>Date &amp; Time</th>
-          <th>Appointment</th>
-          <th>Provider</th>
+          <th>Date / Time<br>Codes / NAPPI</th>
+          <th>Patient / Description</th>
           <th>ICD</th>
           <th>Doc.No</th>
           <th>Amount</th>
+          <th>Outstanding</th>
         </tr>
       </thead>
       <tbody id="invoiceItems"><!-- invoice-items --></tbody>
@@ -137,24 +137,44 @@ CHEQUE ACCOUNT</div>
         return match ? match[3] + '/' + match[2] + '/' + match[1] : String(value || '');
       }
 
-      function renderItems(items) {
+      function renderItems(items, patientName, patientDateOfBirth) {
         var body = document.getElementById('invoiceItems');
         body.textContent = '';
         items.forEach(function (item) {
           var row = document.createElement('tr');
-          var values = [
-            formatInvoiceDate(item.appointment_date) + ' ' + String(item.appointment_time || '').slice(0, 5) + '\n81305',
-            item.description,
-            item.provider_name,
-            'Z71.9',
-            '00004510',
-            'R ' + formatAmount(Number(item.amount)),
-          ];
-          values.forEach(function (value, index) {
+          var dateCell = document.createElement('td');
+          var dateText = document.createElement('strong');
+          dateText.textContent = formatInvoiceDate(item.appointment_date) + ' ' + String(item.appointment_time || '').slice(0, 5);
+          var code = document.createElement('span');
+          code.className = 'code';
+          code.textContent = '81305';
+          dateCell.appendChild(dateText);
+          dateCell.appendChild(document.createElement('br'));
+          dateCell.appendChild(document.createElement('br'));
+          dateCell.appendChild(code);
+          row.appendChild(dateCell);
+
+          var description = document.createElement('td');
+          description.className = 'desc';
+          var patient = document.createElement('div');
+          patient.className = 'service-main';
+          patient.textContent = ['00', patientName, formatDateOfBirth(patientDateOfBirth)].filter(Boolean).join(' ');
+          var provider = document.createElement('div');
+          provider.className = 'service-sub';
+          provider.textContent = 'Seen by: ' + String(item.provider_name || '');
+          var service = document.createElement('div');
+          service.className = 'service-description';
+          service.textContent = 'Assessment, consultation, counselling and/or therapy (individual)';
+          description.appendChild(patient);
+          description.appendChild(provider);
+          description.appendChild(document.createElement('br'));
+          description.appendChild(service);
+          row.appendChild(description);
+
+          ['Z71.9', '00004510', 'R ' + formatAmount(Number(item.amount)), 'R ' + formatAmount(Number(item.amount))].forEach(function (value, index) {
             var cell = document.createElement('td');
-            if (index === 5) cell.className = 'amount';
-            if (index === 0) cell.style.whiteSpace = 'pre-line';
-            cell.textContent = value || '';
+            cell.className = index < 2 ? 'code' : 'amount';
+            cell.textContent = value;
             row.appendChild(cell);
           });
           body.appendChild(row);
@@ -196,7 +216,7 @@ CHEQUE ACCOUNT</div>
             setText('invoice-patient-name', [invoice.patient_title, invoice.patient_name].filter(Boolean).join(' '));
             setText('invoice-patient-summary', [invoice.patient_name, formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' · '));
             setText('invoice-total', 'R ' + formatAmount(Number(invoice.total_amount)));
-            renderItems(invoice.items || []);
+            renderItems(invoice.items || [], invoice.patient_name, invoice.patient_date_of_birth);
             document.title = 'Invoice ' + invoice.invoice_number;
             setStatus('');
             setReady(true);
@@ -233,7 +253,7 @@ CHEQUE ACCOUNT</div>
           setText('invoice-number', 'Preview');
           setText('invoice-issued-date', formatInvoiceDate(new Date().toISOString()));
           setText('invoice-total', 'R ' + formatAmount(amount));
-          renderItems([{ appointment_date: data.appointment.date, appointment_time: data.appointment.time, description: data.appointment.type, provider_name: provider.name, amount: amount }]);
+          renderItems([{ appointment_date: data.appointment.date, appointment_time: data.appointment.time, provider_name: provider.name, amount: amount }], patient.name, patient.dateOfBirth);
           setStatus('');
           setReady(true);
         } catch (error) {
