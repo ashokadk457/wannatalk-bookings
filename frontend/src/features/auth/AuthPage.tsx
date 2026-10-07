@@ -309,6 +309,26 @@ export default function AuthPage() {
                   Begin Intake →
                 </button>
               </section>
+
+              <section className="trust" aria-label="Professional affiliation and partnership">
+          <a className="trust-card" href="https://www.psyssa.com" aria-label="PsySSA Affiliate Member">
+            <img src="/assets/PsySSA-Logo_Final-2-1.png" alt="PsySSA Psychological Society of South Africa logo" />
+            <div>
+              <div className="trust-label">Affiliate Member</div>
+              <div className="trust-title">PsySSA</div>
+              <div className="trust-url">www.psyssa.com</div>
+            </div>
+          </a>
+
+          <a className="trust-card partner" href="https://louwalbertspsychologist.co.za" aria-label="In partnership with Louw Alberts Psychology Practice">
+            <img src="/assets/file.jpg" alt="Louw Alberts Psychology Practice logo" />
+            <div>
+              <div className="trust-label">In partnership with</div>
+              <div className="trust-title">Louw Alberts Psychology Practice</div>
+              <div className="trust-url">louwalbertspsychologist.co.za</div>
+            </div>
+          </a>
+        </section>
               <div className="wt-footer">
                 <span className="wt-powered">
                   <span className="wt-powered-mark" aria-hidden="true">
