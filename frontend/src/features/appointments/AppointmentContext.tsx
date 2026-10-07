@@ -533,7 +533,7 @@ export function AppointmentActions({
             onClick={() => void actions.cancel(a)}
           >
             <Icon.Close />
-            <span>Cancel appointment</span>
+            <span>Cancel</span>
           </button>
         </>
       )}

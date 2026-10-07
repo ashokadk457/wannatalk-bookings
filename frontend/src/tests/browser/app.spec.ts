@@ -272,7 +272,7 @@ test('booking details escape user text, show meeting link, and cancel through th
     'href',
     'https://example.test/session',
   );
-  await dialog.getByRole('button', { name: 'Cancel appointment', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   expect(
     api.requests.some(
