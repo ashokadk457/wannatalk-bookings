@@ -83,11 +83,14 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
               <option value="inactive">Inactive</option>
             </select>
           </Field>
-          <span className="pill">
+          
+          <span className="pill pill_ui">
             {source.filter((a) => a.is_active).length} active · {source.length} total
           </span>
-          {admin && !providers && <div className="actions"><button type="button" className="btn secondary small" onClick={downloadCsv}>Export patients</button><button type="button" className="btn secondary small" onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,text/csv'; input.onchange = () => input.files?.[0] && void importCsv(input.files[0]); input.click(); }}>Import CSV/Excel</button></div>}
-          <label className="pagination-size">Rows <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></label>
+
+          {admin && !providers && <div className="actions"><button type="button" className="btn secondary btn-ui small mt-23" onClick={downloadCsv}>Export patients</button><button type="button" className="btn secondary small btn-ui mt-23" onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,text/csv'; input.onchange = () => input.files?.[0] && void importCsv(input.files[0]); input.click(); }}>Import CSV/Excel</button></div>}
+
+          <label className="pagination-size mt-23">Rows <select className="pagination_select" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></label>
         </div>
         {rows.length ? (
           <div className="dashboard-table">

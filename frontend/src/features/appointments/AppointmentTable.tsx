@@ -109,15 +109,18 @@ export default function AppointmentTable({
                 )}
               </td>
               <td>
+                <div className="actions">
                 <AppointmentActions appointment={a} view />
                 {user?.role !== 'patient' && (
                   <button
-                    className="btn secondary small space-top"
+                    className="btn secondary small"
                     onClick={() => actions.contact(a)}
                   >
                     Message
                   </button>
+                  
                 )}
+                </div>
               </td>
             </tr>
           ))}

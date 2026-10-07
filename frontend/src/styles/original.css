@@ -2315,3 +2315,28 @@ textarea {
         grid-template-columns: 1fr
     }
 }
+
+
+.pill_ui{
+        max-height: 48px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 12px;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+    margin-top: 23px;
+        font-size: 14px;
+}
+
+.mt-23{margin-top: 23px;}
+.pagination_select{
+    min-height: 48px;
+}
+
+.btn-ui{
+    font-size: 14px;
+     min-height: 48px;
+     font-weight: 600;
+     border-radius: 11px
+}
