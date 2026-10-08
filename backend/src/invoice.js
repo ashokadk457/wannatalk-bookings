@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 
 const defaultTemplatePath = fileURLToPath(
-  new URL('../../frontend/public/invoice.html', import.meta.url),
+  process.env.PGHOST === 'production' ?
+  new URL('../../frontend/invoice.html', import.meta.url) : new URL('../../frontend/public/invoice.html', import.meta.url)
 );
 
 function templatePath() {

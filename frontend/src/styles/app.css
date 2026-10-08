@@ -1676,3 +1676,512 @@ table input[type='radio'] {
     a{
       text-decoration: none;
     }
+    /* ============================================
+   AUTH PAGE - MOBILE RESPONSIVE FIXES
+   ============================================ */
+
+/* Base responsive fixes for auth page */
+#auth.auth-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 16px 12px;
+}
+
+#auth .wt-shell {
+  width: min(1150px, 100%);
+  border-radius: 16px;
+}
+
+/* ============================================
+   TABLET (max-width: 900px)
+   ============================================ */
+@media (max-width: 900px) {
+  #auth .wt-shell {
+    grid-template-columns: 1fr;
+  }
+
+  #auth .wt-hero {
+    min-height: 220px;
+    padding: 28px 24px;
+  }
+
+  #auth .wt-brand-name {
+    font-size: 36px;
+  }
+
+  #auth .wt-tagline {
+    margin-left: 66px;
+    font-size: 15px;
+  }
+
+  #auth .wt-hero-copy h2 {
+    font-size: 30px;
+    margin-bottom: 10px;
+  }
+
+  #auth .wt-hero-copy p {
+    font-size: 16px;
+    max-width: 100%;
+  }
+
+  #auth .wt-content {
+    min-height: auto;
+    padding: 32px 28px 28px;
+  }
+
+  #auth .wt-title {
+    font-size: 26px;
+  }
+
+  #auth .wt-intro {
+    font-size: 15px;
+    margin-bottom: 20px;
+  }
+
+  #auth .wt-role-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  #auth .wt-role-card {
+    min-height: auto;
+    padding: 18px;
+  }
+
+  #auth .wt-role-name {
+    font-size: 20px;
+  }
+
+  #auth .wt-intake-card {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  #auth .wt-primary-button {
+    width: 100%;
+  }
+
+  /* Trust cards stack on tablet */
+  .trust {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .trust-card {
+    padding: 16px;
+    min-height: auto;
+  }
+
+  .trust-card img {
+    max-width: 120px;
+    max-height: 64px;
+  }
+
+  .trust-card.partner img {
+    width: 68px;
+    height: 68px;
+  }
+}
+
+/* ============================================
+   MOBILE (max-width: 600px)
+   ============================================ */
+@media (max-width: 600px) {
+  #auth.auth-wrap {
+    padding: 10px 8px;
+    place-items: start center;
+    padding-top: 16px;
+  }
+
+  #auth .wt-shell {
+    border-radius: 14px;
+    box-shadow: 0 16px 48px var(--wt-shadow);
+  }
+
+  /* Hero section compact */
+  #auth .wt-hero {
+    min-height: 180px;
+    padding: 22px 18px;
+    background-position: center top;
+  }
+
+  #auth .wt-brand {
+    gap: 10px;
+  }
+
+  #auth .wt-brand-logo {
+    height: 48px !important;
+    width: 48px !important;
+  }
+
+  #auth .wt-brand-name {
+    font-size: 30px;
+  }
+
+  #auth .wt-tagline {
+    margin: 6px 0 0 58px;
+    font-size: 14px;
+  }
+
+  #auth .wt-hero-copy h2 {
+    font-size: 24px;
+    line-height: 1.15;
+    margin-bottom: 8px;
+  }
+
+  #auth .wt-hero-copy p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Content area */
+  #auth .wt-content {
+    padding: 24px 18px 20px;
+  }
+
+  #auth .wt-title {
+    font-size: 22px;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+
+  #auth .wt-intro {
+    font-size: 14px;
+    line-height: 1.45;
+    margin-bottom: 18px;
+  }
+
+  /* Role cards */
+  #auth .wt-role-grid {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  #auth .wt-role-card {
+    padding: 16px;
+    border-radius: 14px;
+    min-height: auto;
+  }
+
+  #auth .wt-role-top {
+    gap: 10px;
+  }
+
+  #auth .wt-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+
+  #auth .wt-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  #auth .wt-role-name {
+    font-size: 18px;
+  }
+
+  #auth .wt-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    margin-top: 6px;
+  }
+
+  #auth .wt-role-copy {
+    font-size: 13px;
+    margin: 12px 0 14px;
+    line-height: 1.4;
+  }
+
+  #auth .wt-card-action {
+    font-size: 14px;
+  }
+
+  /* Intake card */
+  #auth .wt-intake-card {
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
+
+  #auth .wt-intake-card h2 {
+    font-size: 17px;
+  }
+
+  #auth .wt-intake-card p {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  #auth .wt-primary-button {
+    min-height: 46px;
+    font-size: 14px;
+    padding: 0 16px;
+    border-radius: 12px;
+  }
+
+  /* Footer */
+  #auth .wt-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    text-align: center;
+    padding-top: 16px;
+  }
+
+  #auth .wt-powered {
+    justify-content: center;
+    font-size: 13px;
+  }
+
+  #auth .wt-admin {
+    text-align: center;
+    padding: 10px;
+    border-radius: 10px;
+    background: #f5f8fa;
+    font-size: 13px;
+  }
+
+  #auth .wt-admin:hover {
+    background: #eef3f7;
+    text-decoration: none;
+  }
+
+  /* Copyright & social */
+  #auth .wt-copyright {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+
+  #auth .wt-social {
+    gap: 4px 6px;
+  }
+
+  #auth .wt-social a {
+    min-height: 32px;
+    padding: 5px 8px;
+    font-size: 12px;
+    gap: 5px;
+  }
+
+  #auth .wt-social a svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  #auth .wt-copyright small {
+    font-size: 12px;
+  }
+
+  /* Trust badges mobile */
+  .trust {
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .trust-card {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 14px;
+    min-height: auto;
+  }
+
+  .trust-card img {
+    max-width: 80px;
+    max-height: 52px;
+  }
+
+  .trust-card.partner img {
+    width: 56px;
+    height: 56px;
+  }
+
+  .trust-label {
+    font-size: 11px;
+  }
+
+  .trust-title {
+    font-size: 14px;
+  }
+
+  .trust-url {
+    font-size: 12px;
+    margin-top: 3px;
+  }
+
+  /* Form elements */
+  #auth .auth-panel {
+    padding: 0;
+  }
+
+  #auth .auth-panel h2 {
+    font-size: 20px;
+  }
+
+  #auth .tabs {
+    gap: 6px;
+    margin: 14px 0;
+  }
+
+  #auth .tab {
+    padding: 10px 12px;
+    font-size: 13px;
+    flex: 1;
+    text-align: center;
+  }
+
+  #auth .btn {
+    min-height: 46px;
+    font-size: 14px;
+  }
+
+  #auth .btn.secondary {
+    min-height: 44px;
+  }
+
+  #auth .field > span:first-child,
+  #auth .field label {
+    font-size: 12px;
+  }
+
+  #auth .field input,
+  #auth .field select {
+    min-height: 48px;
+    font-size: 16px;
+    border-radius: 12px;
+  }
+
+  #auth .demo {
+    font-size: 12px;
+    margin-top: 12px;
+  }
+}
+
+/* ============================================
+   SMALL MOBILE (max-width: 380px)
+   ============================================ */
+@media (max-width: 380px) {
+  #auth.auth-wrap {
+    padding: 8px 6px;
+  }
+
+  #auth .wt-hero {
+    min-height: 160px;
+    padding: 18px 14px;
+  }
+
+  #auth .wt-brand-logo {
+    height: 42px !important;
+    width: 42px !important;
+  }
+
+  #auth .wt-brand-name {
+    font-size: 26px;
+  }
+
+  #auth .wt-tagline {
+    margin-left: 52px;
+    font-size: 12px;
+  }
+
+  #auth .wt-hero-copy h2 {
+    font-size: 20px;
+  }
+
+  #auth .wt-hero-copy p {
+    font-size: 13px;
+  }
+
+  #auth .wt-content {
+    padding: 20px 14px 16px;
+  }
+
+  #auth .wt-title {
+    font-size: 19px;
+  }
+
+  #auth .wt-role-card {
+    padding: 14px;
+  }
+
+  #auth .wt-role-name {
+    font-size: 16px;
+  }
+
+  #auth .wt-social a span {
+    display: none;
+  }
+
+  #auth .wt-social a {
+    min-width: 36px;
+    justify-content: center;
+    padding: 6px;
+  }
+
+  #auth .wt-social a svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ============================================
+   LANDSCAPE MOBILE
+   ============================================ */
+@media (max-height: 500px) and (orientation: landscape) {
+  #auth.auth-wrap {
+    place-items: start center;
+    padding: 10px;
+  }
+
+  #auth .wt-hero {
+    min-height: 140px;
+    padding: 16px 20px;
+  }
+
+  #auth .wt-hero-copy h2 {
+    font-size: 22px;
+  }
+
+  #auth .wt-hero-copy p {
+    display: none;
+  }
+
+  #auth .wt-content {
+    padding: 20px 24px;
+  }
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  #auth .wt-role-card,
+  #auth .wt-primary-button,
+  #auth .wt-admin,
+  #auth .wt-social a {
+    transition: none;
+  }
+}
+
+#auth .brand-logo {
+  height: 70px;
+  width: 70px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+  #auth .brand-logo {
+    height: 48px !important;
+    width: 48px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  #auth .brand-logo {
+    height: 42px !important;
+    width: 42px !important;
+  }
+}
