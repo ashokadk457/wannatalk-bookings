@@ -29,6 +29,7 @@ export default function ProfilePage() {
     [privatePracticeName, setPrivatePracticeName] = useState(provider?.private_practice_name || ''),
     [duration, setDuration] = useState(provider?.default_duration_minutes || 60),
     [bio, setBio] = useState(provider?.bio || ''),
+    [fullAddress, setFullAddress] = useState(provider?.full_address || ''),
     [locations, setLocations] = useState(provider?.locations || []),
     [busy, setBusy] = useState(false);
   useEffect(() => { if (patientDetails) { setPatientTitle(patientDetails.title || ''); setIdentityDocument(patientDetails.identity_document || ''); setDateOfBirth(patientDetails.date_of_birth?.slice(0,10) || ''); setNationality(countries.some((country) => country.code === patientDetails.nationality) ? patientDetails.nationality : 'ZA'); } }, [patientDetails]);
@@ -54,6 +55,7 @@ export default function ProfilePage() {
         nationality,
         durationMinutes: duration,
         bio,
+        fullAddress,
         locations,
       });
       await refresh();
@@ -116,6 +118,9 @@ export default function ProfilePage() {
                     onChange={setLocations}
                     locations={data.locations.map((l) => l.name)}
                   />
+                  <Field label="Full address" full>
+                    <textarea maxLength={1000} autoComplete="street-address" value={fullAddress} onChange={(e) => setFullAddress(e.target.value)} placeholder="Street address, suburb, city, province and postal code" />
+                  </Field>
                 </>
               ) : (
                 <Field label="Preferred contact">

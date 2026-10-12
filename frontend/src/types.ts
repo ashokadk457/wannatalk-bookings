@@ -54,6 +54,7 @@ export interface Provider {
   practice_number?: string;
   practice_setting?: string;
   private_practice_name?: string;
+  full_address?: string | null;
   default_duration_minutes: number;
   bio: string | null;
   is_online: boolean;

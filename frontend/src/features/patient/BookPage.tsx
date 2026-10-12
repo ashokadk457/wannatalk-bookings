@@ -244,6 +244,7 @@ export default function BookPage() {
                   {location === 'Online' ? 'Online' : mode}
                 </p>
                 {intake && <span className="intake-badge">Optional intake selected</span>}
+                <a className="intake-link" href={`/patient/cancellation-policy/${selected.id}`} target="_blank" rel="noopener noreferrer">View cancellation policy ↗</a>
               </>
             ) : (
               'Choose a location, provider, date and time to preview your booking.'

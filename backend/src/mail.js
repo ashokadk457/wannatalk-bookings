@@ -26,6 +26,9 @@ function transporter() {
     port: smtpPort,
     secure: smtpSecure,
     requireTLS: !smtpSecure,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
     auth: { user: smtpUser, pass: smtpPassword },
   });
 }

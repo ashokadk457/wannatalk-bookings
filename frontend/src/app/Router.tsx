@@ -19,6 +19,8 @@ const Audit = lazy(() => import('../features/admin/AuditPage'));
 const Health = lazy(() => import('../features/admin/HealthPage'));
 const Messages = lazy(() => import('../features/workflows/MessagesPage'));
 const AppointmentMessages = lazy(() => import('../features/workflows/AppointmentMessagesPage'));
+const AutomaticReminders = lazy(() => import('../features/provider/AutomaticRemindersPage'));
+const CancellationPolicy = lazy(() => import('../features/provider/CancellationPolicyPage'));
 const FollowUps = lazy(() => import('../features/workflows/FollowUpsPage'));
 const Waiting = lazy(() => import('../features/workflows/WaitingPage'));
 export default function Router() {
@@ -56,6 +58,7 @@ export default function Router() {
         <Route path="/login" element={<Auth />} />
         <Route path="/reset-password" element={<Auth />} />
         <Route path="/patient" element={<Layout role="patient" />}>
+          <Route path="cancellation-policy/:providerId" element={<CancellationPolicy readOnly />} />
           <Route index element={<Navigate to="book" replace />} />
           <Route path="book" element={<Book />} />
           <Route path="appointments" element={<PatientAppointments />} />
@@ -63,9 +66,11 @@ export default function Router() {
           <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="/provider" element={<Layout role="provider" />}>
+          <Route path="cancellation-policy" element={<CancellationPolicy />} />
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="calendar" element={<Calendar />} />
+          <Route path="automatic-reminders" element={<AutomaticReminders />} />
           <Route path="availability" element={<Availability />} />
           <Route path="patients" element={<Directory />} />
           <Route path="followups" element={<FollowUps />} />

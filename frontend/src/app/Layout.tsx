@@ -236,14 +236,14 @@ export default function Layout({ role }: { role: Role }) {
             <span />
           </button>
           <div>
-            <h2>{title}</h2>
-            <p>
+            <h2>{role === 'patient' && location.pathname.startsWith('/patient/cancellation-policy/') ? 'Cancellation policy' : title}</h2>
+            {!(role === 'patient' && location.pathname.startsWith('/patient/cancellation-policy/')) && <p>
               {role === 'patient'
                 ? 'Choose a provider, date and available time.'
                 : role === 'admin'
                   ? 'Appointments, registrations and provider presence across the practice.'
                   : 'Capture bookings, reminders and patient updates from one clear dashboard.'}
-            </p>
+            </p>}
           </div>
           <div className="top-actions">
             <span className="pill">

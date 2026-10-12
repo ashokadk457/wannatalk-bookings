@@ -16,6 +16,9 @@ import { patientsRouter } from './routes/patients.js';
 import { providersRouter } from './routes/providers.js';
 import { registrationsRouter } from './routes/registrations.js';
 import { waitingListRouter } from './routes/waitingList.js';
+import { reminderTemplatesRouter } from './routes/reminderTemplates.js';
+import { automaticRemindersRouter } from './routes/automaticReminders.js';
+import { startAutomaticReminders } from './automaticReminders.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 
 const app = express();
@@ -43,6 +46,8 @@ app.use('/api/appointments', appointmentsRouter);
 app.use('/api/invoices', invoicesRouter);
 app.use('/api/audit-logs', auditLogsRouter);
 app.use('/api/communications', communicationsRouter);
+app.use('/api/reminder-templates', reminderTemplatesRouter);
+app.use('/api/automatic-reminders', automaticRemindersRouter);
 app.use('/api/follow-ups', followUpsRouter);
 app.use('/api/waiting-list', waitingListRouter);
 
@@ -51,4 +56,5 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`WannaTalk bookings API listening on port ${port}`);
+  if (process.env.AUTOMATIC_REMINDERS_WORKER !== 'false') startAutomaticReminders();
 });

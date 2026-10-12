@@ -8,7 +8,24 @@ import { mutate } from '../../services/api';
 import { Channels, deliverySummary, PatientSelect, ProviderSelect, ResourceState } from './shared';
 import type { Delivery } from '../../types';
 import type { Appointment } from '../../types';
-export default function MessagesPage({ appointmentMode = false, appointmentOptions = [], defaultPatientIds = [], defaultSubject, defaultMessage }: { appointmentMode?: boolean; appointmentOptions?: Appointment[]; defaultPatientIds?: string[]; defaultSubject?: string; defaultMessage?: string }) {
+import ReminderTemplates, {
+  defaultReminder,
+  reminderFields,
+  type Content,
+} from './ReminderTemplates';
+export default function MessagesPage({
+  appointmentMode = false,
+  appointmentOptions = [],
+  defaultPatientIds = [],
+  defaultSubject,
+  defaultMessage,
+}: {
+  appointmentMode?: boolean;
+  appointmentOptions?: Appointment[];
+  defaultPatientIds?: string[];
+  defaultSubject?: string;
+  defaultMessage?: string;
+}) {
   const { user, run, notify } = useApp(),
     resource = useResource<{ deliveries: Delivery[] }>('/communications');
   const initial = useLocation().state as {
@@ -23,15 +40,36 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
     [providerId, setProvider] = useState(
       user?.role === 'provider' ? user.entityId || '' : initial?.providerId || '',
     ),
-    [subject, setSubject] = useState(initial?.subject || defaultSubject || 'Message from WannaTalk'),
+    [subject, setSubject] = useState(
+      initial?.subject || defaultSubject || 'Message from WannaTalk',
+    ),
     [message, setMessage] = useState(initial?.message || defaultMessage || ''),
     [channels, setChannels] = useState(['email', 'sms', 'whatsapp']),
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState<Delivery | null>(null),
     [logSearch, setLogSearch] = useState(''),
     [logPage, setLogPage] = useState(1);
+  const [reminderContents, setReminderContents] = useState<Record<string, Content>>({
+    email: {
+      subject: initial?.subject || defaultSubject || defaultReminder.subject,
+      message: initial?.message || defaultMessage || defaultReminder.message,
+    },
+    sms: {
+      subject: '',
+      message:
+        'Reminder: {{patient_name}}, appointment with {{provider_name}} on {{appointment_date}} at {{start_time}}.',
+    },
+  });
+  const [preview, setPreview] = useState(false);
   const messageRef = useRef<HTMLTextAreaElement>(null);
-  const placeholders = ['{{patient_name}}', '{{provider_name}}', '{{appointment_date}}', '{{start_time}}', '{{end_time}}', '{{mode}}'];
+  const placeholders = [
+    '{{patient_name}}',
+    '{{provider_name}}',
+    '{{appointment_date}}',
+    '{{start_time}}',
+    '{{end_time}}',
+    '{{mode}}',
+  ];
   function insertPlaceholder(value: string) {
     const textarea = messageRef.current;
     if (!textarea) return setMessage((current) => `${current}${current ? ' ' : ''}${value}`);
@@ -45,31 +83,75 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
     });
   }
   const pageSize = 20;
-  const filteredDeliveries = (resource.value?.deliveries || []).filter((d) => `${d.patient_name} ${d.provider_name || ''} ${d.channel} ${d.status} ${d.subject}`.toLowerCase().includes(logSearch.toLowerCase()));
+  const filteredDeliveries = (resource.value?.deliveries || []).filter((d) =>
+    `${d.patient_name} ${d.provider_name || ''} ${d.channel} ${d.status} ${d.subject}`
+      .toLowerCase()
+      .includes(logSearch.toLowerCase()),
+  );
   const pagedDeliveries = filteredDeliveries.slice((logPage - 1) * pageSize, logPage * pageSize);
   async function send(e: FormEvent) {
     e.preventDefault();
     if (!channels.length) return notify('Choose Email, SMS, or both');
+    if (appointmentMode && !patientIds.length) return notify('Select at least one patient');
     if (appointmentMode) {
-      const allowed = new Set(placeholders);
-      const found = message.match(/\{\{[^}]*\}\}/g) || [];
-      const invalid = found.filter((token) => !allowed.has(token));
-      const hasUnfinished = (message.match(/\{\{/g) || []).length !== (message.match(/\}\}/g) || []).length;
-      if (invalid.length || hasUnfinished) {
-        return notify(`Invalid appointment placeholder${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ') || 'unfinished {{...}} token'}. Use the buttons above to insert valid placeholders.`);
+      for (const channel of channels) {
+        const content = reminderContents[channel === 'email' ? 'email' : 'sms'];
+        if (!content.message.trim() || (channel === 'email' && !content.subject.trim()))
+          return notify(`Enter the ${channel} message and email subject where applicable`);
+        const message = content.subject + '\n' + content.message;
+        const allowed = new Set(reminderFields);
+        const found = message.match(/\{\{[^}]*\}\}/g) || [];
+        const invalid = found.filter((token) => !allowed.has(token));
+        const hasUnfinished =
+          (message.match(/\{\{/g) || []).length !== (message.match(/\}\}/g) || []).length;
+        if (invalid.length || hasUnfinished) {
+          return notify(
+            `Invalid appointment placeholder${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ') || 'unfinished {{...}} token'}. Use the buttons above to insert valid placeholders.`,
+          );
+        }
       }
     }
     if (!window.confirm('Send this message by the selected channels now?')) return;
     setBusy(true);
     await run(async () => {
-      const selectedAppointmentIds = [...new Set(patientIds.map((id) => appointmentOptions.find((a) => a.patient_id === id)?.id).filter((id): id is string => Boolean(id)))];
-      const result = await mutate<{ deliveries: Delivery[] }>(patientIds.length ? '/communications/bulk-send' : '/communications/send', 'POST', {
-        ...(patientIds.length ? { patientIds, appointmentIds: selectedAppointmentIds } : { patientId }),
-        providerId: providerId || null,
-        subject,
-        message,
-        channels,
-      });
+      const selectedAppointmentIds = [
+        ...new Set(
+          patientIds
+            .map((id) => appointmentOptions.find((a) => a.patient_id === id)?.id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const result = await mutate<{ deliveries: Delivery[] }>(
+        patientIds.length ? '/communications/bulk-send' : '/communications/send',
+        'POST',
+        {
+          ...(patientIds.length
+            ? { patientIds, appointmentIds: selectedAppointmentIds }
+            : { patientId }),
+          providerId: providerId || null,
+          subject: appointmentMode
+            ? channels.includes('email')
+              ? reminderContents.email.subject
+              : ''
+            : subject,
+          message: appointmentMode
+            ? channels.includes('email')
+              ? reminderContents.email.message
+              : reminderContents.sms.message
+            : message,
+          ...(appointmentMode
+            ? {
+                channelMessages: Object.fromEntries(
+                  channels.map((channel) => [
+                    channel,
+                    reminderContents[channel === 'email' ? 'email' : 'sms'],
+                  ]),
+                ),
+              }
+            : {}),
+          channels,
+        },
+      );
       notify(deliverySummary(result.deliveries));
       await resource.reload();
     });
@@ -79,40 +161,125 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
     <section>
       <Heading
         title={appointmentMode ? 'Appointment reminders' : 'Messages'}
-        subtitle={appointmentMode ? 'Send a reminder to patients with tomorrow’s bookings.' : 'Send patient communications by Email, SMS, or WhatsApp and review delivery history.'}
+        subtitle={
+          appointmentMode
+            ? 'Send a reminder to patients with tomorrow’s bookings.'
+            : 'Send patient communications by Email, SMS, or WhatsApp and review delivery history.'
+        }
       />
       <div className="grid two">
-          <Card title={patientIds.length ? `Send message to ${patientIds.length} patients` : appointmentMode ? 'Send appointment reminder' : 'Send patient message'}>
+        <Card
+          title={
+            patientIds.length
+              ? `Send message to ${patientIds.length} patients`
+              : appointmentMode
+                ? 'Send appointment reminder'
+                : 'Send patient message'
+          }
+        >
           <form onSubmit={send}>
             <fieldset className="form-reset" disabled={busy}>
               <div className="form-grid">
-                {appointmentMode ? <fieldset className="field full location-fields"><legend>Select appointment patients</legend><div className="notice">Use placeholders in the message: <code>{'{{patient_name}}'}</code> <code>{'{{appointment_date}}'}</code> <code>{'{{start_time}}'}</code> <code>{'{{end_time}}'}</code> <code>{'{{mode}}'}</code>. They are replaced for each patient’s appointment.</div><div className="workflow-checks">{appointmentOptions.length ? appointmentOptions.map((a) => <label key={a.id} className="appointment-recipient"><input type="checkbox" checked={patientIds.includes(a.patient_id)} onChange={(e) => setPatientIds((current) => e.target.checked ? [...new Set([...current, a.patient_id])] : current.filter((id) => id !== a.patient_id))} /><span><strong>{a.patient_name}</strong><small>{a.appointment_date} · {a.appointment_time} · {a.mode}</small></span></label>) : <span>No upcoming appointments found.</span>}</div></fieldset> : patientIds.length ? <div className="notice">Patients selected from the appointment list: {patientIds.length}</div> : <PatientSelect value={patientId} onChange={setPatient} />}
+                {appointmentMode ? (
+                  <fieldset className="field full location-fields">
+                    <legend>Select appointment patients</legend>
+                    <div className="notice">
+                      Use placeholders in the message: <code>{'{{patient_name}}'}</code>{' '}
+                      <code>{'{{appointment_date}}'}</code> <code>{'{{start_time}}'}</code>{' '}
+                      <code>{'{{end_time}}'}</code> <code>{'{{mode}}'}</code>. They are replaced for
+                      each patient’s appointment.
+                    </div>
+                    <div className="workflow-checks">
+                      {appointmentOptions.length ? (
+                        appointmentOptions.map((a) => (
+                          <label key={a.id} className="appointment-recipient">
+                            <input
+                              type="checkbox"
+                              checked={patientIds.includes(a.patient_id)}
+                              onChange={(e) =>
+                                setPatientIds((current) =>
+                                  e.target.checked
+                                    ? [...new Set([...current, a.patient_id])]
+                                    : current.filter((id) => id !== a.patient_id),
+                                )
+                              }
+                            />
+                            <span>
+                              <strong>{a.patient_name}</strong>
+                              <small>
+                                {a.appointment_date} · {a.appointment_time} · {a.mode}
+                              </small>
+                            </span>
+                          </label>
+                        ))
+                      ) : (
+                        <span>No upcoming appointments found.</span>
+                      )}
+                    </div>
+                  </fieldset>
+                ) : patientIds.length ? (
+                  <div className="notice">
+                    Patients selected from the appointment list: {patientIds.length}
+                  </div>
+                ) : (
+                  <PatientSelect value={patientId} onChange={setPatient} />
+                )}
                 {user?.role === 'admin' && (
                   <ProviderSelect value={providerId} onChange={setProvider} optional />
                 )}
-                <Field label="Subject" full>
-                  <input
-                    required
-                    maxLength={160}
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                  />
-                </Field>
-                <Field label="Message" full>
-                  {appointmentMode && <div className="placeholder-toolbar" aria-label="Insert appointment placeholder">
-                    <span className="sub">Insert field:</span>
-                    {placeholders.map((placeholder) => <button type="button" className="btn secondary small" key={placeholder} onClick={() => insertPlaceholder(placeholder)}>{placeholder}</button>)}
-                  </div>}
-                  <textarea
-                    ref={messageRef}
-                    required
-                    maxLength={1000}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                  />
-                </Field>
+                {appointmentMode ? (
+                  <ReminderTemplates contents={reminderContents} onChange={setReminderContents} />
+                ) : (
+                  <>
+                    <Field label="Subject" full>
+                      <input
+                        required
+                        maxLength={160}
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Message" full>
+                      {appointmentMode && (
+                        <div
+                          className="placeholder-toolbar"
+                          aria-label="Insert appointment placeholder"
+                        >
+                          <span className="sub">Insert field:</span>
+                          {placeholders.map((placeholder) => (
+                            <button
+                              type="button"
+                              className="btn secondary small"
+                              key={placeholder}
+                              onClick={() => insertPlaceholder(placeholder)}
+                            >
+                              {placeholder}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <textarea
+                        ref={messageRef}
+                        required
+                        maxLength={1000}
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                      />
+                    </Field>
+                  </>
+                )}
                 <Channels value={channels} onChange={setChannels} />
               </div>
+              {appointmentMode && (
+                <button
+                  type="button"
+                  className="btn secondary space-top"
+                  disabled={!patientIds.length}
+                  onClick={() => setPreview(true)}
+                >
+                  Preview reminders
+                </button>
+              )}
               <button className="btn space-top">{busy ? 'Sending…' : 'Send message'}</button>
             </fieldset>
           </form>
@@ -125,7 +292,18 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
         </Card>
       </div>
       <Card title="Delivery history" className="space-top">
-        <div className="admin-filters"><Field label="Search send logs"><input value={logSearch} placeholder="Patient, channel, status" onChange={(e) => { setLogSearch(e.target.value); setLogPage(1); }} /></Field></div>
+        <div className="admin-filters">
+          <Field label="Search send logs">
+            <input
+              value={logSearch}
+              placeholder="Patient, channel, status"
+              onChange={(e) => {
+                setLogSearch(e.target.value);
+                setLogPage(1);
+              }}
+            />
+          </Field>
+        </div>
         <ResourceState
           loading={resource.loading}
           error={resource.error}
@@ -169,8 +347,64 @@ export default function MessagesPage({ appointmentMode = false, appointmentOptio
         ) : (
           !resource.loading && !resource.error && <Empty>No messages sent yet.</Empty>
         )}
-        {filteredDeliveries.length > pageSize && <div className="modal-actions space-top"><button className="btn secondary small" disabled={logPage === 1} onClick={() => setLogPage((p) => p - 1)}>Previous</button><span>Page {logPage} of {Math.ceil(filteredDeliveries.length / pageSize)}</span><button className="btn secondary small" disabled={logPage >= Math.ceil(filteredDeliveries.length / pageSize)} onClick={() => setLogPage((p) => p + 1)}>Next</button></div>}
+        {filteredDeliveries.length > pageSize && (
+          <div className="modal-actions space-top">
+            <button
+              className="btn secondary small"
+              disabled={logPage === 1}
+              onClick={() => setLogPage((p) => p - 1)}
+            >
+              Previous
+            </button>
+            <span>
+              Page {logPage} of {Math.ceil(filteredDeliveries.length / pageSize)}
+            </span>
+            <button
+              className="btn secondary small"
+              disabled={logPage >= Math.ceil(filteredDeliveries.length / pageSize)}
+              onClick={() => setLogPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </Card>
+      {preview && (
+        <Modal title="Reminder preview" onClose={() => setPreview(false)}>
+          <p>
+            Preview for the first selected patient. Each patient receives their own appointment
+            details.
+          </p>
+          {channels.map((channel) => {
+            const appointment = appointmentOptions.find((a) => a.patient_id === patientIds[0]);
+            const content = reminderContents[channel === 'email' ? 'email' : 'sms'];
+            const fields: Record<string, string> = {
+              patient_name: appointment?.patient_name || '',
+              provider_name: appointment?.provider_name || '',
+              appointment_date: appointment?.appointment_date || '',
+              start_time: appointment?.appointment_time.slice(0, 5) || '',
+              end_time: appointment
+                ? new Date(
+                    new Date('2000-01-01T' + appointment.appointment_time).getTime() +
+                      appointment.duration_minutes * 60000,
+                  )
+                    .toTimeString()
+                    .slice(0, 5)
+                : '',
+              mode: appointment?.mode || '',
+            };
+            const render = (text: string) =>
+              text.replace(/\{\{([^}]+)\}\}/g, (token, key: string) => fields[key] || token);
+            return (
+              <div key={channel}>
+                <h3>{channel}</h3>
+                {channel === 'email' && <p>{render(content.subject)}</p>}
+                <div className="workflow-message">{render(content.message)}</div>
+              </div>
+            );
+          })}
+        </Modal>
+      )}
       {selected && (
         <Modal title="Message details" onClose={() => setSelected(null)}>
           <p>

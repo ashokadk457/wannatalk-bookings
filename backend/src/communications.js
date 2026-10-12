@@ -17,6 +17,7 @@ export async function sendPatientCommunication({
   channels,
   subject,
   message,
+  channelMessages = {},
 }) {
   const selectedChannels = cleanChannels(channels);
   if (!selectedChannels.length) {
@@ -38,14 +39,15 @@ export async function sendPatientCommunication({
   }
   const deliveries = [];
   for (const channel of selectedChannels) {
+    const content = channelMessages[channel] || { subject, message };
     const recipient = channel === 'email' ? patient.email : channel === 'sms' ? patient.mobile : channel === 'whatsapp' ? patient.mobile : '';
     let status = 'sent';
     let errorMessage = null;
     try {
       if (!recipient) throw new Error(channel === 'email' ? 'Patient has no email address' : channel === 'sms' ? 'Patient has no mobile number' : channel === 'whatsapp' ? 'Patient has no mobile number' : '');
-      if (channel === 'email') await sendCommunicationEmail({ email: recipient, fullName: patient.full_name, subject, message });
-      else if (channel === 'sms') await sendSms({ phoneNumber: recipient, message });
-      else if (channel === 'whatsapp') await sendWhatsAppMsg({ phoneNumber: recipient, message })
+      if (channel === 'email') await sendCommunicationEmail({ email: recipient, fullName: patient.full_name, subject: content.subject, message: content.message });
+      else if (channel === 'sms') await sendSms({ phoneNumber: recipient, message: content.message });
+      else if (channel === 'whatsapp') await sendWhatsAppMsg({ phoneNumber: recipient, message: content.message })
     } catch (error) {
       status = 'failed';
       errorMessage = String(error.message || 'Delivery failed').slice(0, 500);
@@ -56,7 +58,7 @@ export async function sendPatientCommunication({
           channel, recipient, subject, message_text, status, error_message, sent_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $11 = 'sent' THEN now() ELSE NULL END)
        RETURNING id, channel, status, error_message, sent_at, created_at`,
-      [patient.id, providerId, appointmentId, followUpId, waitingListEntryId, sentByUserId, channel, recipient || 'unavailable', subject || null, message, status, errorMessage]
+      [patient.id, providerId, appointmentId, followUpId, waitingListEntryId, sentByUserId, channel, recipient || 'unavailable', content.subject || null, content.message, status, errorMessage]
     );
     deliveries.push(delivery.rows[0]);
   }

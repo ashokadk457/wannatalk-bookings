@@ -2185,3 +2185,61 @@ table input[type='radio'] {
     width: 42px !important;
   }
 }
+/* Provider reminder preferences */
+.reminder-settings-page .reminder-enable { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:22px; margin:12px 0 24px; background:#edf6ee; border:1px solid #cce1cf; border-radius:14px; cursor:pointer; }
+.reminder-enable-copy { display:grid; gap:7px; }
+.reminder-enable-copy strong { font-size:16px; color:#175332; }
+.reminder-enable-copy > span { font-size:14px; line-height:1.5; color:#526653; font-weight:400; }
+.reminder-switch { position:relative; flex:0 0 48px; height:28px; }
+.reminder-settings-page .reminder-switch input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:1; }
+.reminder-switch-track { display:block; width:48px; height:28px; background:#a9b7a9; border-radius:20px; transition:background .15s; }
+.reminder-switch-track::after { content:''; display:block; position:absolute; left:4px; top:4px; width:20px; height:20px; background:white; border-radius:50%; transition:transform .15s; box-shadow:0 1px 3px #0002; }
+.reminder-switch input:checked + .reminder-switch-track { background:#23783e; }
+.reminder-switch input:checked + .reminder-switch-track::after { transform:translateX(20px); }
+.reminder-switch input:focus-visible + .reminder-switch-track { outline:3px solid #185b32; outline-offset:4px; }
+.reminder-preferences { display:grid; grid-template-columns:minmax(0,2fr) minmax(220px,1fr); gap:24px; align-items:start; }
+.reminder-timing { border:0; padding:0; margin:0; min-width:0; }
+.reminder-timing legend { font-weight:800; color:#175332; font-size:14px; }
+.reminder-timing .sub { margin:8px 0 14px; }
+.reminder-time-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.reminder-settings-page .reminder-time-option { display:flex; align-items:center; gap:10px; border:1px solid #dedfc9; border-radius:12px; padding:16px 12px; cursor:pointer; background:#fffdf1; }
+.reminder-settings-page .reminder-time-option.selected { background:#edf6ee; border-color:#6ca77a; }
+.reminder-settings-page .reminder-time-option input { width:17px; height:17px; margin:0; flex:0 0 17px; accent-color:#23783e; }
+.reminder-time-option span { display:grid; gap:5px; }
+.reminder-time-option strong { font-size:14px; color:#175332; }
+.reminder-time-option small { font-weight:400; font-size:11px; color:#65705f; }
+.reminder-language .field { margin:0; }
+.reminder-language .sub { line-height:1.5; margin-top:10px; }
+.reminder-template-heading { display:flex; justify-content:space-between; align-items:center; border-top:1px solid #e2e3ce; padding-top:24px; margin-top:24px; }
+.reminder-template-heading h3 { margin:0; font-size:17px; color:#175332; }
+.reminder-email-badge { padding:5px 10px; background:#edf6ee; color:#23783e; font-size:12px; border-radius:20px; font-weight:700; }
+.reminder-settings-page .reminder-email-editor { padding:18px; min-width:0; }
+.reminder-email-editor textarea { min-height:180px; }
+.reminder-settings-page .placeholder-toolbar { display:flex; flex-wrap:wrap; gap:6px; }
+.reminder-save { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:24px; padding-top:20px; border-top:1px solid #e2e3ce; }
+.reminder-settings-page fieldset:disabled .reminder-enable, .reminder-settings-page fieldset:disabled .reminder-time-option { cursor:default; opacity:.65; }
+@media (max-width:800px) { .reminder-preferences { grid-template-columns:1fr; gap:20px; } }
+@media (max-width:480px) { .reminder-settings-page .reminder-enable { padding:16px; gap:14px; } .reminder-time-options { grid-template-columns:1fr; } .reminder-save { align-items:stretch; flex-direction:column; } }
+/* Cancellation policy formatting editor */
+.policy-rich-editor { border:1px solid #d8dfcb; border-radius:14px; overflow:hidden; background:#fffef6; margin-top:8px; }
+.policy-editor-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:12px; border-bottom:1px solid #d8dfcb; background:#edf5e8; }
+.policy-rich-editor .policy-tool { border:1px solid transparent; background:transparent; border-radius:7px; padding:8px 10px; color:#285438; font-size:12px; font-weight:700; cursor:pointer; }
+.policy-rich-editor .policy-tool:hover { background:#dbead9; }
+.policy-rich-editor .policy-tool.active { background:#23783e; color:#fff; }
+.policy-tool:disabled { opacity:.4; cursor:default; }
+.policy-rich-editor .policy-style-select { width:auto; min-width:130px; padding:8px 10px; margin:0 6px 0 0; font-size:13px; background:#fffef6; }
+.policy-editor-document { min-height:320px; padding:24px; outline:none; line-height:1.75; font-weight:400; color:#243e2e; overflow-wrap:anywhere; }
+.policy-editor-document:focus { box-shadow:inset 0 0 0 2px #6ba66e; }
+.policy-editor-document p { margin:0 0 12px; }
+.policy-editor-document h2 { font-size:24px; margin:22px 0 12px; color:#175332; }
+.policy-editor-document h3 { font-size:19px; margin:18px 0 10px; color:#175332; }
+.policy-editor-document ul, .policy-editor-document ol { padding-left:28px; margin:12px 0; }
+.policy-editor-document li { margin:5px 0; }
+.policy-editor-document li p { margin:0; }
+.policy-editor-document blockquote { border-left:4px solid #6ba66e; padding:10px 16px; margin:16px 0; background:#edf5e8; }
+.policy-editor-document a { color:#23783e; text-decoration:underline; }
+.policy-editor-footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:10px 16px; border-top:1px solid #e0e5d5; font-size:12px; color:#66745d; font-weight:400; }
+.policy-reader .policy-editor-document { min-height:0; padding:8px; }
+.policy-link-editor { display:flex; flex-wrap:wrap; align-items:end; gap:10px; padding:12px; border-bottom:1px solid #d8dfcb; }
+.policy-link-editor label { flex:1; min-width:180px; }
+@media(max-width:600px) { .policy-editor-document { padding:16px; } .policy-rich-editor .policy-tool { padding:8px; } }

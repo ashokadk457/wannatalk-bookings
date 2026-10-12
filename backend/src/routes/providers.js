@@ -1,14 +1,37 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { authRequired } from '../middleware/authRequired.js';
+import { cleanPolicyHtml } from '../policyContent.js';
 
 export const providersRouter = Router();
+
+providersRouter.get('/:id/cancellation-policy', authRequired(), async (req, res, next) => {
+  try {
+    const result = await query(`SELECT p.id, p.cancellation_policy, p.cancellation_policy_format, u.full_name FROM providers p JOIN app_users u ON u.id=p.user_id
+      WHERE p.id=$1 AND ((u.is_active=true AND u.registration_status='approved') OR u.id=$2)`, [req.params.id,req.user.id]);
+    if (!result.rows[0]) return res.status(404).json({error:'Provider not found'});
+    const provider = result.rows[0];
+    if (provider.cancellation_policy_format === 'html') provider.cancellation_policy = cleanPolicyHtml(provider.cancellation_policy || '');
+    res.json({provider});
+  } catch(error) {next(error);}
+});
+providersRouter.patch('/:id/cancellation-policy', authRequired(['provider']), async (req,res,next) => {
+  try {
+    if (typeof req.body.policy !== 'string' || req.body.policy.length > 10000) return res.status(400).json({error:'Cancellation policy must be text of at most 10,000 characters'});
+    if (req.body.format !== undefined && !['html','text'].includes(req.body.format)) return res.status(400).json({error:'Invalid policy format'});
+    const format = req.body.format || 'text';
+    const policy = format === 'html' ? cleanPolicyHtml(req.body.policy) : req.body.policy.trim();
+    const result = await query('UPDATE providers SET cancellation_policy=$1,cancellation_policy_format=$4,updated_at=now() WHERE id=$2 AND user_id=$3 RETURNING id', [policy || null,req.params.id,req.user.id,format]);
+    if (!result.rows[0]) return res.status(404).json({error:'Provider not found'});
+    res.json({ok:true});
+  } catch(error) {next(error);}
+});
 
 providersRouter.get('/', authRequired(), async (req, res) => {
   const result = await query(
     `SELECT p.id, u.full_name, u.email, u.mobile, u.is_active, p.title, p.professional_title, p.specialty,
             p.sub_specialties, p.medical_registration_number, p.practice_number, p.practice_setting,
-            p.private_practice_name, p.default_duration_minutes, p.bio, p.is_online,
+            p.private_practice_name, p.full_address, p.default_duration_minutes, p.bio, p.is_online,
             COALESCE(json_agg(l.name ORDER BY l.name) FILTER (WHERE l.id IS NOT NULL), '[]') AS locations
      FROM providers p
      JOIN app_users u ON u.id = p.user_id
@@ -99,7 +122,9 @@ providersRouter.patch('/:id/status', authRequired(['provider', 'admin']), async 
   res.json({ provider: result.rows[0] });
 });
 
-providersRouter.patch('/:id/profile', authRequired(['provider', 'admin']), async (req, res) => {
+providersRouter.patch('/:id/profile', authRequired(['provider', 'admin']), async (req, res, next) => {
+  try {
+  if (req.body.fullAddress !== undefined && (typeof req.body.fullAddress !== 'string' || req.body.fullAddress.length > 1000)) return res.status(400).json({ error: 'Full address must be text of at most 1000 characters' });
   const fullName = String(req.body.fullName || '').trim().slice(0, 100);
   const requestedEmail = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
   const mobile = String(req.body.mobile || '').trim().slice(0, 30);
@@ -156,6 +181,7 @@ providersRouter.patch('/:id/profile', authRequired(['provider', 'admin']), async
       [String(req.body.title || '').trim().slice(0, 20) || null, professionalTitle, String(req.body.specialty || '').trim().slice(0, 100) || null, Array.isArray(req.body.subSpecialties) ? req.body.subSpecialties.map((v) => String(v).trim()).filter(Boolean).slice(0, 20) : [], String(req.body.medicalRegistrationNumber || '').trim().slice(0, 80) || null, String(req.body.practiceNumber || '').trim().slice(0, 80) || null, String(req.body.practiceSetting || '').trim().slice(0, 80) || null, String(req.body.privatePracticeName || '').trim().slice(0, 150) || null, duration, bio, current.id]
     );
     await client.query(`DELETE FROM provider_locations WHERE provider_id = $1`, [current.id]);
+    if (req.body.fullAddress !== undefined) await client.query('UPDATE providers SET full_address=$1 WHERE id=$2', [req.body.fullAddress.trim() || null, current.id]);
     for (const location of locations.rows) await client.query(`INSERT INTO provider_locations (provider_id, location_id) VALUES ($1, $2)`, [current.id, location.id]);
     if (emailChanged || mobileChanged) await client.query(`UPDATE trusted_devices SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [current.user_id]);
     if (adminContactChanged) await client.query(`UPDATE auth_otp_challenges SET consumed_at = now() WHERE user_id = $1 AND consumed_at IS NULL`, [current.user_id]);
@@ -168,6 +194,7 @@ providersRouter.patch('/:id/profile', authRequired(['provider', 'admin']), async
   });
   if (!provider) return res.status(404).json({ error: 'Provider not found' });
   res.json({ provider });
+  } catch (error) { next(error); }
 });
 
 providersRouter.patch('/:id/deactivate', authRequired(['admin']), async (req, res) => {
