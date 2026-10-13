@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 
 const defaultTemplatePath = fileURLToPath(
-  process.env.PGHOST === 'production' ?
+  process.env.NODE_ENV === 'production' ?
   new URL('../../frontend/invoice.html', import.meta.url) : new URL('../../frontend/public/invoice.html', import.meta.url)
 );
 
@@ -123,6 +126,20 @@ export async function renderInvoiceHtml({ patientTitle, patientName, patientDate
 let browserPromise = null;
 
 async function launchBrowser() {
+  // The production service has ProtectHome enabled, so Chrome cannot use an
+  // inherited /home/* directory for its profile, MIME settings or crash data.
+  const chromeHome = join(tmpdir(), 'wannatalk-chrome');
+  const userDataDir = join(chromeHome, 'profile');
+  const cacheDir = join(chromeHome, 'cache');
+  const dataDir = join(chromeHome, 'data');
+  const crashDir = join(chromeHome, 'crashpad');
+  await Promise.all([
+    mkdir(userDataDir, { recursive: true }),
+    mkdir(cacheDir, { recursive: true }),
+    mkdir(dataDir, { recursive: true }),
+    mkdir(crashDir, { recursive: true }),
+  ]);
+
   const args = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
@@ -131,14 +148,26 @@ async function launchBrowser() {
     '--no-first-run',
     '--no-zygote',
     '--disable-crash-reporter',
+    '--disable-crashpad',
     '--disable-features=Crashpad',
+    `--crash-dumps-dir=${crashDir}`,
+    `--user-data-dir=${userDataDir}`,
   ];
+  const env = {
+    ...process.env,
+    HOME: chromeHome,
+    XDG_CACHE_HOME: cacheDir,
+    XDG_CONFIG_HOME: join(chromeHome, 'config'),
+    XDG_DATA_HOME: dataDir,
+  };
+  await mkdir(env.XDG_CONFIG_HOME, { recursive: true });
 
   try {
     return await puppeteer.launch({
-      executablePath: '/opt/google/chrome/google-chrome',
+      executablePath: process.env.CHROME_EXECUTABLE_PATH || '/opt/google/chrome/google-chrome',
       headless: true,
       args,
+      env,
     });
   } catch (error) {
     console.error('Failed to launch system Chrome:', error);
@@ -148,6 +177,7 @@ async function launchBrowser() {
       channel: 'chrome',
       headless: true,
       args,
+      env,
     });
   }
 }
