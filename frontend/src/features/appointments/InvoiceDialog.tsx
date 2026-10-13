@@ -14,7 +14,7 @@ export default function InvoiceDialog({
 }) {
   const { data, notify } = useApp();
   const appointments = useMemo(() => data.appointments
-    .filter((item) => item.patient_id === appointment.patient_id && !['Cancelled', 'No-show'].includes(item.status))
+    .filter((item) => item.patient_id === appointment.patient_id && item.status === 'Completed')
     .sort((a, b) => `${a.appointment_date}${a.appointment_time}`.localeCompare(`${b.appointment_date}${b.appointment_time}`)), [appointment.patient_id, data.appointments]);
   const [selected, setSelected] = useState<string[]>([appointment.id]);
   const [amounts, setAmounts] = useState<Record<string, string>>({ [appointment.id]: '' });

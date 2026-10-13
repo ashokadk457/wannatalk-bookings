@@ -1,147 +1,61 @@
 import { Router } from 'express';
-import { withTransaction } from '../db.js';
+import { query, withTransaction } from '../db.js';
 import { generateStoredInvoicePdf, parseInvoiceAmount } from '../invoice.js';
 import { sendInvoiceEmail } from '../mail.js';
 import { authRequired } from '../middleware/authRequired.js';
 
 export const invoicesRouter = Router();
+const asyncHandler = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
+const cash = value => Math.round(Number(value)*100)/100;
+const isoDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value||''))?String(value):null;
+const fail = message => Object.assign(new Error(message),{statusCode:400});
+const plusDays=(value,days)=>{const date=new Date(`${value}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+Number(days));return date.toISOString().slice(0,10);};
 
-function asyncHandler(handler) {
-  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+function mapped(header,items){
+  ['total_amount','subtotal','discount_total','tax_total','payments_received','outstanding_balance'].forEach(k=>header[k]=Number(header[k]||0));
+  return {...header,items:items.map(x=>({...x,amount:Number(x.amount),quantity:Number(x.quantity||1),rate:Number(x.rate||0),discount_amount:Number(x.discount_amount||0),tax_amount:Number(x.tax_amount||0)}))};
+}
+async function loadInvoice(client,id){
+  const h=await client.query(`SELECT i.*,u.full_name patient_name,u.email patient_email,u.mobile patient_mobile,p.title patient_title,p.date_of_birth::date::text patient_date_of_birth,pu.full_name provider_name,c.registered_name company_name FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id WHERE i.id=$1`,[id]);
+  if(!h.rows[0])return null;
+  const lines=await client.query(`SELECT ii.*,ii.service_date::text,a.appointment_date::date::text appointment_date,a.appointment_time::time::text appointment_time,a.appointment_type,a.mode,COALESCE(pu.full_name,$2) provider_name FROM invoice_items ii LEFT JOIN appointments a ON a.id=ii.appointment_id LEFT JOIN providers p ON p.id=a.provider_id LEFT JOIN app_users pu ON pu.id=p.user_id WHERE ii.invoice_id=$1 ORDER BY COALESCE(ii.service_date,a.appointment_date),ii.created_at`,[id,h.rows[0].provider_name]);
+  return mapped(h.rows[0],lines.rows);
 }
 
-function formatInvoiceTime(value) {
-  return String(value || '').slice(0, 5);
-}
-
-function mapInvoice(header, items) {
-  return {
-    ...header,
-    total_amount: Number(header.total_amount),
-    items: items.map((item) => ({ ...item, amount: Number(item.amount) })),
-  };
-}
-
-async function loadInvoice(client, invoiceId) {
-  const header = await client.query(
-    `SELECT i.id, i.invoice_number, i.patient_id, i.total_amount, i.status, i.issued_at,
-            u.full_name AS patient_name, u.email AS patient_email, u.mobile AS patient_mobile,
-            p.title AS patient_title, p.date_of_birth::date::text AS patient_date_of_birth
-     FROM invoices i
-     JOIN patients p ON p.id = i.patient_id
-     JOIN app_users u ON u.id = p.user_id
-     WHERE i.id = $1`,
-    [invoiceId]
-  );
-  if (!header.rows[0]) return null;
-  const items = await client.query(
-    `SELECT ii.id, ii.invoice_id, ii.appointment_id, ii.description, ii.amount,
-            a.appointment_date::date::text AS appointment_date,
-            a.appointment_time::time::text AS appointment_time,
-            a.appointment_type, a.mode, pr.full_name AS provider_name
-     FROM invoice_items ii
-     JOIN appointments a ON a.id = ii.appointment_id
-     JOIN providers provider ON provider.id = a.provider_id
-     JOIN app_users pr ON pr.id = provider.user_id
-     WHERE ii.invoice_id = $1
-     ORDER BY a.appointment_date, a.appointment_time`,
-    [invoiceId]
-  );
-  return mapInvoice(header.rows[0], items.rows);
-}
-
-invoicesRouter.post('/', authRequired(['admin']), asyncHandler(async (req, res) => {
-  const requested = Array.isArray(req.body.items) ? req.body.items : [];
-  const items = requested.map((item) => ({
-    appointmentId: String(item.appointmentId || ''),
-    amount: parseInvoiceAmount(item.amount),
-  }));
-  if (!items.length || items.some((item) => !item.appointmentId || item.amount === null)) {
-    return res.status(400).json({ error: 'Select at least one appointment and enter a valid amount for every item' });
-  }
-  if (new Set(items.map((item) => item.appointmentId)).size !== items.length) {
-    return res.status(400).json({ error: 'An appointment can only appear once on an invoice' });
-  }
-
-  const invoice = await withTransaction(async (client) => {
-    const appointmentIds = items.map((item) => item.appointmentId);
-    const appointments = await client.query(
-      `SELECT a.id, a.patient_id, a.appointment_date::date::text AS appointment_date,
-              a.appointment_time::time::text AS appointment_time, a.appointment_type, a.mode,
-              pu.full_name AS patient_name, pu.email AS patient_email, pu.mobile AS patient_mobile,
-              patient.title AS patient_title, patient.date_of_birth::date::text AS patient_date_of_birth,
-              pr.full_name AS provider_name
-       FROM appointments a
-       JOIN patients patient ON patient.id = a.patient_id
-       JOIN app_users pu ON pu.id = patient.user_id
-       JOIN providers provider ON provider.id = a.provider_id
-       JOIN app_users pr ON pr.id = provider.user_id
-       WHERE a.id = ANY($1::uuid[])
-       FOR UPDATE OF a`,
-      [appointmentIds]
-    );
-    if (appointments.rows.length !== appointmentIds.length) {
-      const error = new Error('One or more appointments no longer exist');
-      error.statusCode = 400;
-      throw error;
-    }
-    if (new Set(appointments.rows.map((row) => row.patient_id)).size !== 1) {
-      const error = new Error('All invoice appointments must belong to the same patient');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const total = items.reduce((sum, item) => sum + item.amount, 0);
-    const sequence = await client.query(`SELECT nextval('invoice_number_seq') AS value`);
-    const invoiceNumber = `WT-${new Date().getFullYear()}-${String(sequence.rows[0].value).padStart(6, '0')}`;
-    const savedHeader = await client.query(
-      `INSERT INTO invoices (invoice_number, patient_id, created_by_user_id, total_amount)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, invoice_number, patient_id, total_amount, status, issued_at`,
-      [invoiceNumber, appointments.rows[0].patient_id, req.user.id, total.toFixed(2)]
-    );
-
-    for (const item of items) {
-      const appointment = appointments.rows.find((row) => row.id === item.appointmentId);
-      const description = `${appointment.appointment_type} (${appointment.mode})`;
-      await client.query(
-        `INSERT INTO invoice_items (invoice_id, appointment_id, description, amount)
-         VALUES ($1, $2, $3, $4)`,
-        [savedHeader.rows[0].id, appointment.id, description, item.amount.toFixed(2)]
-      );
-    }
-    return loadInvoice(client, savedHeader.rows[0].id);
-  });
-  res.status(201).json({ invoice });
+invoicesRouter.get('/',authRequired(['admin']),asyncHandler(async(req,res)=>{
+  const result=await query(`SELECT i.id,i.invoice_number,i.issue_date::text,i.due_date::text,i.total_amount,i.outstanding_balance,i.status,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id ORDER BY i.issue_date DESC,i.created_at DESC`);
+  res.json({invoices:result.rows.map(x=>({...x,total_amount:Number(x.total_amount),outstanding_balance:Number(x.outstanding_balance)}))});
 }));
 
-invoicesRouter.get('/:id', authRequired(['admin']), asyncHandler(async (req, res) => {
-  const invoice = await withTransaction((client) => loadInvoice(client, req.params.id));
-  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-  res.json({ invoice });
+invoicesRouter.post('/',authRequired(['admin']),asyncHandler(async(req,res)=>{
+  const requested=Array.isArray(req.body.items)?req.body.items:[]; if(!requested.length)return res.status(400).json({error:'Add at least one invoice line'});
+  const invoice=await withTransaction(async client=>{
+    const appointmentIds=[...new Set(requested.map(x=>String(x.appointmentId||'')).filter(Boolean))]; let appointments=[];
+    if(appointmentIds.length){const found=await client.query(`SELECT a.*,a.appointment_date::text,pt.title,pt.date_of_birth::text,u.full_name patient_name,u.email patient_email,u.mobile patient_mobile,pu.full_name provider_name FROM appointments a JOIN patients pt ON pt.id=a.patient_id JOIN app_users u ON u.id=pt.user_id JOIN providers pr ON pr.id=a.provider_id JOIN app_users pu ON pu.id=pr.user_id WHERE a.id=ANY($1::uuid[]) FOR UPDATE OF a`,[appointmentIds]);if(found.rows.length!==appointmentIds.length)throw fail('One or more appointments no longer exist');appointments=found.rows;}
+    const providerId=String(req.body.providerId||appointments[0]?.provider_id||''),patientId=String(req.body.patientId||appointments[0]?.patient_id||'');
+    if(!providerId||!patientId)throw fail('Select a provider and patient');
+    if(appointments.some(a=>a.provider_id!==providerId||a.patient_id!==patientId))throw fail('All appointments must belong to the selected provider and patient');
+    if(appointments.some(a=>a.status!=='Completed'))throw fail('Only completed appointments can be invoiced');
+    if(appointmentIds.length){const d=await client.query(`SELECT i.invoice_number FROM invoice_items ii JOIN invoices i ON i.id=ii.invoice_id WHERE ii.appointment_id=ANY($1::uuid[]) AND i.status NOT IN('Void','Credited') LIMIT 1`,[appointmentIds]);if(d.rows[0])throw fail(`An appointment is already on invoice ${d.rows[0].invoice_number}`);}
+    const pr=await client.query(`SELECT bp.*,p.practice_number,p.medical_registration_number,u.full_name provider_name,u.email provider_email,u.mobile provider_mobile FROM provider_billing_profiles bp JOIN providers p ON p.id=bp.provider_id JOIN app_users u ON u.id=p.user_id WHERE bp.provider_id=$1 FOR UPDATE OF bp`,[providerId]);
+    const profile=pr.rows[0];if(!profile?.registered_business_name)throw fail('Complete this provider billing profile before issuing an invoice');
+    const pt=await client.query(`SELECT p.*,u.full_name,u.email,u.mobile FROM patients p JOIN app_users u ON u.id=p.user_id WHERE p.id=$1`,[patientId]);const patient=pt.rows[0];if(!patient)throw fail('Patient not found');
+    const customerType=req.body.billingCustomerType==='company'?'company':'patient';let company=null;
+    if(customerType==='company'){const c=await client.query(`SELECT c.* FROM billing_companies c JOIN billing_company_patients cp ON cp.company_id=c.id AND cp.patient_id=$2 WHERE c.id=$1 AND c.is_active=true`,[req.body.companyId,patientId]);company=c.rows[0];if(!company)throw fail('Select an active billing company associated with this patient');}
+    const lines=requested.map((item,index)=>{const a=appointments.find(x=>x.id===item.appointmentId),rate=parseInvoiceAmount(item.rate??item.amount),quantity=Number(item.quantity??1),discount=cash(item.discountAmount||0),tax=cash(item.taxAmount||0);if(!rate||!Number.isFinite(quantity)||quantity<=0||discount<0||tax<0)throw fail(`Enter valid values for line ${index+1}`);const amount=cash(rate*quantity-discount+tax);if(amount<=0)throw fail(`Line ${index+1} total must be greater than zero`);return {appointmentId:a?.id||null,serviceDate:isoDate(item.serviceDate)||a?.appointment_date||null,description:String(item.description||a?.appointment_type||'Professional consultation').trim().slice(0,500),tariffCode:String(item.tariffCode||'81305').trim().slice(0,40),icd10Code:String(item.icd10Code||'Z71.9').trim().slice(0,40),documentNumber:String(item.documentNumber||'').trim().slice(0,40),quantity:cash(quantity),rate,discount,tax,amount};});
+    const subtotal=cash(lines.reduce((s,x)=>s+x.rate*x.quantity,0)),discount=cash(lines.reduce((s,x)=>s+x.discount,0)),tax=cash(lines.reduce((s,x)=>s+x.tax,0)),total=cash(lines.reduce((s,x)=>s+x.amount,0));
+    const issueDate=isoDate(req.body.issueDate)||new Date().toISOString().slice(0,10),dueDate=isoDate(req.body.dueDate)||plusDays(issueDate,company?.payment_terms_days??profile.payment_terms_days??30);
+    const number=`${profile.invoice_prefix}-${String(profile.invoice_next_number).padStart(profile.invoice_number_padding,'0')}`;
+    const issuer={name:profile.registered_business_name,tradingName:profile.trading_name,companyRegistrationNumber:profile.company_registration_number,vatRegistered:profile.vat_registered,vatNumber:profile.vat_number,address:profile.billing_address||profile.business_address,phone:profile.billing_phone||profile.provider_mobile,email:profile.billing_email||profile.provider_email,bankAccountHolder:profile.bank_account_holder,bankName:profile.bank_name,bankAccountNumber:profile.bank_account_number,bankAccountType:profile.bank_account_type,bankBranchCode:profile.bank_branch_code,remittanceInstructions:profile.remittance_instructions,logoUrl:profile.logo_url,brandPrimaryColor:profile.brand_primary_color,practiceNumber:profile.practice_number,professionalRegistrationNumber:profile.medical_registration_number,providerName:profile.provider_name,currency:profile.currency_code};
+    const customer=company?{type:'company',name:company.registered_name,tradingName:company.trading_name,email:company.billing_email,phone:company.phone,address:company.billing_address,vatNumber:company.vat_number,companyRegistrationNumber:company.company_registration_number,contactName:company.accounts_contact_name}:{type:'patient',name:patient.full_name,title:patient.title,email:patient.email,phone:patient.mobile,address:patient.full_address};
+    const saved=await client.query(`INSERT INTO invoices(invoice_number,patient_id,provider_id,company_id,billing_customer_type,created_by_user_id,total_amount,status,issuer_snapshot,customer_snapshot,issue_date,due_date,subtotal,discount_total,tax_total,outstanding_balance,notes) VALUES($1,$2,$3,$4,$5,$6,$7,'Issued',$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$7,$15) RETURNING id`,[number,patientId,providerId,company?.id||null,customerType,req.user.id,total,JSON.stringify(issuer),JSON.stringify(customer),issueDate,dueDate,subtotal,discount,tax,String(req.body.notes||'').trim().slice(0,2000)||null]);
+    for(const x of lines)await client.query(`INSERT INTO invoice_items(invoice_id,appointment_id,description,amount,service_date,tariff_code,icd10_code,document_number,quantity,rate,discount_amount,tax_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[saved.rows[0].id,x.appointmentId,x.description,x.amount,x.serviceDate,x.tariffCode,x.icd10Code,x.documentNumber,x.quantity,x.rate,x.discount,x.tax]);
+    await client.query(`UPDATE provider_billing_profiles SET invoice_next_number=invoice_next_number+1,updated_at=now() WHERE provider_id=$1`,[providerId]);
+    await client.query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,'Issued invoice',$4::jsonb)`,[req.user.id,req.user.name||req.user.email||'Administrator',req.user.role,JSON.stringify({invoiceId:saved.rows[0].id,invoiceNumber:number,total})]);
+    return loadInvoice(client,saved.rows[0].id);
+  });res.status(201).json({invoice});
 }));
 
-invoicesRouter.get('/:id/pdf', authRequired(['admin']), asyncHandler(async (req, res) => {
-  const invoice = await withTransaction((client) => loadInvoice(client, req.params.id));
-  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-  const pdf = await generateStoredInvoicePdf(invoice);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoice_number}.pdf"`);
-  res.send(pdf);
-}));
-
-invoicesRouter.post('/:id/email', authRequired(['admin']), asyncHandler(async (req, res) => {
-  const invoice = await withTransaction((client) => loadInvoice(client, req.params.id));
-  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-  if (!invoice.patient_email) return res.status(400).json({ error: 'The patient does not have an email address' });
-  const pdf = await generateStoredInvoicePdf(invoice);
-  await sendInvoiceEmail({
-    email: invoice.patient_email,
-    fullName: invoice.patient_name,
-    subject: `WannaTalk invoice ${invoice.invoice_number}`,
-    message: `Please find attached invoice ${invoice.invoice_number} for your WannaTalk appointment${invoice.items.length === 1 ? '' : 's'}.`,
-    pdfBuffer: pdf,
-    filename: `${invoice.invoice_number}.pdf`,
-  });
-  res.json({ success: true, message: `Invoice ${invoice.invoice_number} emailed successfully.` });
-}));
+invoicesRouter.get('/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x)return res.status(404).json({error:'Invoice not found'});res.json({invoice:x});}));
+invoicesRouter.get('/:id/pdf',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x)return res.status(404).json({error:'Invoice not found'});const pdf=await generateStoredInvoicePdf(x);res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${x.invoice_number}.pdf"`);res.send(pdf);}));
+invoicesRouter.post('/:id/email',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x)return res.status(404).json({error:'Invoice not found'});const email=x.customer_snapshot?.email||x.patient_email;if(!email)return res.status(400).json({error:'The billing customer does not have an email address'});const pdf=await generateStoredInvoicePdf(x);await sendInvoiceEmail({email,fullName:x.customer_snapshot?.contactName||x.customer_snapshot?.name||x.patient_name,subject:`Invoice ${x.invoice_number} from ${x.issuer_snapshot?.name||'WannaTalk'}`,message:`Please find invoice ${x.invoice_number}, due ${x.due_date}. Amount due: ${x.issuer_snapshot?.currency||'ZAR'} ${x.outstanding_balance.toFixed(2)}.`,pdfBuffer:pdf,filename:`${x.invoice_number}.pdf`});res.json({success:true,message:`Invoice ${x.invoice_number} emailed to ${email}.`});}));

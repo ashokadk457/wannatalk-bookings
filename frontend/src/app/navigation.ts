@@ -22,6 +22,7 @@ export const navigation: Record<Role, { path: string; label: string; icon: strin
     { path: 'overview', label: 'Admin overview', icon: '▣' },
     { path: 'appointments', label: 'Appointments', icon: '▦' },
     { path: 'providers', label: 'Providers', icon: '◉' },
+    { path: 'billing', label: 'Billing', icon: '▤' },
     { path: 'patients', label: 'Patients', icon: '◉' },
     { path: 'cancellations', label: 'Cancellations', icon: '!' },
     { path: 'availability', label: 'Provider availability', icon: '◷' },

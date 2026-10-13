@@ -9,11 +9,11 @@
     body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:12px}
     .page{min-height:270mm;border:1px solid #999;padding:8px 10px 22px}
     .top{display:grid;grid-template-columns:1.1fr 1.1fr .8fr;gap:36px;margin-bottom:42px}
-    .practice h1{font-size:20px;margin:0 0 2px}
+    .practice h1{font-size:20px;margin:0 0 2px}.invoice-logo{max-width:170px;max-height:65px;display:block;margin-bottom:10px}.invoice-logo[src=""]{display:none}
     .practice p,.address{white-space:pre-line;margin:0;line-height:1.35}
     .address-box{padding:14px 16px;border:1px solid #9fc8b8;border-radius:12px;background:#f5fbf8}
     .address-box strong{display:block;margin-bottom:7px;color:#075f49;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
-    .address-box span{display:block;color:#365b50}
+    .address-box span{display:block;color:#365b50;white-space:pre-line}
     .doc-title{text-align:center;font-size:20px;font-weight:800;margin:20px 0}
     .account-name{font-size:18px;font-weight:700;margin:0 0 72px 86px}
     .meta{margin-left:auto;width:310px;font-size:14px;line-height:1.65}
@@ -57,22 +57,21 @@
   <main class="page">
     <section class="top">
       <div class="practice">
-        <h1>Louw Alberts Psychology Practice</h1>
-        <p>BHF Practice No. 0810000415863</p>
+        <img class="invoice-logo" src="" alt="Practice logo">
+        <h1><span class="invoice-issuer-name">Practice</span></h1>
+        <p><span class="invoice-practice-number"></span></p>
       </div>
-      <div class="address address-box"><strong>Practice address</strong><span>309 Friederiche Street
-Centurion
-Wierdapark
-0157</span></div>
-      <div>0828563940</div>
+      <div class="address address-box"><strong>Practice address</strong><span class="invoice-issuer-address"></span></div>
+      <div><span class="invoice-issuer-phone"></span><br><span class="invoice-issuer-email"></span></div>
     </section>
 
     <div class="doc-title">Invoice</div>
-    <p class="account-name"><span class="invoice-patient-name"></span><br><span class="invoice-patient-summary"></span></p>
+    <p class="account-name"><span class="invoice-patient-name"></span><br><span class="invoice-customer-details"></span><br><span class="invoice-patient-summary"></span></p>
 
     <section class="meta">
       <div class="row"><strong>Issued:</strong><span class="invoice-issued-date"></span></div>
       <div class="row"><strong>Invoice No.:</strong><span class="invoice-number"></span></div>
+      <div class="row"><strong>Due:</strong><span class="invoice-due-date"></span></div>
     </section>
 
     <table class="billing-table">
@@ -97,11 +96,13 @@ Wierdapark
     <section class="footer">
       <div class="bank bank-box">
         <h3>Bank details</h3>
-        <div class="bank-row"><strong>Account holder:</strong><span>Louw Alberts Psychology Practice</span></div>
-        <div class="bank-row"><strong>Bank:</strong><span>First National Bank (FNB)</span></div>
-        <div class="bank-row"><strong>Account No:</strong><span>63191320620</span></div>
-        <div class="bank-row"><strong>Account Type:</strong><span>Cheque Account</span></div>
+        <div class="bank-row"><strong>Account holder:</strong><span class="invoice-bank-holder"></span></div>
+        <div class="bank-row"><strong>Bank:</strong><span class="invoice-bank-name"></span></div>
+        <div class="bank-row"><strong>Account No:</strong><span class="invoice-bank-number"></span></div>
+        <div class="bank-row"><strong>Account Type:</strong><span class="invoice-bank-type"></span></div>
+        <div class="bank-row"><strong>Branch code:</strong><span class="invoice-bank-branch"></span></div>
         <div class="bank-row"><strong>Ref:</strong><span class="invoice-number"></span></div>
+        <div class="bank-row"><strong>Payment note:</strong><span class="invoice-remittance"></span></div>
       </div>
     </section>
   </main>
@@ -134,6 +135,18 @@ Wierdapark
         for (var i = 0; i < nodes.length; i++) nodes[i].textContent = value;
       }
 
+      function renderParties(invoice) {
+        var issuer = invoice.issuer_snapshot || {}, customer = invoice.customer_snapshot || {};
+        setText('invoice-issuer-name', issuer.name || invoice.provider_name || 'WannaTalk');
+        setText('invoice-practice-number', issuer.practiceNumber ? 'Practice No. ' + issuer.practiceNumber : '');
+        setText('invoice-issuer-address', issuer.address || ''); setText('invoice-issuer-phone', issuer.phone || ''); setText('invoice-issuer-email', issuer.email || '');
+        setText('invoice-customer-details', [customer.address, customer.email, customer.phone].filter(Boolean).join('\n'));
+        setText('invoice-bank-holder', issuer.bankAccountHolder || issuer.name || ''); setText('invoice-bank-name', issuer.bankName || ''); setText('invoice-bank-number', issuer.bankAccountNumber || '');
+        setText('invoice-bank-type', issuer.bankAccountType || ''); setText('invoice-bank-branch', issuer.bankBranchCode || ''); setText('invoice-remittance', issuer.remittanceInstructions || 'Use the invoice number as your payment reference.');
+        var logo=document.querySelector('.invoice-logo'); if(logo) logo.src=issuer.logoUrl||'';
+        if (/^#[0-9a-f]{6}$/i.test(issuer.brandPrimaryColor||'')) document.documentElement.style.setProperty('--invoice-brand',issuer.brandPrimaryColor);
+      }
+
       function formatDateOfBirth(value) {
         var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
         return match ? match[3] + '/' + match[2] + '/' + match[1] : '';
@@ -158,7 +171,7 @@ Wierdapark
           dateText.textContent = formatInvoiceDate(item.appointment_date) + ' ' + String(item.appointment_time || '').slice(0, 5);
           var code = document.createElement('span');
           code.className = 'code';
-          code.textContent = '81305';
+          code.textContent = item.tariff_code || '81305';
           dateCell.appendChild(dateText);
           dateCell.appendChild(document.createElement('br'));
           dateCell.appendChild(document.createElement('br'));
@@ -182,7 +195,7 @@ Wierdapark
           description.appendChild(service);
           row.appendChild(description);
 
-          ['Z71.9', '00004510', 'R ' + formatAmount(Number(item.amount)), 'R ' + formatAmount(Number(item.amount))].forEach(function (value, index) {
+          [item.icd10_code || 'Z71.9', item.document_number || '', 'R ' + formatAmount(Number(item.amount)), 'R ' + formatAmount(Number(item.amount))].forEach(function (value, index) {
             var cell = document.createElement('td');
             cell.className = index < 2 ? 'code' : 'amount';
             cell.textContent = value;
@@ -223,11 +236,13 @@ Wierdapark
             if (!savedResponse.ok) throw httpError(savedResponse);
             var invoice = (await savedResponse.json()).invoice;
             setText('invoice-number', invoice.invoice_number);
-            setText('invoice-issued-date', formatInvoiceDate(invoice.issued_at));
-            setText('invoice-patient-name', [invoice.patient_title, invoice.patient_name].filter(Boolean).join(' '));
+            setText('invoice-issued-date', formatInvoiceDate(invoice.issue_date || invoice.issued_at));
+            setText('invoice-due-date', formatInvoiceDate(invoice.due_date));
+            setText('invoice-patient-name', (invoice.customer_snapshot && invoice.customer_snapshot.name) || [invoice.patient_title, invoice.patient_name].filter(Boolean).join(' '));
             setText('invoice-patient-summary', [invoice.patient_name, formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' · '));
             setText('invoice-total', 'R ' + formatAmount(Number(invoice.total_amount)));
             renderItems(invoice.items || [], invoice.patient_name, invoice.patient_date_of_birth);
+            renderParties(invoice);
             document.title = 'Invoice ' + invoice.invoice_number;
             setStatus('');
             setReady(true);

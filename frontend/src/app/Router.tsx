@@ -23,6 +23,9 @@ const AutomaticReminders = lazy(() => import('../features/provider/AutomaticRemi
 const CancellationPolicy = lazy(() => import('../features/provider/CancellationPolicyPage'));
 const FollowUps = lazy(() => import('../features/workflows/FollowUpsPage'));
 const Waiting = lazy(() => import('../features/workflows/WaitingPage'));
+const ProviderBillingProfiles = lazy(() => import('../features/billing/ProviderBillingProfilesPage'));
+const BillingCompanies = lazy(() => import('../features/billing/CompaniesPage'));
+const BillingInvoices = lazy(() => import('../features/billing/InvoicesPage'));
 export default function Router() {
   const { user, loading, error, retry, logout } = useApp(),
     location = useLocation();
@@ -86,6 +89,10 @@ export default function Router() {
           <Route path="availability" element={<AdminAvailability />} />
           <Route path="patients" element={<Directory />} />
           <Route path="providers" element={<Directory providers />} />
+          <Route path="billing" element={<Navigate to="providers" replace />} />
+          <Route path="billing/providers" element={<ProviderBillingProfiles />} />
+          <Route path="billing/companies" element={<BillingCompanies />} />
+          <Route path="billing/invoices" element={<BillingInvoices />} />
           <Route path="registrations" element={<Registrations />} />
           <Route path="audit" element={<Audit />} />
           <Route path="health" element={<Health />} />

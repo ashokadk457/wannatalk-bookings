@@ -61,6 +61,11 @@ function fillPlaceholder(html, className, value) {
   return html.replace(pattern, (match, open, close) => `${open}${escapeHtml(value)}${close}`);
 }
 
+function fillImage(html, className, value) {
+  const pattern = new RegExp(`(<img[^>]*class="${className}"[^>]*src=")[^"]*(")`, 'g');
+  return html.replace(pattern, (match, open, close) => `${open}${escapeHtml(value || '')}${close}`);
+}
+
 /**
  * Reads the existing invoice template from frontend/public/invoice.html and
  * replaces only the dynamic placeholders (patient, provider and amount) with
@@ -80,23 +85,39 @@ export async function renderStoredInvoiceHtml(invoice) {
     error.statusCode = 500;
     throw error;
   }
-  const displayName = [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
+  const issuer=invoice.issuer_snapshot||{}, customer=invoice.customer_snapshot||{};
+  const displayName = customer.name || [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
   const summary = [String(invoice.patient_name || '').trim(), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
   const patientSummary = [String(invoice.patient_name || '').trim(), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
   const rows = invoice.items.map((item) => `<tr>
-    <td><strong>${escapeHtml(formatDate(item.appointment_date))} ${escapeHtml(formatTime(item.appointment_time))}</strong><br><br><span class="code">81305</span></td>
+    <td><strong>${escapeHtml(formatDate(item.service_date||item.appointment_date))} ${escapeHtml(formatTime(item.appointment_time))}</strong><br><br><span class="code">${escapeHtml(item.tariff_code||'81305')}</span></td>
     <td class="desc"><div class="service-main">00 ${escapeHtml(patientSummary)}</div><div class="service-sub">Seen by: ${escapeHtml(item.provider_name)}</div><br><div class="service-description">Assessment, consultation, counselling and/or therapy (individual)</div></td>
-    <td class="code">Z71.9</td>
-    <td class="code">00004510</td>
+    <td class="code">${escapeHtml(item.icd10_code||'Z71.9')}</td>
+    <td class="code">${escapeHtml(item.document_number||invoice.invoice_number)}</td>
     <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
     <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
   </tr>`).join('');
   let html = template;
   html = fillPlaceholder(html, 'invoice-number', invoice.invoice_number);
-  html = fillPlaceholder(html, 'invoice-issued-date', formatDate(invoice.issued_at));
+  html = fillPlaceholder(html, 'invoice-issued-date', formatDate(invoice.issue_date||invoice.issued_at));
+  html = fillPlaceholder(html, 'invoice-due-date', formatDate(invoice.due_date));
   html = fillPlaceholder(html, 'invoice-patient-name', displayName);
   html = fillPlaceholder(html, 'invoice-patient-summary', summary);
   html = fillPlaceholder(html, 'invoice-total', `R ${formatAmount(invoice.total_amount)}`);
+  html = fillPlaceholder(html, 'invoice-issuer-name', issuer.name||invoice.provider_name||'WannaTalk');
+  html = fillPlaceholder(html, 'invoice-practice-number', issuer.practiceNumber ? `Practice No. ${issuer.practiceNumber}` : '');
+  html = fillPlaceholder(html, 'invoice-issuer-address', issuer.address||'');
+  html = fillPlaceholder(html, 'invoice-issuer-phone', issuer.phone||'');
+  html = fillPlaceholder(html, 'invoice-issuer-email', issuer.email||'');
+  html = fillPlaceholder(html, 'invoice-customer-details', [customer.address,customer.email,customer.phone].filter(Boolean).join('\n'));
+  html = fillPlaceholder(html, 'invoice-bank-holder', issuer.bankAccountHolder||issuer.name||'');
+  html = fillPlaceholder(html, 'invoice-bank-name', issuer.bankName||'');
+  html = fillPlaceholder(html, 'invoice-bank-number', issuer.bankAccountNumber||'');
+  html = fillPlaceholder(html, 'invoice-bank-type', issuer.bankAccountType||'');
+  html = fillPlaceholder(html, 'invoice-bank-branch', issuer.bankBranchCode||'');
+  html = fillPlaceholder(html, 'invoice-remittance', issuer.remittanceInstructions||'Use the invoice number as your payment reference.');
+  html = fillImage(html,'invoice-logo',issuer.logoUrl);
+  html = html.replace('</head>',`<style>:root{--invoice-brand:${/^#[0-9a-f]{6}$/i.test(issuer.brandPrimaryColor||'')?issuer.brandPrimaryColor:'#087b5b'}}</style></head>`);
   html = html.replace('<!-- invoice-items -->', rows);
   return html;
 }

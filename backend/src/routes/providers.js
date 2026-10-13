@@ -5,6 +5,110 @@ import { cleanPolicyHtml } from '../policyContent.js';
 
 export const providersRouter = Router();
 
+function canManageProviderBilling(user, providerUserId) {
+  return user.role === 'admin' || (user.role === 'provider' && user.id === providerUserId);
+}
+
+providersRouter.get('/:id/billing-profile', authRequired(['admin', 'provider']), async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT p.id AS provider_id, p.user_id, p.practice_number, p.medical_registration_number,
+              p.private_practice_name, p.full_address, u.full_name AS provider_name,
+              u.email AS provider_email, u.mobile AS provider_mobile,
+              bp.registered_business_name, bp.trading_name, bp.company_registration_number,
+              COALESCE(bp.vat_registered, false) AS vat_registered, bp.vat_number,
+              bp.business_address, bp.billing_address, bp.billing_phone, bp.billing_email,
+              bp.bank_account_holder, bp.bank_name, bp.bank_account_number,
+              bp.bank_account_type, bp.bank_branch_code, bp.remittance_instructions,
+              bp.logo_url, COALESCE(bp.brand_primary_color, '#087b5b') AS brand_primary_color,
+              COALESCE(bp.invoice_prefix, 'INV') AS invoice_prefix,
+              COALESCE(bp.invoice_next_number, 1) AS invoice_next_number,
+              COALESCE(bp.invoice_number_padding, 6) AS invoice_number_padding,
+              COALESCE(bp.payment_terms_days, 30) AS payment_terms_days,
+              COALESCE(bp.currency_code, 'ZAR') AS currency_code,
+              bp.updated_at
+       FROM providers p
+       JOIN app_users u ON u.id = p.user_id
+       LEFT JOIN provider_billing_profiles bp ON bp.provider_id = p.id
+       WHERE p.id = $1`,
+      [req.params.id]
+    );
+    const profile = result.rows[0];
+    if (!profile) return res.status(404).json({ error: 'Provider not found' });
+    if (!canManageProviderBilling(req.user, profile.user_id)) return res.status(403).json({ error: 'Not allowed' });
+    delete profile.user_id;
+    res.json({ profile });
+  } catch (error) { next(error); }
+});
+
+providersRouter.put('/:id/billing-profile', authRequired(['admin', 'provider']), async (req, res, next) => {
+  try {
+    const owner = await query(`SELECT user_id FROM providers WHERE id = $1`, [req.params.id]);
+    if (!owner.rows[0]) return res.status(404).json({ error: 'Provider not found' });
+    if (!canManageProviderBilling(req.user, owner.rows[0].user_id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const text = (value, max) => String(value || '').trim().slice(0, max) || null;
+    const registeredName = text(req.body.registeredBusinessName, 200);
+    if (!registeredName) return res.status(400).json({ error: 'Registered business or practice name is required' });
+    const email = text(req.body.billingEmail, 254);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid billing email address' });
+    const prefix = String(req.body.invoicePrefix || 'INV').trim().toUpperCase();
+    if (!/^[A-Z0-9-]{1,20}$/.test(prefix)) return res.status(400).json({ error: 'Invoice prefix may contain letters, numbers and hyphens only' });
+    const nextNumber = Number(req.body.invoiceNextNumber || 1), padding = Number(req.body.invoiceNumberPadding || 6), terms = Number(req.body.paymentTermsDays ?? 30);
+    if (!Number.isSafeInteger(nextNumber) || nextNumber < 1) return res.status(400).json({ error: 'Next invoice number must be a positive whole number' });
+    if (!Number.isInteger(padding) || padding < 3 || padding > 12) return res.status(400).json({ error: 'Invoice number padding must be between 3 and 12' });
+    if (!Number.isInteger(terms) || terms < 0 || terms > 365) return res.status(400).json({ error: 'Payment terms must be between 0 and 365 days' });
+    const currency = String(req.body.currencyCode || 'ZAR').trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Currency must be a three-letter code' });
+    const color = String(req.body.brandPrimaryColor || '#087b5b').trim();
+    if (!/^#[0-9a-f]{6}$/i.test(color)) return res.status(400).json({ error: 'Brand colour must be a valid hex colour' });
+    const vatRegistered = Boolean(req.body.vatRegistered), vatNumber = text(req.body.vatNumber, 80);
+    if (vatRegistered && !vatNumber) return res.status(400).json({ error: 'VAT number is required for a VAT-registered provider' });
+    const logoUrl = text(req.body.logoUrl, 1000);
+    if (logoUrl && !/^(https:\/\/|\/)/i.test(logoUrl)) return res.status(400).json({ error: 'Logo URL must use HTTPS or be an application asset path' });
+
+    const values = [
+      req.params.id, registeredName, text(req.body.tradingName, 200),
+      text(req.body.companyRegistrationNumber, 80), vatRegistered, vatNumber,
+      text(req.body.businessAddress, 1000), text(req.body.billingAddress, 1000), text(req.body.billingPhone, 40), email,
+      text(req.body.bankAccountHolder, 200), text(req.body.bankName, 150), text(req.body.bankAccountNumber, 80),
+      text(req.body.bankAccountType, 80), text(req.body.bankBranchCode, 40), text(req.body.remittanceInstructions, 2000),
+      logoUrl, color, prefix, nextNumber, padding, terms, currency,
+    ];
+    const saved = await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO provider_billing_profiles
+          (provider_id, registered_business_name, trading_name, company_registration_number,
+           vat_registered, vat_number, business_address, billing_address, billing_phone, billing_email,
+           bank_account_holder, bank_name, bank_account_number, bank_account_type, bank_branch_code,
+           remittance_instructions, logo_url, brand_primary_color, invoice_prefix, invoice_next_number,
+           invoice_number_padding, payment_terms_days, currency_code)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+         ON CONFLICT (provider_id) DO UPDATE SET
+           registered_business_name=EXCLUDED.registered_business_name, trading_name=EXCLUDED.trading_name,
+           company_registration_number=EXCLUDED.company_registration_number, vat_registered=EXCLUDED.vat_registered,
+           vat_number=EXCLUDED.vat_number, business_address=EXCLUDED.business_address,
+           billing_address=EXCLUDED.billing_address, billing_phone=EXCLUDED.billing_phone,
+           billing_email=EXCLUDED.billing_email, bank_account_holder=EXCLUDED.bank_account_holder,
+           bank_name=EXCLUDED.bank_name, bank_account_number=EXCLUDED.bank_account_number,
+           bank_account_type=EXCLUDED.bank_account_type, bank_branch_code=EXCLUDED.bank_branch_code,
+           remittance_instructions=EXCLUDED.remittance_instructions, logo_url=EXCLUDED.logo_url,
+           brand_primary_color=EXCLUDED.brand_primary_color, invoice_prefix=EXCLUDED.invoice_prefix,
+           invoice_next_number=EXCLUDED.invoice_next_number, invoice_number_padding=EXCLUDED.invoice_number_padding,
+           payment_terms_days=EXCLUDED.payment_terms_days, currency_code=EXCLUDED.currency_code, updated_at=now()
+         RETURNING *`, values
+      );
+      await client.query(
+        `INSERT INTO audit_logs (user_id, user_name, user_role, action, details)
+         VALUES ($1,$2,$3,'Updated provider billing profile',$4::jsonb)`,
+        [req.user.id, req.user.name || req.user.email || req.user.role, req.user.role, JSON.stringify({ providerId: req.params.id })]
+      );
+      return result.rows[0];
+    });
+    res.json({ profile: saved });
+  } catch (error) { next(error); }
+});
+
 providersRouter.get('/:id/cancellation-policy', authRequired(), async (req, res, next) => {
   try {
     const result = await query(`SELECT p.id, p.cancellation_policy, p.cancellation_policy_format, u.full_name FROM providers p JOIN app_users u ON u.id=p.user_id

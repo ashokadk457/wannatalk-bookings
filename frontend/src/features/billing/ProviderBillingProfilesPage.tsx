@@ -1,0 +1,53 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import { useApp } from '../../app/AppContext';
+import { Card, Empty, Field, Heading } from '../../components/ui';
+import { api, mutate } from '../../services/api';
+import BillingNav from './BillingNav';
+
+interface BillingProfile {
+  provider_id: string; provider_name: string; provider_email: string; provider_mobile: string | null;
+  practice_number: string | null; medical_registration_number: string | null; private_practice_name: string | null; full_address: string | null;
+  registered_business_name: string | null; trading_name: string | null; company_registration_number: string | null;
+  vat_registered: boolean; vat_number: string | null; business_address: string | null; billing_address: string | null;
+  billing_phone: string | null; billing_email: string | null; bank_account_holder: string | null; bank_name: string | null;
+  bank_account_number: string | null; bank_account_type: string | null; bank_branch_code: string | null;
+  remittance_instructions: string | null; logo_url: string | null; brand_primary_color: string;
+  invoice_prefix: string; invoice_next_number: number; invoice_number_padding: number; payment_terms_days: number;
+  currency_code: string; updated_at: string | null;
+}
+type FormState = {
+  registeredBusinessName: string; tradingName: string; companyRegistrationNumber: string; vatRegistered: boolean; vatNumber: string;
+  businessAddress: string; billingAddress: string; billingPhone: string; billingEmail: string; bankAccountHolder: string;
+  bankName: string; bankAccountNumber: string; bankAccountType: string; bankBranchCode: string; remittanceInstructions: string;
+  logoUrl: string; brandPrimaryColor: string; invoicePrefix: string; invoiceNextNumber: number; invoiceNumberPadding: number;
+  paymentTermsDays: number; currencyCode: string;
+};
+function formFromProfile(p: BillingProfile): FormState { return {
+  registeredBusinessName:p.registered_business_name||p.private_practice_name||'', tradingName:p.trading_name||'', companyRegistrationNumber:p.company_registration_number||'',
+  vatRegistered:p.vat_registered, vatNumber:p.vat_number||'', businessAddress:p.business_address||p.full_address||'', billingAddress:p.billing_address||p.full_address||'',
+  billingPhone:p.billing_phone||p.provider_mobile||'', billingEmail:p.billing_email||p.provider_email||'', bankAccountHolder:p.bank_account_holder||'', bankName:p.bank_name||'',
+  bankAccountNumber:p.bank_account_number||'', bankAccountType:p.bank_account_type||'', bankBranchCode:p.bank_branch_code||'', remittanceInstructions:p.remittance_instructions||'',
+  logoUrl:p.logo_url||'', brandPrimaryColor:p.brand_primary_color||'#087b5b', invoicePrefix:p.invoice_prefix||'INV', invoiceNextNumber:Number(p.invoice_next_number||1),
+  invoiceNumberPadding:Number(p.invoice_number_padding||6), paymentTermsDays:Number(p.payment_terms_days??30), currencyCode:p.currency_code||'ZAR',
+}; }
+
+export default function ProviderBillingProfilesPage() {
+  const { data, run, notify } = useApp();
+  const [selectedId,setSelectedId]=useState(data.providers[0]?.id||''), [profile,setProfile]=useState<BillingProfile|null>(null), [form,setForm]=useState<FormState|null>(null);
+  const [loading,setLoading]=useState(false), [search,setSearch]=useState('');
+  useEffect(()=>{ if(!selectedId)return; let active=true; setLoading(true); setProfile(null); setForm(null); api<{profile:BillingProfile}>(`/providers/${selectedId}/billing-profile`).then(r=>{if(active){setProfile(r.profile);setForm(formFromProfile(r.profile));}}).catch(error=>{if(active)notify(error instanceof Error?error.message:'Unable to load billing profile');}).finally(()=>{if(active)setLoading(false);}); return()=>{active=false;}; },[selectedId,notify]);
+  const providers=data.providers.filter(p=>`${p.full_name} ${p.private_practice_name||''} ${p.practice_number||''}`.toLowerCase().includes(search.toLowerCase()));
+  const set=<K extends keyof FormState>(key:K,value:FormState[K])=>setForm(current=>current?{...current,[key]:value}:current);
+  async function save(event:FormEvent){event.preventDefault();if(!form||!selectedId)return;await run(async()=>{const result=await mutate<{profile:BillingProfile}>(`/providers/${selectedId}/billing-profile`,'PUT',form);setProfile(current=>current?{...current,...result.profile}:current);},'Provider billing profile saved');}
+  return <section><Heading title="Provider billing profiles" subtitle="Maintain the legal issuer, banking, branding and invoice settings used for each provider or practice." /><BillingNav/>
+    <div className="billing-profile-layout"><Card className="billing-provider-list"><Field label="Find provider"><input type="search" placeholder="Name, practice or number" value={search} onChange={e=>setSearch(e.target.value)}/></Field><div className="billing-provider-options">{providers.map(p=><button type="button" className={`billing-provider-option${selectedId===p.id?' selected':''}`} key={p.id} onClick={()=>setSelectedId(p.id)}><strong>{p.full_name}</strong><span>{p.private_practice_name||p.professional_title}</span><small>{p.practice_number||'No practice number'}</small></button>)}</div></Card>
+    {!selectedId?<Card><Empty>No providers are available.</Empty></Card>:loading||!form||!profile?<Card><p>Loading billing profile…</p></Card>:<form onSubmit={save} className="billing-profile-form">
+      <Card title="Issuer identity"><div className="billing-context"><div><span>Provider</span><strong>{profile.provider_name}</strong></div><div><span>Practice number</span><strong>{profile.practice_number||'Not recorded'}</strong></div><div><span>Professional registration</span><strong>{profile.medical_registration_number||'Not recorded'}</strong></div></div><div className="form-grid">
+        <Field label="Registered business / practice name"><input required value={form.registeredBusinessName} onChange={e=>set('registeredBusinessName',e.target.value)}/></Field><Field label="Trading name"><input value={form.tradingName} onChange={e=>set('tradingName',e.target.value)}/></Field><Field label="Company registration number"><input value={form.companyRegistrationNumber} onChange={e=>set('companyRegistrationNumber',e.target.value)}/></Field><Field label="VAT status"><select value={form.vatRegistered?'registered':'not-registered'} onChange={e=>set('vatRegistered',e.target.value==='registered')}><option value="not-registered">Not VAT registered</option><option value="registered">VAT registered</option></select></Field><Field label="VAT number"><input disabled={!form.vatRegistered} required={form.vatRegistered} value={form.vatNumber} onChange={e=>set('vatNumber',e.target.value)}/></Field>
+      </div></Card>
+      <Card title="Contact and addresses"><div className="form-grid"><Field label="Billing email"><input type="email" value={form.billingEmail} onChange={e=>set('billingEmail',e.target.value)}/></Field><Field label="Billing phone"><input type="tel" value={form.billingPhone} onChange={e=>set('billingPhone',e.target.value)}/></Field><Field label="Business address" full><textarea rows={4} value={form.businessAddress} onChange={e=>set('businessAddress',e.target.value)}/></Field><Field label="Billing address" full><textarea rows={4} value={form.billingAddress} onChange={e=>set('billingAddress',e.target.value)}/></Field></div></Card>
+      <Card title="Bank and remittance details"><div className="form-grid"><Field label="Account holder"><input value={form.bankAccountHolder} onChange={e=>set('bankAccountHolder',e.target.value)}/></Field><Field label="Bank"><input value={form.bankName} onChange={e=>set('bankName',e.target.value)}/></Field><Field label="Account number"><input value={form.bankAccountNumber} onChange={e=>set('bankAccountNumber',e.target.value)}/></Field><Field label="Account type"><select value={form.bankAccountType} onChange={e=>set('bankAccountType',e.target.value)}><option value="">Select account type</option><option>Cheque Account</option><option>Current Account</option><option>Savings Account</option></select></Field><Field label="Branch code"><input value={form.bankBranchCode} onChange={e=>set('bankBranchCode',e.target.value)}/></Field><Field label="Payment/remittance instructions" full><textarea rows={4} placeholder="Reference requirements and payment instructions shown on invoices" value={form.remittanceInstructions} onChange={e=>set('remittanceInstructions',e.target.value)}/></Field></div></Card>
+      <Card title="Branding and invoice settings"><div className="form-grid"><Field label="Logo URL"><input type="url" placeholder="https://…" value={form.logoUrl} onChange={e=>set('logoUrl',e.target.value)}/></Field><Field label="Brand colour"><div className="color-field"><input type="color" value={form.brandPrimaryColor} onChange={e=>set('brandPrimaryColor',e.target.value)}/><input aria-label="Brand colour hex value" value={form.brandPrimaryColor} onChange={e=>set('brandPrimaryColor',e.target.value)}/></div></Field><Field label="Invoice prefix"><input required maxLength={20} value={form.invoicePrefix} onChange={e=>set('invoicePrefix',e.target.value.toUpperCase())}/></Field><Field label="Next invoice number"><input type="number" min={1} step={1} value={form.invoiceNextNumber} onChange={e=>set('invoiceNextNumber',Number(e.target.value))}/></Field><Field label="Number padding"><select value={form.invoiceNumberPadding} onChange={e=>set('invoiceNumberPadding',Number(e.target.value))}>{[3,4,5,6,7,8].map(v=><option key={v} value={v}>{v} digits</option>)}</select></Field><Field label="Payment terms"><select value={form.paymentTermsDays} onChange={e=>set('paymentTermsDays',Number(e.target.value))}><option value={0}>Due immediately</option><option value={7}>7 days</option><option value={14}>14 days</option><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option></select></Field><Field label="Currency"><select value={form.currencyCode} onChange={e=>set('currencyCode',e.target.value)}><option value="ZAR">ZAR — South African Rand</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option><option value="GBP">GBP — Pound Sterling</option></select></Field></div><div className="invoice-number-preview"><span>Next invoice number</span><strong>{form.invoicePrefix}-{String(form.invoiceNextNumber||1).padStart(form.invoiceNumberPadding||6,'0')}</strong></div></Card>
+      <div className="billing-save-bar"><span>{profile.updated_at?`Last updated ${new Date(profile.updated_at).toLocaleString('en-ZA')}`:'This billing profile has not been saved yet.'}</span><button className="btn">Save billing profile</button></div>
+    </form>}</div></section>;
+}

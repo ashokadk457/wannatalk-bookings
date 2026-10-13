@@ -147,6 +147,24 @@ export async function mockApi(page: Page, role: Role, authenticated = true) {
     if (path === '/auth/reset-password')
       return json({ message: 'Password updated successfully', email: user.email, role });
     if (path === '/providers') return json({ providers: [provider] });
+    if (path === '/providers/provider-1/billing-profile' && method === 'GET')
+      return json({ profile: {
+        provider_id: provider.id, provider_name: provider.full_name, provider_email: provider.email,
+        provider_mobile: provider.mobile, practice_number: 'PR-1001', medical_registration_number: 'HPCSA-1001',
+        private_practice_name: 'Test Psychology Practice', full_address: '1 Test Street',
+        registered_business_name: 'Test Psychology Practice', trading_name: '', company_registration_number: '',
+        vat_registered: false, vat_number: null, business_address: '1 Test Street', billing_address: '1 Test Street',
+        billing_phone: provider.mobile, billing_email: provider.email, bank_account_holder: '', bank_name: '',
+        bank_account_number: '', bank_account_type: '', bank_branch_code: '', remittance_instructions: '', logo_url: '',
+        brand_primary_color: '#087b5b', invoice_prefix: 'INV', invoice_next_number: 1,
+        invoice_number_padding: 6, payment_terms_days: 30, currency_code: 'ZAR', updated_at: null,
+      } });
+    if (path === '/providers/provider-1/billing-profile' && method === 'PUT')
+      return json({ profile: body });
+    if (path === '/billing/companies' && method === 'GET')
+      return json({ companies: [] });
+    if (path === '/billing/companies' && method === 'POST')
+      return json({ company: { id:'company-1', ...body, registered_name:body.registeredName, trading_name:body.tradingName, company_registration_number:body.companyRegistrationNumber, vat_registered:body.vatRegistered, vat_number:body.vatNumber, accounts_contact_name:body.accountsContactName, billing_email:body.billingEmail, billing_address:body.billingAddress, payment_terms_days:body.paymentTermsDays, purchase_order_required:body.purchaseOrderRequired, default_purchase_order_reference:body.defaultPurchaseOrderReference, patient_ids:body.patientIds, patient_count:Array.isArray(body.patientIds)?body.patientIds.length:0, is_active:true } }, 201);
     if (path === '/providers/provider-1/availability')
       return method === 'GET'
         ? json({

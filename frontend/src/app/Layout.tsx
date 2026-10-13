@@ -131,7 +131,10 @@ export default function Layout({ role }: { role: Role }) {
   }, [drawer]);
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (user.role !== role) return <Navigate to={homePath(user.role)} replace />;
-  const current = navigation[role].find((item) => location.pathname.endsWith(`/${item.path}`));
+  const current = navigation[role].find((item) =>
+    location.pathname.endsWith(`/${item.path}`) ||
+    (item.path === 'billing' && location.pathname.startsWith('/admin/billing/')),
+  );
   const provider = data.providers.find((p) => p.id === user.entityId);
   const mobileItems = mobileNavigation[role];
   const mobilePathIsPrimary = mobileItems.some((item) => item.path === current?.path);
