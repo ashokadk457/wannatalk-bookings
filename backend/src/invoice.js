@@ -1,6 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { basename, extname } from 'node:path';
+import { basename, extname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import puppeteer from 'puppeteer';
 
 const defaultTemplatePath = fileURLToPath(
@@ -158,6 +159,21 @@ export async function renderInvoiceHtml({ patientTitle, patientName, patientDate
 let browserPromise = null;
 
 async function launchBrowser() {
+  // The systemd unit protects /home, so Chrome must not inherit the deploy
+  // user's home/profile. A process-specific directory also avoids profile
+  // locks when the service is restarted while an old Chrome is shutting down.
+  const chromeHome = join(tmpdir(), `wannatalk-chrome-${process.pid}`);
+  const userDataDir = join(chromeHome, 'profile');
+  const cacheDir = join(chromeHome, 'cache');
+  const configDir = join(chromeHome, 'config');
+  const dataDir = join(chromeHome, 'data');
+  const crashDir = join(chromeHome, 'crashpad');
+  await Promise.all(
+    [userDataDir, cacheDir, configDir, dataDir, crashDir].map((directory) =>
+      mkdir(directory, { recursive: true }),
+    ),
+  );
+
   const args = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
@@ -165,26 +181,31 @@ async function launchBrowser() {
     '--disable-gpu',
     '--no-first-run',
     '--no-zygote',
+    '--disable-breakpad',
     '--disable-crash-reporter',
+    '--disable-crashpad',
     '--disable-features=Crashpad',
+    '--password-store=basic',
+    '--use-mock-keychain',
+    `--crash-dumps-dir=${crashDir}`,
+    `--user-data-dir=${userDataDir}`,
   ];
+  const env = {
+    ...process.env,
+    HOME: chromeHome,
+    XDG_CACHE_HOME: cacheDir,
+    XDG_CONFIG_HOME: configDir,
+    XDG_DATA_HOME: dataDir,
+  };
 
-  try {
-    return await puppeteer.launch({
-      executablePath: '/opt/google/chrome/google-chrome',
-      headless: true,
-      args,
-    });
-  } catch (error) {
-    console.error('Failed to launch system Chrome:', error);
-
-    // Fallback to Puppeteer's Chrome channel if available.
-    return await puppeteer.launch({
-      channel: 'chrome',
-      headless: true,
-      args,
-    });
-  }
+  return puppeteer.launch({
+    // google-chrome is a shell wrapper which invokes xdg-settings and touches
+    // /home. Launch the real binary directly under a hardened systemd unit.
+    executablePath: process.env.CHROME_EXECUTABLE_PATH || '/opt/google/chrome/chrome',
+    headless: true,
+    args,
+    env,
+  });
 }
 
 async function withBrowser(work) {
