@@ -4,7 +4,7 @@ import { basename, extname } from 'node:path';
 import puppeteer from 'puppeteer';
 
 const defaultTemplatePath = fileURLToPath(
-  process.env.PGHOST === 'production' ?
+  process.env.NODE_ENV === 'production' ?
   new URL('../../frontend/invoice.html', import.meta.url) : new URL('../../frontend/public/invoice.html', import.meta.url)
 );
 
