@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { basename, extname } from 'node:path';
 import puppeteer from 'puppeteer';
 
 const defaultTemplatePath = fileURLToPath(
@@ -66,6 +67,19 @@ function fillImage(html, className, value) {
   return html.replace(pattern, (match, open, close) => `${open}${escapeHtml(value || '')}${close}`);
 }
 
+async function embeddedLogo(value) {
+  const logo = String(value || '');
+  if (!logo.startsWith('/api/uploads/billing-logos/')) return logo;
+  const filename = basename(logo);
+  const extension = extname(filename).toLowerCase();
+  const mime = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : extension === '.jpg' || extension === '.jpeg' ? 'image/jpeg' : null;
+  if (!mime) return '';
+  try {
+    const path = fileURLToPath(new URL(`../uploads/billing-logos/${filename}`, import.meta.url));
+    return `data:${mime};base64,${(await readFile(path)).toString('base64')}`;
+  } catch { return ''; }
+}
+
 /**
  * Reads the existing invoice template from frontend/public/invoice.html and
  * replaces only the dynamic placeholders (patient, provider and amount) with
@@ -116,7 +130,7 @@ export async function renderStoredInvoiceHtml(invoice) {
   html = fillPlaceholder(html, 'invoice-bank-type', issuer.bankAccountType||'');
   html = fillPlaceholder(html, 'invoice-bank-branch', issuer.bankBranchCode||'');
   html = fillPlaceholder(html, 'invoice-remittance', issuer.remittanceInstructions||'Use the invoice number as your payment reference.');
-  html = fillImage(html,'invoice-logo',issuer.logoUrl);
+  html = fillImage(html,'invoice-logo',await embeddedLogo(issuer.logoUrl));
   html = html.replace('</head>',`<style>:root{--invoice-brand:${/^#[0-9a-f]{6}$/i.test(issuer.brandPrimaryColor||'')?issuer.brandPrimaryColor:'#087b5b'}}</style></head>`);
   html = html.replace('<!-- invoice-items -->', rows);
   return html;

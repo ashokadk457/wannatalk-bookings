@@ -3,6 +3,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { fileURLToPath } from 'node:url';
 import { query } from './db.js';
 import { auditLogsRouter } from './routes/auditLogs.js';
 import { billingCompaniesRouter } from './routes/billingCompanies.js';
@@ -32,6 +33,7 @@ app.use(helmet());
 app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use('/api/uploads', express.static(fileURLToPath(new URL('../uploads/', import.meta.url)), { fallthrough: false, maxAge: '1y', immutable: true }));
 
 app.get('/api/health', async (req, res) => {
   await query('SELECT 1');

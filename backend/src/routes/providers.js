@@ -2,12 +2,37 @@ import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { authRequired } from '../middleware/authRequired.js';
 import { cleanPolicyHtml } from '../policyContent.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 export const providersRouter = Router();
 
 function canManageProviderBilling(user, providerUserId) {
   return user.role === 'admin' || (user.role === 'provider' && user.id === providerUserId);
 }
+
+providersRouter.post('/:id/billing-logo', authRequired(['admin', 'provider']), async (req, res, next) => {
+  try {
+    const owner = await query(`SELECT user_id FROM providers WHERE id=$1`, [req.params.id]);
+    if (!owner.rows[0]) return res.status(404).json({ error: 'Provider not found' });
+    if (!canManageProviderBilling(req.user, owner.rows[0].user_id)) return res.status(403).json({ error: 'Not allowed' });
+    const match = /^data:(image\/(png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body.dataUrl || ''));
+    if (!match) return res.status(400).json({ error: 'Upload a PNG, JPG or WebP logo' });
+    const bytes = Buffer.from(match[3], 'base64');
+    if (!bytes.length || bytes.length > 512 * 1024) return res.status(400).json({ error: 'Logo must be smaller than 512 KB' });
+    const signatures = { png: bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])), jpeg: bytes[0]===0xff&&bytes[1]===0xd8&&bytes[2]===0xff, webp: bytes.subarray(0,4).toString()==='RIFF'&&bytes.subarray(8,12).toString()==='WEBP' };
+    const extension = match[2] === 'jpeg' ? 'jpg' : match[2];
+    if (!signatures[match[2]]) return res.status(400).json({ error: 'The uploaded file is not a valid image' });
+    const directory = fileURLToPath(new URL('../../uploads/billing-logos/', import.meta.url));
+    await mkdir(directory, { recursive: true });
+    const filename = `${req.params.id}-${randomUUID()}.${extension}`;
+    await writeFile(fileURLToPath(new URL(filename, new URL('../../uploads/billing-logos/', import.meta.url))), bytes, { flag: 'wx' });
+    const logoUrl = `/api/uploads/billing-logos/${filename}`;
+    await query(`UPDATE provider_billing_profiles SET logo_url=$1,updated_at=now() WHERE provider_id=$2`, [logoUrl, req.params.id]);
+    res.status(201).json({ logoUrl });
+  } catch (error) { next(error); }
+});
 
 providersRouter.get('/:id/billing-profile', authRequired(['admin', 'provider']), async (req, res, next) => {
   try {
