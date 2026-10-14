@@ -12,6 +12,7 @@ UPDATE invoices SET issue_date=issued_at::date,subtotal=total_amount,outstanding
 ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_invoice_number_key;
 ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check;
 ALTER TABLE invoices ADD CONSTRAINT invoices_status_check CHECK(status IN('Draft','Issued','Part Paid','Paid','Overdue','Credited','Void'));
+ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_customer_type_check;
 ALTER TABLE invoices ADD CONSTRAINT invoices_customer_type_check CHECK(billing_customer_type IN('patient','company'));
 CREATE UNIQUE INDEX IF NOT EXISTS invoices_provider_number_uidx ON invoices(provider_id,invoice_number);
 CREATE INDEX IF NOT EXISTS invoices_provider_issue_idx ON invoices(provider_id,issue_date DESC);
