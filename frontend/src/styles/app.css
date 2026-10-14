@@ -2297,6 +2297,7 @@ table input[type='radio'] {
 .invoice-setup-panel{overflow:auto}.invoice-setup-panel h4,.billing-lines h4{margin:0;color:#075f49}
 .invoice-header-grid{grid-template-columns:1fr 1fr;gap:11px}.invoice-header-grid .field:nth-child(-n+3){grid-column:1/-1}
 .invoice-source{margin:13px 0;padding:12px;border:1px solid #bfe2d4;border-radius:11px;background:#f1faf6}
+.invoice-profile-state{display:grid;gap:3px;margin:12px 0;padding:11px 13px;border-radius:10px;font-size:12px}.invoice-profile-state.missing{border:1px solid #f0b66d;background:#fff5e7;color:#874b08}.invoice-profile-state.ready{border:1px solid #9bd3b9;background:#edf9f3;color:#076243;font-weight:700}.invoice-profile-state.checking{border:1px solid #cbded6;background:#f5f9f7;color:#526d63}
 .billing-lines{display:flex;flex-direction:column;gap:9px;overflow:hidden}
 .billing-lines>.card-head{flex:0 0 auto;margin:0 0 3px}
 .billing-line-scroll{min-height:0;overflow:auto;display:grid;align-content:start;gap:7px;padding-right:3px}
