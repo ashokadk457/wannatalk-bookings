@@ -1,4 +1,5 @@
 import { mkdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { basename, extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -44,7 +45,7 @@ function formatAmount(amount) {
   });
 }
 
-function formatDate(value) {
+export function formatDate(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
   return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value || '');
 }
@@ -158,6 +159,24 @@ export async function renderInvoiceHtml({ patientTitle, patientName, patientDate
 
 let browserPromise = null;
 
+function chromeExecutablePath() {
+  const configured = String(process.env.CHROME_EXECUTABLE_PATH || '').trim();
+  if (configured) return configured;
+  // Keep the direct Linux binary used by the systemd deployment.
+  if (process.platform === 'linux') return '/opt/google/chrome/chrome';
+  if (process.platform === 'win32') {
+    const candidates = [
+      process.env.PROGRAMFILES && join(process.env.PROGRAMFILES, 'Google/Chrome/Application/chrome.exe'),
+      process.env['PROGRAMFILES(X86)'] && join(process.env['PROGRAMFILES(X86)'], 'Google/Chrome/Application/chrome.exe'),
+      process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe'),
+    ];
+    const installed = candidates.find((path) => path && existsSync(path));
+    if (installed) return installed;
+  }
+  // Other local environments can use Puppeteer's downloaded browser.
+  return puppeteer.executablePath();
+}
+
 async function launchBrowser() {
   // The systemd unit protects /home, so Chrome must not inherit the deploy
   // user's home/profile. A process-specific directory also avoids profile
@@ -201,7 +220,7 @@ async function launchBrowser() {
   return puppeteer.launch({
     // google-chrome is a shell wrapper which invokes xdg-settings and touches
     // /home. Launch the real binary directly under a hardened systemd unit.
-    executablePath: process.env.CHROME_EXECUTABLE_PATH || '/opt/google/chrome/chrome',
+    executablePath: chromeExecutablePath(),
     headless: true,
     args,
     env,

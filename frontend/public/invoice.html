@@ -45,7 +45,25 @@
     .invoice-toolbar button:hover{background:#f2f2f2}
     .invoice-toolbar button:disabled{opacity:.55;cursor:default}
     body{background:#eef5f3;color:#102f3d}.page{max-width:900px;min-height:0;margin:14px auto 30px;padding:42px 48px;border:0;border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(12,63,47,.13)}.page:before{content:"";display:block;height:8px;margin:-42px -48px 34px;background:linear-gradient(90deg,#00a978,#83df51)}.top{align-items:start;padding-bottom:26px;margin-bottom:28px;border-bottom:1px solid #dce8e4}.practice h1{color:#087b5b;font-size:24px}.doc-title{text-align:right;color:#087b5b;font-size:32px;letter-spacing:.08em}.account-name{margin:0 0 24px;color:#075f49}.meta{margin:0 0 28px;width:100%;padding:16px 18px;border-radius:12px;background:#eff9f5}.billing-table th{padding:12px 14px;border:0;background:#edf8f4;color:#116b52;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase}.billing-table td{padding:16px 14px;border-bottom:1px solid #e4ece9}.totals{border-collapse:separate;margin-top:24px}.totals th,.totals td{border:0;background:#102f3d;color:#fff}.totals th{border-radius:12px 12px 0 0}.totals td{border-radius:0 0 12px 12px;font-size:20px}.invoice-toolbar{max-width:900px;margin:18px auto 0}.invoice-toolbar button{border-color:#b8d8cc;border-radius:9px;color:#075f49;font-weight:700}.invoice-toolbar button:first-of-type{border-color:#07966d;background:#07966d;color:#fff}
-    @media print{body{background:#fff}.page{max-width:none;margin:0;border:0;border-radius:0;padding:24px 28px;box-shadow:none}.page:before{margin:-24px -28px 24px}.invoice-toolbar{display:none}}
+    @media print{
+      body{background:#fff;font-size:11px}
+      .page{max-width:none;min-height:0;margin:0;border:0;border-radius:0;padding:12px 18px;box-shadow:none}
+      .page:before{height:5px;margin:-12px -18px 16px}
+      .invoice-toolbar{display:none}
+      .top{gap:20px;padding-bottom:16px;margin-bottom:16px}
+      .practice h1{font-size:20px}
+      .doc-title{font-size:26px;margin:12px 0}
+      .account-name{font-size:16px;margin-bottom:16px}
+      .meta{font-size:12px;padding:10px 14px;margin-bottom:16px}
+      .billing-table th{padding:8px;font-size:10px}
+      .billing-table td{padding:10px 8px}
+      .totals{margin-top:14px;break-inside:avoid}
+      .footer{margin-top:18px;break-inside:avoid}
+      .bank{margin-top:0}
+      .bank-box{padding:12px 16px;break-inside:avoid}
+      .bank-box h3{margin-bottom:8px;font-size:12px}
+      .bank-row{padding:3px 0}
+    }
   </style>
 </head>
 <body>
