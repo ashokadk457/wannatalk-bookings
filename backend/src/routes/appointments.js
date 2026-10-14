@@ -47,7 +47,7 @@ async function notifyProvider(appointmentId, event) {
   }
 }
 
-async function assertProviderAvailable(client, { providerId, locationId = null, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null }) {
+export async function assertProviderAvailable(client, { providerId, locationId = null, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null }) {
   const duration = Number(durationMinutes);
   if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
     const error = new Error('Invalid appointment duration');
@@ -68,10 +68,12 @@ async function assertProviderAvailable(client, { providerId, locationId = null, 
     throw error;
   }
 
+  let hasLocationSchedule = false;
   if (locationId) {
     const locationSchedule = await client.query(`SELECT is_available, start_time, end_time,
       (is_available = true AND start_time <= $4::time AND end_time >= ($4::time + ($5 * interval '1 minute'))::time) AS slot_allowed
       FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
+    hasLocationSchedule = Boolean(locationSchedule.rows[0]);
     if (locationSchedule.rows[0] && !locationSchedule.rows[0].slot_allowed) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
     const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, locationId, appointmentDate]);
     if (unavailableDay.rows[0]) { const error = new Error('The provider is unavailable at this location on that day'); error.statusCode = 409; throw error; }
@@ -79,19 +81,22 @@ async function assertProviderAvailable(client, { providerId, locationId = null, 
     if (unavailableSlot.rows[0]) { const error = new Error('The provider is unavailable during that slot'); error.statusCode = 409; throw error; }
   }
 
-  const weeklyAvailability = await client.query(
-    `SELECT 1 FROM provider_availability
+  // Location schedules override the general schedule, matching the patient calendar.
+  if (!hasLocationSchedule) {
+    const weeklyAvailability = await client.query(
+      `SELECT 1 FROM provider_availability
      WHERE provider_id = $1
        AND day_of_week = EXTRACT(DOW FROM $2::date)::integer
        AND is_available = true
        AND start_time <= $3::time
        AND end_time >= ($3::time + ($4 * interval '1 minute'))::time`,
-    [providerId, appointmentDate, appointmentTime, duration]
-  );
-  if (!weeklyAvailability.rows[0]) {
-    const error = new Error('No availability for this provider at the selected time');
-    error.statusCode = 409;
-    throw error;
+      [providerId, appointmentDate, appointmentTime, duration]
+    );
+    if (!weeklyAvailability.rows[0]) {
+      const error = new Error('No availability for this provider at the selected time');
+      error.statusCode = 409;
+      throw error;
+    }
   }
 
   const blocked = await client.query(
