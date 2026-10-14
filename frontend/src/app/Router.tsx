@@ -26,6 +26,10 @@ const Waiting = lazy(() => import('../features/workflows/WaitingPage'));
 const ProviderBillingProfiles = lazy(() => import('../features/billing/ProviderBillingProfilesPage'));
 const BillingCompanies = lazy(() => import('../features/billing/CompaniesPage'));
 const BillingInvoices = lazy(() => import('../features/billing/InvoicesPage'));
+const BillingOverview = lazy(() => import('../features/billing/BillingOverviewPage'));
+const BillingStatements = lazy(() => import('../features/billing/StatementsPage'));
+const BillingPayments = lazy(() => import('../features/billing/PaymentsPage'));
+const BillingAudit = lazy(() => import('../features/billing/BillingAuditPage'));
 export default function Router() {
   const { user, loading, error, retry, logout } = useApp(),
     location = useLocation();
@@ -89,10 +93,14 @@ export default function Router() {
           <Route path="availability" element={<AdminAvailability />} />
           <Route path="patients" element={<Directory />} />
           <Route path="providers" element={<Directory providers />} />
-          <Route path="billing" element={<Navigate to="providers" replace />} />
+          <Route path="billing" element={<Navigate to="overview" replace />} />
+          <Route path="billing/overview" element={<BillingOverview />} />
           <Route path="billing/providers" element={<ProviderBillingProfiles />} />
           <Route path="billing/companies" element={<BillingCompanies />} />
           <Route path="billing/invoices" element={<BillingInvoices />} />
+          <Route path="billing/statements" element={<BillingStatements />} />
+          <Route path="billing/payments" element={<BillingPayments />} />
+          <Route path="billing/audit" element={<BillingAudit />} />
           <Route path="registrations" element={<Registrations />} />
           <Route path="audit" element={<Audit />} />
           <Route path="health" element={<Health />} />

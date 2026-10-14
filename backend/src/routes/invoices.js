@@ -23,7 +23,7 @@ async function loadInvoice(client,id){
 }
 
 invoicesRouter.get('/',authRequired(['admin']),asyncHandler(async(req,res)=>{
-  const result=await query(`SELECT i.id,i.invoice_number,i.issue_date::text,i.due_date::text,i.total_amount,i.outstanding_balance,i.status,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id ORDER BY i.issue_date DESC,i.created_at DESC`);
+  const result=await query(`SELECT i.id,i.invoice_number,i.provider_id,i.patient_id,i.company_id,i.issue_date::text,i.due_date::text,i.total_amount,i.outstanding_balance,i.status,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id ORDER BY i.issue_date DESC,i.created_at DESC`);
   res.json({invoices:result.rows.map(x=>({...x,total_amount:Number(x.total_amount),outstanding_balance:Number(x.outstanding_balance)}))});
 }));
 

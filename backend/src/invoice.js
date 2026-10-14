@@ -223,3 +223,16 @@ export async function generateStoredInvoicePdf(invoice) {
     }
   });
 }
+
+export async function generateHtmlPdf(html) {
+  return withBrowser(async (browser) => {
+    const page = await browser.newPage();
+    try {
+      await page.setJavaScriptEnabled(false);
+      await page.setContent(html, { waitUntil: 'load', timeout: 20000 });
+      return Buffer.from(await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true }));
+    } finally {
+      await page.close().catch(() => {});
+    }
+  });
+}

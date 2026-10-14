@@ -2,10 +2,12 @@ import { NavLink } from 'react-router-dom';
 
 export default function BillingNav() {
   return <nav className="billing-nav" aria-label="Billing sections">
+    <NavLink to="/admin/billing/overview">Overview</NavLink>
     <NavLink to="/admin/billing/providers">Provider profiles</NavLink>
     <NavLink to="/admin/billing/companies">Companies</NavLink>
     <NavLink to="/admin/billing/invoices">Invoices</NavLink>
-    <span title="Available in the next billing phase">Statements</span>
-    <span title="Available in the next billing phase">Payments</span>
+    <NavLink to="/admin/billing/statements">Statements</NavLink>
+    <NavLink to="/admin/billing/payments">Payments</NavLink>
+    <NavLink to="/admin/billing/audit">Audit history</NavLink>
   </nav>;
 }

@@ -110,7 +110,7 @@ export async function sendCommunicationEmail({ email, fullName, subject, message
   return transporter().sendMail({ from: mailFrom, replyTo: mailReplyTo, to: email, subject: safeSubject, text, html });
 }
 
-export async function sendInvoiceEmail({ email, fullName, subject, message, pdfBuffer, filename }) {
+export async function sendInvoiceEmail({ email, fullName, subject, message, pdfBuffer, filename, documentLabel = 'invoice' }) {
   const safeName = escapeHtml(fullName || 'WannaTalk patient');
   const safeSubject = String(subject || 'Your WannaTalk invoice').slice(0, 160);
   const safeMessage = escapeHtml(String(message || '')).replace(/\n/g, '<br>');
