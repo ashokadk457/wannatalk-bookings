@@ -223,6 +223,7 @@ function DetailRow({
    ================================================================= */
 interface Actions {
   open: (a: Appointment, reschedule?: boolean) => void;
+  edit: (a: Appointment) => void;
   cancel: (a: Appointment) => Promise<void>;
   remove: (a: Appointment) => Promise<void>;
   status: (a: Appointment, status: Status) => Promise<void>;
@@ -241,7 +242,16 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     [editing, setEditing] = useState(false),
     [busy, setBusy] = useState(false);
   const [date, setDate] = useState(''),
-    [time, setTime] = useState('');
+    [time, setTime] = useState(''),
+    [fullEdit, setFullEdit] = useState(false),
+    [patientId, setPatientId] = useState(''),
+    [providerId, setProviderId] = useState(''),
+    [locationId, setLocationId] = useState(''),
+    [duration, setDuration] = useState(60),
+    [type, setType] = useState('Individual counselling'),
+    [mode, setMode] = useState('In-person'),
+    [note, setNote] = useState(''),
+    [intake, setIntake] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const appointment = data.appointments.find((a) => a.id === selected);
 
@@ -260,7 +270,23 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     }
     setDate(a.appointment_date);
     setTime(a.appointment_time);
+    setFullEdit(false);
     setEditing(reschedule);
+    setSelected(a.id);
+  }
+  function edit(a: Appointment) {
+    setDate(a.appointment_date);
+    setTime(a.appointment_time);
+    setPatientId(a.patient_id);
+    setProviderId(a.provider_id);
+    setLocationId(a.location_id || '');
+    setDuration(a.duration_minutes);
+    setType(a.appointment_type);
+    setMode(a.mode);
+    setNote(a.note || '');
+    setIntake(a.intake_requested);
+    setFullEdit(true);
+    setEditing(true);
     setSelected(a.id);
   }
   async function update(
@@ -336,9 +362,27 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
       'Appointment rescheduled',
     );
   }
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!appointment) return;
+    const provider = data.providers.find((p) => p.id === providerId);
+    const location = data.locations.find((l) => l.id === locationId);
+    if (!provider || !location) return notify('Choose a provider and location');
+    if (date !== appointment.appointment_date || time !== appointment.appointment_time) {
+      const problem = slotProblem(
+        { ...provider, default_duration_minutes: duration }, date, time,
+        data.appointments, appointment.id, location.name,
+      );
+      if (problem) return notify(problem);
+    }
+    await update(appointment, '/edit', {
+      patientId, providerId, locationId, appointmentDate: date, appointmentTime: time,
+      durationMinutes: duration, appointmentType: type, mode, note, intakeRequested: intake,
+    }, 'Booking updated');
+  }
 
   return (
-    <Context.Provider value={{ open, cancel, remove, status, contact, busy }}>
+    <Context.Provider value={{ open, edit, cancel, remove, status, contact, busy }}>
       {/* Local styles — sirf is component ke liye */}
       <style>{LOCAL_STYLES}</style>
 
@@ -364,7 +408,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
           }}
         >
           <div className="card-head">
-            <h3 id="booking-modal-title">{editing ? 'Reschedule booking' : 'Booking details'}</h3>
+            <h3 id="booking-modal-title">{editing ? (fullEdit ? 'Edit booking' : 'Reschedule booking') : 'Booking details'}</h3>
             <button className="btn secondary btn-with-icon" onClick={close}>
               <Icon.Close />
               <span>Close</span>
@@ -415,7 +459,27 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
           )}
 
           {editing ? (
-            <form onSubmit={reschedule}>
+            <form onSubmit={fullEdit ? saveEdit : reschedule}>
+              {fullEdit ? (
+                <div className="form-grid space-top">
+                  <Field label="Patient">
+                    <select required value={patientId} onChange={(e) => setPatientId(e.target.value)}>{data.patients.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+                  </Field>
+                  <Field label="Provider">
+                    <select required value={providerId} onChange={(e) => { setProviderId(e.target.value); setLocationId(''); }}>{data.providers.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+                  </Field>
+                  <Field label="Location">
+                    <select required value={locationId} onChange={(e) => setLocationId(e.target.value)}><option value="">Choose location</option>{data.locations.filter((l) => data.providers.find((p) => p.id === providerId)?.locations.includes(l.name)).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+                  </Field>
+                  <Field label="Appointment date"><input type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+                  <Field label="Appointment time"><input type="time" required value={time} onChange={(e) => setTime(e.target.value)} /></Field>
+                  <Field label="Duration"><select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>{[30, 60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} minutes</option>)}</select></Field>
+                  <Field label="Appointment type"><select value={type} onChange={(e) => setType(e.target.value)}>{['Individual counselling', 'Couples counselling', 'Family counselling', 'Assessment', 'Follow-up'].map((t) => <option key={t}>{t}</option>)}</select></Field>
+                  <Field label="Mode"><select value={mode} onChange={(e) => setMode(e.target.value)}>{['In-person', 'Online', 'Telephone'].map((m) => <option key={m}>{m}</option>)}</select></Field>
+                  <Field label="Note" full><textarea value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+                  <label className="check-row"><input type="checkbox" checked={intake} onChange={(e) => setIntake(e.target.checked)} /> Optional private intake</label>
+                </div>
+              ) : (
               <div className="form-grid space-top">
                 <Field label="New appointment date">
                   <input
@@ -435,15 +499,16 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
                   />
                 </Field>
               </div>
+              )}
               <div className="modal-actions">
                 <button className="btn btn-with-icon" disabled={busy}>
                   <Icon.Save />
-                  <span>Save new time</span>
+                  <span>{fullEdit ? 'Save changes' : 'Save new time'}</span>
                 </button>
                 <button
                   type="button"
                   className="btn secondary btn-with-icon"
-                  onClick={() => setEditing(false)}
+                  onClick={() => { setEditing(false); setFullEdit(false); }}
                 >
                   <Icon.ArrowLeft />
                   <span>Back</span>
@@ -510,6 +575,16 @@ export function AppointmentActions({
     { user } = useApp();
   return (
     <div className="actions">
+      {user?.role === 'admin' && active(a) && (
+        <button
+          disabled={actions.busy}
+          className={`btn secondary${view ? ' small' : ''} btn-with-icon`}
+          onClick={() => actions.edit(a)}
+        >
+          <Icon.Repeat />
+          <span>Edit</span>
+        </button>
+      )}
       {view && (
         <button className="btn secondary small" onClick={() => actions.open(a)}>
           View

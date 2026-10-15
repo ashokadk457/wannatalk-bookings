@@ -1241,6 +1241,9 @@ button.month-event.unavailable {
 }
 #auth .wt-primary-button {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 50px;
   padding: 0 20px;
   border: 0;

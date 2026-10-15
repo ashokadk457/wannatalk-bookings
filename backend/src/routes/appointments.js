@@ -278,6 +278,57 @@ appointmentsRouter.patch('/:id/reschedule', authRequired(['admin', 'provider', '
   void notifyProvider(appointment.id, 'rescheduled');
 }));
 
+appointmentsRouter.patch('/:id/edit', authRequired(['admin']), asyncHandler(async (req, res) => {
+  const { patientId, providerId, locationId, appointmentDate, appointmentTime, durationMinutes, appointmentType, mode, note, intakeRequested } = req.body;
+  if (!patientId || !providerId || !locationId || !appointmentDate || !appointmentTime || !appointmentType || !mode) {
+    return res.status(400).json({ error: 'Complete all required booking details' });
+  }
+  const duration = Number(durationMinutes);
+  if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
+    return res.status(400).json({ error: 'Duration must be between 15 and 480 minutes' });
+  }
+
+  const appointment = await withTransaction(async (client) => {
+    const current = await client.query(`SELECT * FROM appointments WHERE id = $1 FOR UPDATE`, [req.params.id]);
+    if (!current.rows[0]) {
+      const error = new Error('Appointment not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    const whenChanged = String(appointmentDate) !== String(current.rows[0].appointment_date).slice(0, 10)
+      || String(appointmentTime).slice(0, 5) !== String(current.rows[0].appointment_time).slice(0, 5);
+    if (whenChanged && isPast(appointmentDate, appointmentTime)) {
+      const error = new Error('Past dates and times cannot be booked');
+      error.statusCode = 400;
+      throw error;
+    }
+    const slotChanged = String(providerId) !== String(current.rows[0].provider_id)
+      || String(locationId) !== String(current.rows[0].location_id)
+      || String(appointmentDate) !== String(current.rows[0].appointment_date).slice(0, 10)
+      || String(appointmentTime).slice(0, 5) !== String(current.rows[0].appointment_time).slice(0, 5)
+      || duration !== Number(current.rows[0].duration_minutes);
+    if (slotChanged) await assertProviderAvailable(client, {
+      providerId, locationId, appointmentDate, appointmentTime,
+      durationMinutes: duration, excludeAppointmentId: req.params.id,
+    });
+    const updated = await client.query(
+      `UPDATE appointments SET patient_id = $1, provider_id = $2, location_id = $3,
+       appointment_date = $4, appointment_time = $5, duration_minutes = $6,
+       appointment_type = $7, mode = $8, note = $9, intake_requested = $10,
+       meeting_url = CASE WHEN lower($8) = 'online' THEN COALESCE(meeting_url, $11) ELSE NULL END,
+       updated_at = now() WHERE id = $12 RETURNING *`,
+      [patientId, providerId, locationId, appointmentDate, appointmentTime, duration,
+        appointmentType, mode, note || null, Boolean(intakeRequested), createMeetingUrl(), req.params.id]
+    );
+    await audit(client, req.user, 'Edited booking', req.params.id, {
+      patientId, providerId, locationId, appointmentDate, appointmentTime, durationMinutes: duration,
+      appointmentType, mode, intakeRequested: Boolean(intakeRequested),
+    });
+    return updated.rows[0];
+  });
+  res.json({ appointment });
+}));
+
 appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'patient']), asyncHandler(async (req, res) => {
   const status = String(req.body.status || '');
   if (!validStatuses.has(status)) return res.status(400).json({ error: 'Invalid status' });

@@ -257,7 +257,7 @@ export default function AuthPage() {
                       Book a session, manage appointments, or continue your intake.
                     </span>
                   </span>
-                  <span className="wt-card-action">Continue as patient →</span>
+                  <span className="wt-card-action wt-primary-button">Continue as patient →</span>
                 </button>
                 <button type="button" className="wt-role-card" onClick={() => choose('provider')}>
                   <span className="wt-role-body">
@@ -294,7 +294,7 @@ export default function AuthPage() {
                       Manage bookings, availability, and patient communication.
                     </span>
                   </span>
-                  <span className="wt-card-action">Continue as provider →</span>
+                  <span className="wt-card-action wt-primary-button">Continue as provider →</span>
                 </button>
               </div>
               <section className="wt-intake-card" aria-label="Start intake">
