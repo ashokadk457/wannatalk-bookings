@@ -5,16 +5,19 @@ import { MeetingLink } from '../../components/MeetingLink';
 import { Empty, StatusPill } from '../../components/ui';
 import { formatDate, joinAllowed } from '../../lib/dates';
 import { AppointmentActions, useAppointments } from './AppointmentContext';
+import { InvoiceEditor } from '../billing/InvoiceEditor';
 import InvoiceDialog from './InvoiceDialog';
 import { statuses, type Appointment, type Status } from '../../types';
 export default function AppointmentTable({
   appointments,
   editable = false,
   bulkMessaging = false,
+  fullInvoiceEditor = false,
 }: {
   appointments: Appointment[];
   editable?: boolean;
   bulkMessaging?: boolean;
+  fullInvoiceEditor?: boolean;
 }) {
   const { user } = useApp(),
     actions = useAppointments(),
@@ -152,10 +155,17 @@ export default function AppointmentTable({
         </div>
       )}
       {invoiceAppointment && (
-        <InvoiceDialog
-          appointment={invoiceAppointment}
-          onClose={() => setInvoiceAppointment(null)}
-        />
+        fullInvoiceEditor ? (
+          <InvoiceEditor
+            initialAppointment={invoiceAppointment}
+            onClose={() => setInvoiceAppointment(null)}
+          />
+        ) : (
+          <InvoiceDialog
+            appointment={invoiceAppointment}
+            onClose={() => setInvoiceAppointment(null)}
+          />
+        )
       )}
     </div>
   );

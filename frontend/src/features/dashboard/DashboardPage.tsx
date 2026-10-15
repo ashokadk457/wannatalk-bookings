@@ -110,6 +110,7 @@ export default function DashboardPage() {
                     .slice(0, 20)
             }
             bulkMessaging={user?.role === 'provider'}
+            fullInvoiceEditor={admin}
           />
         </Card>
         <div
