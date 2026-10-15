@@ -48,6 +48,11 @@ export default function FollowUpsPage() {
   }
   async function action(id: string, action: string) {
     if (action === 'send' && !window.confirm('Send this follow-up reminder now?')) return;
+    if (
+      action === 'delete' &&
+      !window.confirm('Permanently delete this follow-up? This cannot be undone.')
+    )
+      return;
     setBusy(true);
     await run(async () => {
       if (action === 'send') {
@@ -57,6 +62,9 @@ export default function FollowUpsPage() {
           {},
         );
         notify(deliverySummary(result.deliveries));
+      } else if (action === 'delete') {
+        await mutate(`/follow-ups/${id}`, 'DELETE');
+        notify('Follow-up deleted');
       } else await mutate(`/follow-ups/${id}/status`, 'PATCH', { status: action });
       await resource.reload();
     });
@@ -116,24 +124,37 @@ export default function FollowUpsPage() {
                       <StatusPill status={f.status} />
                     </td>
                     <td>
-                      {f.status === 'open' && (
-                        <div className="actions">
-                          {[
-                            ['send', 'Send reminder'],
-                            ['completed', 'Complete'],
-                            ['cancelled', 'Cancel'],
-                          ].map(([a, label]) => (
-                            <button
-                              disabled={busy}
-                              className="btn secondary small"
-                              key={a}
-                              onClick={() => void action(f.id, a)}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      <div className="actions">
+                        {f.status === 'open' && (
+                          <div className="actions">
+                            {[
+                              ['send', 'Send reminder'],
+                              ['completed', 'Complete'],
+                              ['cancelled', 'Cancel'],
+                            ].map(([a, label]) => (
+                              <button
+                                disabled={busy}
+                                className="btn secondary small"
+                                key={a}
+                                onClick={() => void action(f.id, a)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {user?.role === 'admin' && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            className="btn danger small"
+                            aria-label={`Delete follow-up for ${f.patient_name}`}
+                            onClick={() => void action(f.id, 'delete')}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

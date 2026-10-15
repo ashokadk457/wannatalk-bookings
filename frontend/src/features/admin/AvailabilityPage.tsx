@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
-import { Card, Heading, ProviderStatus } from '../../components/ui';
+import { Card, Field, Heading, ProviderStatus } from '../../components/ui';
 import { days, initials, minutes, shortTime } from '../../lib/dates';
 import Calendar from '../appointments/Calendar';
 import AvailabilityEditor from '../provider/AvailabilityEditor';
@@ -14,28 +14,32 @@ export default function AvailabilityPage() {
   const providers = [...data.providers].sort(
       (a, b) => Number(b.is_active) - Number(a.is_active) || a.full_name.localeCompare(b.full_name),
     ),
-    provider = providers.find((p) => p.id === selected);
+    provider = providers.find((p) => p.id === selected) || providers[0];
   return (
     <section>
       <Heading
         title="Provider availability"
         subtitle="Review weekly schedules and bookable capacity."
       />
-      <div className="workflow-layout">
-        <Card title="Providers">
-          <div className="workflow-list">
-            {providers.map((p) => (
-              <button
-                className={`workflow-list-button ${p.id === selected ? 'active' : ''}`}
-                key={p.id}
-                onClick={() => setSelected(p.id)}
-              >
-                <strong>{p.full_name}</strong>
-                <div className="sub">{p.professional_title}</div>
-                <ProviderStatus active={p.is_active} online={p.is_online} />
-              </button>
-            ))}
-          </div>
+      <div className="provider-availability-layout">
+        <Card>
+          <Field label="Provider">
+            <select
+              value={provider?.id || ''}
+              onChange={(event) => setSelected(event.target.value)}
+              disabled={!providers.length}
+            >
+              {!providers.length && <option value="">No providers configured</option>}
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name}
+                  {p.professional_title ? ` — ${p.professional_title}` : ''}
+                  {' · '}
+                  {!p.is_active ? 'Inactive' : p.is_online ? 'Online' : 'Offline'}
+                </option>
+              ))}
+            </select>
+          </Field>
         </Card>
         {provider ? (
           <Card>
@@ -82,7 +86,11 @@ export default function AvailabilityPage() {
           <div className="notice">No providers configured.</div>
         )}
       </div>
-      {provider && <div className="space-top"><AvailabilityEditor key={provider.id} provider={provider} /></div>}
+      {provider && (
+        <div className="space-top">
+          <AvailabilityEditor key={provider.id} provider={provider} />
+        </div>
+      )}
     </section>
   );
 }

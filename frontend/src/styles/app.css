@@ -1,4 +1,29 @@
 /* React-only layout adjustments; original theme remains in original.css. */
+.dashboard-panel-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.dashboard-overview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, .7fr);
+  gap: 18px;
+  align-items: start;
+}
+.dashboard-overview-layout > * {
+  min-width: 0;
+}
+.dashboard-overview-layout.panel-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dashboard-overview-panel[hidden] {
+  display: none !important;
+}
+@media (max-width: 900px) {
+  .dashboard-overview-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .space-top {
   margin-top: 18px;
 }
@@ -352,6 +377,22 @@
 .status.failed {
   background: var(--red-soft);
   color: #b91c1c;
+}
+.provider-availability-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+.provider-availability-layout > .card {
+  min-width: 0;
+}
+.provider-availability-layout .field {
+  min-width: 0;
+  max-width: 560px;
+}
+.provider-availability-layout .field select {
+  width: 100%;
+  min-width: 0;
 }
 .workflow-layout {
   display: grid;

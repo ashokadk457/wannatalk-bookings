@@ -309,7 +309,20 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
 
 appointmentsRouter.delete('/:id', authRequired(['admin']), asyncHandler(async (req, res) => {
   await withTransaction(async (client) => {
-    await audit(client, req.user, 'Deleted booking', req.params.id);
+    const appointment = await client.query(`SELECT id FROM appointments WHERE id = $1 FOR UPDATE`, [req.params.id]);
+    if (!appointment.rows[0]) {
+      const error = new Error('Appointment not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    // Invoice lines remain accounting records after their booking is removed.
+    await client.query(
+      `UPDATE invoice_items ii
+       SET service_date = COALESCE(ii.service_date, a.appointment_date), appointment_id = NULL
+       FROM appointments a WHERE ii.appointment_id = a.id AND a.id = $1`,
+      [req.params.id]
+    );
+    await audit(client, req.user, 'Deleted booking', req.params.id, { deletedAppointmentId: req.params.id });
     await client.query(`DELETE FROM appointments WHERE id = $1`, [req.params.id]);
   });
   res.status(204).send();

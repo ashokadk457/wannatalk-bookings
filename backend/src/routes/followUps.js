@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query } from '../db.js';
+import { query, withTransaction } from '../db.js';
 import { cleanChannels, sendPatientCommunication } from '../communications.js';
 import { authRequired } from '../middleware/authRequired.js';
 
@@ -79,6 +79,29 @@ followUpsRouter.patch('/:id/status', authRequired(['admin', 'provider']), async 
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'Follow-up not found' });
   res.json({ followUp: result.rows[0] });
+});
+
+followUpsRouter.delete('/:id', authRequired(['admin']), async (req, res, next) => {
+  try {
+    const deleted = await withTransaction(async (client) => {
+      const result = await client.query(
+        `DELETE FROM follow_ups WHERE id = $1 RETURNING id, patient_id, provider_id`,
+        [req.params.id]
+      );
+      const followUp = result.rows[0];
+      if (!followUp) return false;
+      await client.query(
+        `INSERT INTO audit_logs (user_id, user_name, user_role, action, details)
+         VALUES ($1,$2,$3,'Deleted follow-up',$4::jsonb)`,
+        [req.user.id, req.user.name, req.user.role, JSON.stringify({ followUpId: followUp.id, patientId: followUp.patient_id, providerId: followUp.provider_id })]
+      );
+      return true;
+    });
+    if (!deleted) return res.status(404).json({ error: 'Follow-up not found' });
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
 });
 
 followUpsRouter.post('/:id/send', authRequired(['admin', 'provider']), async (req, res) => {

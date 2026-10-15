@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, ProviderStatus, Stat } from '../../components/ui';
@@ -10,6 +10,8 @@ export default function DashboardPage() {
   const { user, data } = useApp(),
     admin = user?.role === 'admin';
   const [createBooking, setCreateBooking] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const sidebarId = useId();
   const apps = [...data.appointments].sort((a, b) =>
     (a.appointment_date + a.appointment_time).localeCompare(
       b.appointment_date + b.appointment_time,
@@ -24,7 +26,19 @@ export default function DashboardPage() {
       .slice(0, 6);
   return (
     <section>
-      {user?.role === 'provider' && <div className="dashboard-primary-action"><div><strong>Create an appointment</strong><span className="sub">Choose one of your patients, duration, location and available time.</span></div><button className="btn" onClick={() => setCreateBooking(true)}>＋ New booking</button></div>}
+      {user?.role === 'provider' && (
+        <div className="dashboard-primary-action">
+          <div>
+            <strong>Create an appointment</strong>
+            <span className="sub">
+              Choose one of your patients, duration, location and available time.
+            </span>
+          </div>
+          <button className="btn" onClick={() => setCreateBooking(true)}>
+            ＋ New booking
+          </button>
+        </div>
+      )}
       <div className="grid stats">
         <Stat
           icon="▣"
@@ -59,11 +73,50 @@ export default function DashboardPage() {
           note="Follow-up suggested"
         />
       </div>
-      <div className="grid two space-top flex-box">
+      {admin && (
+        <div className="dashboard-panel-controls space-top">
+          <button
+            type="button"
+            className="btn secondary small"
+            aria-expanded={sidebarOpen}
+            aria-controls={sidebarId}
+            onClick={() => setSidebarOpen((open) => !open)}
+          >
+            <span aria-hidden="true">{sidebarOpen ? '\u2192' : '\u2190'}</span>{' '}
+            {sidebarOpen
+              ? 'Hide practice health & quick actions'
+              : 'Show practice health & quick actions'}
+          </button>
+        </div>
+      )}
+      <div
+        className={
+          admin
+            ? `dashboard-overview-layout${sidebarOpen ? '' : ' panel-collapsed'}`
+            : 'grid two space-top flex-box'
+        }
+      >
         <Card title={admin ? 'Upcoming appointments' : 'Upcoming appointments'}>
-          <AppointmentTable appointments={admin ? upcoming : apps.filter((a) => a.appointment_date >= today() && !['Cancelled', 'No-show'].includes(a.status)).slice(0, 20)} bulkMessaging={user?.role === 'provider'} />
+          <AppointmentTable
+            appointments={
+              admin
+                ? upcoming
+                : apps
+                    .filter(
+                      (a) =>
+                        a.appointment_date >= today() &&
+                        !['Cancelled', 'No-show'].includes(a.status),
+                    )
+                    .slice(0, 20)
+            }
+            bulkMessaging={user?.role === 'provider'}
+          />
         </Card>
-        <div className="grid">
+        <div
+          className="grid dashboard-overview-panel"
+          id={sidebarId}
+          hidden={admin && !sidebarOpen}
+        >
           <Card title={admin ? 'Practice health' : "Today's overview"}>
             {admin &&
               data.providers.map((p) => (

@@ -1,13 +1,609 @@
-import { useEffect,useMemo,useState,type FormEvent } from 'react';import { useApp } from '../../app/AppContext';import Modal from '../../components/Modal';import { Card,Empty,Field,Heading,StatusPill } from '../../components/ui';import { api,mutate } from '../../services/api';import BillingNav from './BillingNav';
-interface Invoice{id:string;invoice_number:string;provider_id:string;patient_id:string;company_id:string|null;billing_customer_type:string;patient_name:string;provider_name:string;company_name:string|null;outstanding_balance:number;status:string}
-interface Payment{id:string;payment_date:string;amount:number;unallocated_amount:number;method:string;reference:string|null;status:string;patient_name:string|null;company_name:string|null;provider_name:string;allocations:{invoiceId:string;invoiceNumber:string;amount:string}[]}
-interface Company{id:string;registered_name:string;patient_ids:string[];is_active:boolean}
-interface Credit{id:string;credit_note_number:string;credit_date:string;amount:number;reason:string;status:string;invoice_number:string;patient_name:string;company_name:string|null;provider_name:string}
-const today=()=>new Date().toISOString().slice(0,10);const money=(x:number)=>`R ${x.toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-function PaymentEditor({invoices,onClose,onSaved}:{invoices:Invoice[];onClose:()=>void;onSaved:()=>void}){const {data,notify}=useApp();const [providerId,setProvider]=useState(''),[type,setType]=useState('patient'),[customerId,setCustomer]=useState(''),[amount,setAmount]=useState(''),[paymentDate,setDate]=useState(today()),[method,setMethod]=useState('Bank transfer'),[reference,setReference]=useState(''),[notes,setNotes]=useState(''),[allocations,setAllocations]=useState<Record<string,string>>({}),[companies,setCompanies]=useState<Company[]>([]),[busy,setBusy]=useState(false);useEffect(()=>{api<{companies:Company[]}>('/billing/companies').then(x=>setCompanies(x.companies.filter(c=>c.is_active)));},[]);
- const eligible=useMemo(()=>invoices.filter(i=>i.provider_id===providerId&&i.billing_customer_type===type&&(type==='company'?i.company_id:i.patient_id)===customerId&&i.outstanding_balance>0&&!['Void','Credited'].includes(i.status)),[invoices,providerId,type,customerId]);const allocated=Object.values(allocations).reduce((s,x)=>s+(Number(x)||0),0);
- function chooseInvoice(id:string,checked:boolean){const invoice=eligible.find(x=>x.id===id);setAllocations(current=>{const next={...current};if(checked&&invoice)next[id]=String(Math.min(invoice.outstanding_balance,Math.max(0,(Number(amount)||0)-allocated)));else delete next[id];return next;});}
- async function save(e:FormEvent){e.preventDefault();setBusy(true);try{await mutate('/billing/payments','POST',{providerId,customerType:type,customerId,paymentDate,amount:Number(amount),method,reference,notes,allocations:Object.entries(allocations).map(([invoiceId,value])=>({invoiceId,amount:Number(value)}))});notify('Payment captured and balances updated');onSaved();}catch(error){notify(error instanceof Error?error.message:'Unable to capture payment');}finally{setBusy(false);}}
- return <Modal title="Capture payment" className="payment-dialog" onClose={onClose}><form className="payment-editor" onSubmit={save}><div className="form-grid"><Field label="Provider"><select required value={providerId} onChange={e=>{setProvider(e.target.value);setAllocations({});}}><option value="">Select provider</option>{data.providers.map(p=><option value={p.id} key={p.id}>{p.full_name}</option>)}</select></Field><Field label="Billing account type"><select value={type} onChange={e=>{setType(e.target.value);setCustomer('');setAllocations({});}}><option value="patient">Patient</option><option value="company">Company</option></select></Field><Field label={type==='company'?'Company':'Patient'}><select required value={customerId} onChange={e=>{setCustomer(e.target.value);setAllocations({});}}><option value="">Select account</option>{type==='company'?companies.map(c=><option key={c.id} value={c.id}>{c.registered_name}</option>):data.patients.map(p=><option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field><Field label="Payment date"><input required type="date" value={paymentDate} onChange={e=>setDate(e.target.value)}/></Field><Field label="Amount"><input required min="0.01" step="0.01" type="number" value={amount} onChange={e=>setAmount(e.target.value)}/></Field><Field label="Method"><select value={method} onChange={e=>setMethod(e.target.value)}><option>Bank transfer</option><option>Card</option><option>Cash</option><option>Medical aid</option><option>Other</option></select></Field><Field label="Reference"><input value={reference} onChange={e=>setReference(e.target.value)}/></Field><Field label="Notes"><input value={notes} onChange={e=>setNotes(e.target.value)}/></Field></div><section className="payment-allocation"><div className="card-head"><div><h4>Allocate to invoices</h4><p className="sub">Partial allocation is supported. Any remainder stays unallocated on the account.</p></div><span className="pill">{money(allocated)} allocated</span></div>{eligible.length?eligible.map(i=><label className={allocations[i.id]!==undefined?'selected':''} key={i.id}><input className="compact-check" type="checkbox" checked={allocations[i.id]!==undefined} onChange={e=>chooseInvoice(i.id,e.target.checked)}/><span><strong>{i.invoice_number}</strong><small>{i.patient_name} · {money(i.outstanding_balance)} outstanding</small></span><input aria-label={`Allocation for ${i.invoice_number}`} type="number" min="0.01" step="0.01" max={i.outstanding_balance} disabled={allocations[i.id]===undefined} value={allocations[i.id]||''} onChange={e=>setAllocations(x=>({...x,[i.id]:e.target.value}))}/></label>):<p className="sub">Select a provider and account to see unpaid invoices.</p>}</section><div className="payment-totals"><span>Payment <b>{money(Number(amount)||0)}</b></span><span>Allocated <b>{money(allocated)}</b></span><span>Unallocated <b>{money(Math.max(0,(Number(amount)||0)-allocated))}</b></span></div><div className="modal-actions"><button className="btn" disabled={busy}>{busy?'Saving…':'Capture payment'}</button><button type="button" className="btn secondary" onClick={onClose}>Cancel</button></div></form></Modal>}
-function CreditEditor({invoice,onClose,onSaved}:{invoice:Invoice;onClose:()=>void;onSaved:()=>void}){const {notify}=useApp();const [amount,setAmount]=useState(String(invoice.outstanding_balance)),[creditDate,setDate]=useState(today()),[reason,setReason]=useState(''),[busy,setBusy]=useState(false);async function save(e:FormEvent){e.preventDefault();setBusy(true);try{await mutate('/billing/credit-notes','POST',{invoiceId:invoice.id,creditDate,amount:Number(amount),reason});notify('Credit note issued');onSaved();}catch(error){notify(error instanceof Error?error.message:'Unable to issue credit note');}finally{setBusy(false);}}return <Modal title={`Credit ${invoice.invoice_number}`} onClose={onClose}><form onSubmit={save}><p className="sub">Outstanding balance: {money(invoice.outstanding_balance)}</p><div className="form-grid"><Field label="Credit date"><input required type="date" value={creditDate} onChange={e=>setDate(e.target.value)}/></Field><Field label="Credit amount"><input required type="number" min="0.01" step="0.01" max={invoice.outstanding_balance} value={amount} onChange={e=>setAmount(e.target.value)}/></Field><Field label="Reason" full><textarea required rows={3} value={reason} onChange={e=>setReason(e.target.value)}/></Field></div><div className="modal-actions"><button className="btn danger" disabled={busy}>Issue credit note</button><button type="button" className="btn secondary" onClick={onClose}>Cancel</button></div></form></Modal>}
-export default function PaymentsPage(){const {notify}=useApp();const [payments,setPayments]=useState<Payment[]>([]),[invoices,setInvoices]=useState<Invoice[]>([]),[credits,setCredits]=useState<Credit[]>([]),[creating,setCreating]=useState(false),[crediting,setCrediting]=useState<Invoice|null>(null);const load=()=>Promise.all([api<{payments:Payment[]}>('/billing/payments'),api<{invoices:Invoice[]}>('/invoices'),api<{credits:Credit[]}>('/billing/credit-notes')]).then(([p,i,c])=>{setPayments(p.payments);setInvoices(i.invoices);setCredits(c.credits);}).catch(e=>notify(e instanceof Error?e.message:'Unable to load billing ledger'));useEffect(()=>{void load();},[]);async function reverse(p:Payment){const reason=window.prompt('Enter the payment reversal reason');if(!reason)return;try{await mutate(`/billing/payments/${p.id}/reverse`,'POST',{reason});notify('Payment reversed');await load();}catch(e){notify(e instanceof Error?e.message:'Unable to reverse payment');}}async function reverseCredit(c:Credit){const reason=window.prompt('Enter the credit note reversal reason');if(!reason)return;try{await mutate(`/billing/credit-notes/${c.id}/reverse`,'POST',{reason});notify('Credit note reversed');await load();}catch(e){notify(e instanceof Error?e.message:'Unable to reverse credit note');}}return <section><Heading title="Payments and credits" subtitle="Capture payments, allocate partial amounts and issue controlled credit notes."/><BillingNav/><div className="section-title"><div></div><button className="btn" onClick={()=>setCreating(true)}>＋ Capture payment</button></div><Card><h3>Payment history</h3>{payments.length?<div className="dashboard-table"><table><thead><tr><th>Date</th><th>Account</th><th>Provider</th><th>Method / reference</th><th>Amount</th><th>Allocation</th><th>Status</th><th></th></tr></thead><tbody>{payments.map(p=><tr key={p.id}><td>{p.payment_date}</td><td>{p.company_name||p.patient_name}</td><td>{p.provider_name}</td><td>{p.method}<div className="sub">{p.reference||'No reference'}</div></td><td>{money(p.amount)}</td><td>{money(p.amount-p.unallocated_amount)}<div className="sub">{money(p.unallocated_amount)} unallocated</div></td><td><StatusPill status={p.status}/></td><td>{p.status==='Active'&&<button className="btn danger small" onClick={()=>void reverse(p)}>Reverse</button>}</td></tr>)}</tbody></table></div>:<Empty>No payments have been captured.</Empty>}</Card><Card><h3>Outstanding invoices</h3><div className="dashboard-table"><table><thead><tr><th>Invoice</th><th>Provider</th><th>Account</th><th>Outstanding</th><th>Status</th><th></th></tr></thead><tbody>{invoices.filter(i=>i.outstanding_balance>0).map(i=><tr key={i.id}><td>{i.invoice_number}</td><td>{i.provider_name}</td><td>{i.company_name||i.patient_name}</td><td>{money(i.outstanding_balance)}</td><td><StatusPill status={i.status}/></td><td><button className="btn secondary small" onClick={()=>setCrediting(i)}>Credit note</button></td></tr>)}</tbody></table></div></Card><Card><h3>Credit note history</h3>{credits.length?<div className="dashboard-table"><table><thead><tr><th>Date</th><th>Credit note</th><th>Invoice</th><th>Account</th><th>Provider</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>{credits.map(c=><tr key={c.id}><td>{c.credit_date}</td><td><strong>{c.credit_note_number}</strong><div className="sub">{c.reason}</div></td><td>{c.invoice_number}</td><td>{c.company_name||c.patient_name}</td><td>{c.provider_name}</td><td>{money(c.amount)}</td><td><StatusPill status={c.status}/></td><td>{c.status==='Issued'&&<button className="btn danger small" onClick={()=>void reverseCredit(c)}>Reverse</button>}</td></tr>)}</tbody></table></div>:<Empty>No credit notes have been issued.</Empty>}</Card>{creating&&<PaymentEditor invoices={invoices} onClose={()=>setCreating(false)} onSaved={()=>{setCreating(false);void load();}}/>}{crediting&&<CreditEditor invoice={crediting} onClose={()=>setCrediting(null)} onSaved={()=>{setCrediting(null);void load();}}/>}</section>}
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useApp } from '../../app/AppContext';
+import Modal from '../../components/Modal';
+import { Card, Empty, Field, Heading, StatusPill } from '../../components/ui';
+import { api, mutate } from '../../services/api';
+import BillingNav from './BillingNav';
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  provider_id: string;
+  patient_id: string;
+  company_id: string | null;
+  billing_customer_type: string;
+  patient_name: string;
+  provider_name: string;
+  company_name: string | null;
+  outstanding_balance: number;
+  status: string;
+}
+interface Payment {
+  id: string;
+  payment_date: string;
+  amount: number;
+  unallocated_amount: number;
+  method: string;
+  reference: string | null;
+  status: string;
+  patient_name: string | null;
+  company_name: string | null;
+  provider_name: string;
+  allocations: { invoiceId: string; invoiceNumber: string; amount: string }[];
+}
+interface Company {
+  id: string;
+  registered_name: string;
+  patient_ids: string[];
+  is_active: boolean;
+}
+interface Credit {
+  id: string;
+  credit_note_number: string;
+  credit_date: string;
+  amount: number;
+  reason: string;
+  status: string;
+  invoice_number: string;
+  patient_name: string;
+  company_name: string | null;
+  provider_name: string;
+}
+const today = () => new Date().toISOString().slice(0, 10);
+const money = (x: number) =>
+  `R ${x.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function PaymentEditor({
+  invoices,
+  initialInvoice,
+  onClose,
+  onSaved,
+}: {
+  invoices: Invoice[];
+  initialInvoice?: Invoice | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { data, notify } = useApp();
+  const [providerId, setProvider] = useState(initialInvoice?.provider_id || ''),
+    [type, setType] = useState(initialInvoice?.billing_customer_type || 'patient'),
+    [customerId, setCustomer] = useState(
+      (initialInvoice?.billing_customer_type === 'company'
+        ? initialInvoice.company_id
+        : initialInvoice?.patient_id) || '',
+    ),
+    [amount, setAmount] = useState(
+      initialInvoice ? String(initialInvoice.outstanding_balance) : '',
+    ),
+    [paymentDate, setDate] = useState(today()),
+    [method, setMethod] = useState('Bank transfer'),
+    [reference, setReference] = useState(''),
+    [notes, setNotes] = useState(''),
+    [allocations, setAllocations] = useState<Record<string, string>>(
+      initialInvoice ? { [initialInvoice.id]: String(initialInvoice.outstanding_balance) } : {},
+    ),
+    [companies, setCompanies] = useState<Company[]>([]),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api<{ companies: Company[] }>('/billing/companies').then((x) =>
+      setCompanies(x.companies.filter((c) => c.is_active)),
+    );
+  }, []);
+  const eligible = useMemo(
+    () =>
+      invoices.filter(
+        (i) =>
+          i.provider_id === providerId &&
+          i.billing_customer_type === type &&
+          (type === 'company' ? i.company_id : i.patient_id) === customerId &&
+          i.outstanding_balance > 0 &&
+          !['Void', 'Credited'].includes(i.status),
+      ),
+    [invoices, providerId, type, customerId],
+  );
+  const allocated = Object.values(allocations).reduce((s, x) => s + (Number(x) || 0), 0);
+  function chooseInvoice(id: string, checked: boolean) {
+    const invoice = eligible.find((x) => x.id === id);
+    setAllocations((current) => {
+      const next = { ...current };
+      if (checked && invoice)
+        next[id] = String(
+          Math.min(invoice.outstanding_balance, Math.max(0, (Number(amount) || 0) - allocated)),
+        );
+      else delete next[id];
+      return next;
+    });
+  }
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await mutate('/billing/payments', 'POST', {
+        providerId,
+        customerType: type,
+        customerId,
+        paymentDate,
+        amount: Number(amount),
+        method,
+        reference,
+        notes,
+        allocations: Object.entries(allocations).map(([invoiceId, value]) => ({
+          invoiceId,
+          amount: Number(value),
+        })),
+      });
+      notify('Payment captured and balances updated');
+      onSaved();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Unable to capture payment');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="Capture payment" className="payment-dialog" onClose={onClose}>
+      <form className="payment-editor" onSubmit={save}>
+        <div className="form-grid">
+          <Field label="Provider">
+            <select
+              required
+              value={providerId}
+              onChange={(e) => {
+                setProvider(e.target.value);
+                setAllocations({});
+              }}
+            >
+              <option value="">Select provider</option>
+              {data.providers.map((p) => (
+                <option value={p.id} key={p.id}>
+                  {p.full_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Billing account type">
+            <select
+              value={type}
+              onChange={(e) => {
+                setType(e.target.value);
+                setCustomer('');
+                setAllocations({});
+              }}
+            >
+              <option value="patient">Patient</option>
+              <option value="company">Company</option>
+            </select>
+          </Field>
+          <Field label={type === 'company' ? 'Company' : 'Patient'}>
+            <select
+              required
+              value={customerId}
+              onChange={(e) => {
+                setCustomer(e.target.value);
+                setAllocations({});
+              }}
+            >
+              <option value="">Select account</option>
+              {type === 'company'
+                ? companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.registered_name}
+                    </option>
+                  ))
+                : data.patients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name}
+                    </option>
+                  ))}
+            </select>
+          </Field>
+          <Field label="Payment date">
+            <input
+              required
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <Field label="Amount">
+            <input
+              required
+              min="0.01"
+              step="0.01"
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </Field>
+          <Field label="Method">
+            <select value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option>Bank transfer</option>
+              <option>Card</option>
+              <option>Cash</option>
+              <option>Medical aid</option>
+              <option>Other</option>
+            </select>
+          </Field>
+          <Field label="Reference">
+            <input value={reference} onChange={(e) => setReference(e.target.value)} />
+          </Field>
+          <Field label="Notes">
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </Field>
+        </div>
+        <section className="payment-allocation">
+          <div className="card-head">
+            <div>
+              <h4>Allocate to invoices</h4>
+              <p className="sub">
+                Partial allocation is supported. Any remainder stays unallocated on the account.
+              </p>
+            </div>
+            <span className="pill">{money(allocated)} allocated</span>
+          </div>
+          {eligible.length ? (
+            eligible.map((i) => (
+              <label className={allocations[i.id] !== undefined ? 'selected' : ''} key={i.id}>
+                <input
+                  className="compact-check"
+                  type="checkbox"
+                  checked={allocations[i.id] !== undefined}
+                  onChange={(e) => chooseInvoice(i.id, e.target.checked)}
+                />
+                <span>
+                  <strong>{i.invoice_number}</strong>
+                  <small>
+                    {i.patient_name} · {money(i.outstanding_balance)} outstanding
+                  </small>
+                </span>
+                <input
+                  aria-label={`Allocation for ${i.invoice_number}`}
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={i.outstanding_balance}
+                  disabled={allocations[i.id] === undefined}
+                  value={allocations[i.id] || ''}
+                  onChange={(e) => setAllocations((x) => ({ ...x, [i.id]: e.target.value }))}
+                />
+              </label>
+            ))
+          ) : (
+            <p className="sub">Select a provider and account to see unpaid invoices.</p>
+          )}
+        </section>
+        <div className="payment-totals">
+          <span>
+            Payment <b>{money(Number(amount) || 0)}</b>
+          </span>
+          <span>
+            Allocated <b>{money(allocated)}</b>
+          </span>
+          <span>
+            Unallocated <b>{money(Math.max(0, (Number(amount) || 0) - allocated))}</b>
+          </span>
+        </div>
+        <div className="modal-actions">
+          <button className="btn" disabled={busy}>
+            {busy ? 'Saving…' : 'Capture payment'}
+          </button>
+          <button type="button" className="btn secondary" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+function CreditEditor({
+  invoice,
+  onClose,
+  onSaved,
+}: {
+  invoice: Invoice;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { notify } = useApp();
+  const [amount, setAmount] = useState(String(invoice.outstanding_balance)),
+    [creditDate, setDate] = useState(today()),
+    [reason, setReason] = useState(''),
+    [busy, setBusy] = useState(false);
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await mutate('/billing/credit-notes', 'POST', {
+        invoiceId: invoice.id,
+        creditDate,
+        amount: Number(amount),
+        reason,
+      });
+      notify('Credit note issued');
+      onSaved();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Unable to issue credit note');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={`Credit ${invoice.invoice_number}`} onClose={onClose}>
+      <form onSubmit={save}>
+        <p className="sub">Outstanding balance: {money(invoice.outstanding_balance)}</p>
+        <div className="form-grid">
+          <Field label="Credit date">
+            <input
+              required
+              type="date"
+              value={creditDate}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <Field label="Credit amount">
+            <input
+              required
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={invoice.outstanding_balance}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </Field>
+          <Field label="Reason" full>
+            <textarea
+              required
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="modal-actions">
+          <button className="btn danger" disabled={busy}>
+            Issue credit note
+          </button>
+          <button type="button" className="btn secondary" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+export default function PaymentsPage() {
+  const { notify } = useApp();
+  const [payments, setPayments] = useState<Payment[]>([]),
+    [invoices, setInvoices] = useState<Invoice[]>([]),
+    [credits, setCredits] = useState<Credit[]>([]),
+    [creating, setCreating] = useState(false),
+    [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null),
+    [crediting, setCrediting] = useState<Invoice | null>(null);
+  const load = () =>
+    Promise.all([
+      api<{ payments: Payment[] }>('/billing/payments'),
+      api<{ invoices: Invoice[] }>('/invoices'),
+      api<{ credits: Credit[] }>('/billing/credit-notes'),
+    ])
+      .then(([p, i, c]) => {
+        setPayments(p.payments);
+        setInvoices(i.invoices);
+        setCredits(c.credits);
+      })
+      .catch((e) => notify(e instanceof Error ? e.message : 'Unable to load billing ledger'));
+  useEffect(() => {
+    void load();
+  }, []);
+  async function reverse(p: Payment) {
+    const reason = window.prompt('Enter the payment reversal reason');
+    if (!reason) return;
+    try {
+      await mutate(`/billing/payments/${p.id}/reverse`, 'POST', { reason });
+      notify('Payment reversed');
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'Unable to reverse payment');
+    }
+  }
+  async function reverseCredit(c: Credit) {
+    const reason = window.prompt('Enter the credit note reversal reason');
+    if (!reason) return;
+    try {
+      await mutate(`/billing/credit-notes/${c.id}/reverse`, 'POST', { reason });
+      notify('Credit note reversed');
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'Unable to reverse credit note');
+    }
+  }
+  return (
+    <section>
+      <Heading
+        title="Payments and credits"
+        subtitle="Capture payments, allocate partial amounts and issue controlled credit notes."
+      />
+      <BillingNav />
+      <div className="section-title">
+        <div></div>
+        <button
+          className="btn"
+          onClick={() => {
+            setPaymentInvoice(null);
+            setCreating(true);
+          }}
+        >
+          ＋ Capture payment
+        </button>
+      </div>
+      <Card>
+        <h3>Payment history</h3>
+        {payments.length ? (
+          <div className="dashboard-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Account</th>
+                  <th>Provider</th>
+                  <th>Method / reference</th>
+                  <th>Amount</th>
+                  <th>Allocation</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.payment_date}</td>
+                    <td>{p.company_name || p.patient_name}</td>
+                    <td>{p.provider_name}</td>
+                    <td>
+                      {p.method}
+                      <div className="sub">{p.reference || 'No reference'}</div>
+                    </td>
+                    <td>{money(p.amount)}</td>
+                    <td>
+                      {money(p.amount - p.unallocated_amount)}
+                      <div className="sub">{money(p.unallocated_amount)} unallocated</div>
+                    </td>
+                    <td>
+                      <StatusPill status={p.status} />
+                    </td>
+                    <td>
+                      {p.status === 'Active' && (
+                        <button className="btn danger small" onClick={() => void reverse(p)}>
+                          Reverse
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty>No payments have been captured.</Empty>
+        )}
+      </Card>
+      <Card>
+        <h3>Outstanding invoices</h3>
+        <div className="dashboard-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Provider</th>
+                <th>Account</th>
+                <th>Outstanding</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices
+                .filter((i) => i.outstanding_balance > 0)
+                .map((i) => (
+                  <tr key={i.id}>
+                    <td>{i.invoice_number}</td>
+                    <td>{i.provider_name}</td>
+                    <td>{i.company_name || i.patient_name}</td>
+                    <td>{money(i.outstanding_balance)}</td>
+                    <td>
+                      <StatusPill status={i.status} />
+                    </td>
+                    <td>
+                      <div className="actions">
+                        <button
+                          type="button"
+                          className="btn small"
+                          disabled={['Void', 'Credited'].includes(i.status)}
+                          onClick={() => {
+                            setPaymentInvoice(i);
+                            setCreating(true);
+                          }}
+                        >
+                          Add payment
+                        </button>
+                        <button className="btn secondary small" onClick={() => setCrediting(i)}>
+                          Credit note
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <Card>
+        <h3>Credit note history</h3>
+        {credits.length ? (
+          <div className="dashboard-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Credit note</th>
+                  <th>Invoice</th>
+                  <th>Account</th>
+                  <th>Provider</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {credits.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.credit_date}</td>
+                    <td>
+                      <strong>{c.credit_note_number}</strong>
+                      <div className="sub">{c.reason}</div>
+                    </td>
+                    <td>{c.invoice_number}</td>
+                    <td>{c.company_name || c.patient_name}</td>
+                    <td>{c.provider_name}</td>
+                    <td>{money(c.amount)}</td>
+                    <td>
+                      <StatusPill status={c.status} />
+                    </td>
+                    <td>
+                      {c.status === 'Issued' && (
+                        <button className="btn danger small" onClick={() => void reverseCredit(c)}>
+                          Reverse
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty>No credit notes have been issued.</Empty>
+        )}
+      </Card>
+      {creating && (
+        <PaymentEditor
+          invoices={invoices}
+          initialInvoice={paymentInvoice}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false);
+            void load();
+          }}
+        />
+      )}
+      {crediting && (
+        <CreditEditor
+          invoice={crediting}
+          onClose={() => setCrediting(null)}
+          onSaved={() => {
+            setCrediting(null);
+            void load();
+          }}
+        />
+      )}
+    </section>
+  );
+}
