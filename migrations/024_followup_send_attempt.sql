@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE follow_ups
+  ADD COLUMN IF NOT EXISTS reminder_attempted_at TIMESTAMPTZ;
+
+COMMIT;

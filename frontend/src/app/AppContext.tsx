@@ -29,6 +29,15 @@ const emptyData: AppData = {
   registrations: [],
   auditLogs: [],
 };
+const followUpAttemptedStorageKey = 'wannatalkFollowUpAttemptedAppointments';
+function readFollowUpAttemptedIds() {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(followUpAttemptedStorageKey) || '[]');
+    return new Set(Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set<string>();
+  }
+}
 async function fetchData(user: User): Promise<AppData> {
   const [providers, patients, appointments, locations] = await Promise.all([
     api<{ providers: Omit<Provider, 'availability'>[] }>('/providers'),
@@ -59,6 +68,7 @@ async function fetchData(user: User): Promise<AppData> {
           api<{ auditLogs: AuditLog[] }>('/audit-logs'),
         ])
       : [{ registrations: [] }, { auditLogs: [] }];
+  const locallyAttempted = readFollowUpAttemptedIds();
   return {
     providers: withAvailability,
     patients: patients.patients,
@@ -66,6 +76,7 @@ async function fetchData(user: User): Promise<AppData> {
       ...a,
       appointment_date: a.appointment_date.slice(0, 10),
       appointment_time: a.appointment_time.slice(0, 5),
+      follow_up_attempted: Boolean(a.follow_up_attempted || locallyAttempted.has(a.id)),
     })),
     locations: locations.locations,
     registrations: registrations.registrations,
@@ -81,6 +92,7 @@ interface Context {
   acceptSession: (token: string, user: User) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
+  setAppointmentFollowUpAttempted: (appointmentId: string, attempted: boolean) => void;
   retry: () => void;
   notify: (message: string) => void;
   run: (work: () => Promise<unknown>, success?: string) => Promise<boolean>;
@@ -94,6 +106,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [toast, setToast] = useState('');
   const generation = useRef(0);
   const notify = useCallback((message: string) => setToast(message), []);
+  const setAppointmentFollowUpAttempted = useCallback((appointmentId: string, attempted: boolean) => {
+    const attemptedIds = readFollowUpAttemptedIds();
+    if (attempted) attemptedIds.add(appointmentId);
+    else attemptedIds.delete(appointmentId);
+    try {
+      localStorage.setItem(followUpAttemptedStorageKey, JSON.stringify([...attemptedIds]));
+    } catch {
+      // The in-memory mark still keeps the row green for this session.
+    }
+    setData((current) => ({
+      ...current,
+      appointments: current.appointments.map((appointment) =>
+        appointment.id === appointmentId
+          ? { ...appointment, follow_up_attempted: attempted }
+          : appointment,
+      ),
+    }));
+  }, []);
   useEffect(() => {
     if (toast) {
       const id = setTimeout(() => setToast(''), 5000);
@@ -207,6 +237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         acceptSession,
         logout,
         refresh,
+        setAppointmentFollowUpAttempted,
         retry: () => void restore(),
         notify,
         run,

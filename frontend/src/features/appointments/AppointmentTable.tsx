@@ -261,11 +261,11 @@ export default function AppointmentTable({
                 {user?.role !== 'patient' && (
                   <button
                     className="btn secondary small appointment-icon-action"
-                    data-tooltip={a.follow_up_sent ? 'Follow-up sent' : 'Send follow-up'}
-                    aria-label={a.follow_up_sent ? 'Follow-up sent' : 'Send follow-up'}
-                    onClick={() => navigate(`/${user?.role}/followups`, { state: { patientId: a.patient_id, providerId: a.provider_id } })}
+                    data-tooltip={a.follow_up_attempted ? 'Follow-up send attempted' : 'Send follow-up'}
+                    aria-label={a.follow_up_attempted ? 'Follow-up send attempted' : 'Send follow-up'}
+                    onClick={() => navigate(`/${user?.role}/followups?appointmentId=${encodeURIComponent(a.id)}`, { state: { patientId: a.patient_id, providerId: a.provider_id, appointmentId: a.id } })}
                   >
-                    <ActionIcon type="followup" done={Boolean(a.follow_up_sent)} />
+                    <ActionIcon type="followup" done={Boolean(a.follow_up_attempted)} />
                   </button>
                 )}
                 </div>

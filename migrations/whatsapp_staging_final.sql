@@ -30,6 +30,28 @@ ALTER TABLE public.communication_deliveries
   ADD CONSTRAINT communication_deliveries_channel_check
   CHECK (channel IN ('email', 'sms', 'whatsapp'));
 
+ALTER TABLE public.follow_ups
+  DROP CONSTRAINT IF EXISTS follow_ups_reminder_channels_check;
+ALTER TABLE public.follow_ups
+  ADD CONSTRAINT follow_ups_reminder_channels_check
+  CHECK (reminder_channels <@ ARRAY['email', 'sms', 'whatsapp']::TEXT[]);
+
+ALTER TABLE public.waiting_list_entries
+  DROP CONSTRAINT IF EXISTS waiting_list_entries_notification_channels_check;
+ALTER TABLE public.waiting_list_entries
+  ADD CONSTRAINT waiting_list_entries_notification_channels_check
+  CHECK (notification_channels <@ ARRAY['email', 'sms', 'whatsapp']::TEXT[]);
+
+ALTER TABLE public.follow_ups
+  ADD COLUMN IF NOT EXISTS appointment_id UUID REFERENCES public.appointments(id) ON DELETE SET NULL;
+
+ALTER TABLE public.follow_ups
+  ADD COLUMN IF NOT EXISTS reminder_attempted_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS follow_ups_appointment_sent_idx
+  ON public.follow_ups(appointment_id, reminder_sent_at)
+  WHERE appointment_id IS NOT NULL;
+
 DO $$
 DECLARE
   app_role TEXT;

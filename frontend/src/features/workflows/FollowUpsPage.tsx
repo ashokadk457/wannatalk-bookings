@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, Empty, Field, Heading, StatusPill } from '../../components/ui';
 import Modal from '../../components/Modal';
@@ -9,9 +9,11 @@ import { mutate } from '../../services/api';
 import { Channels, deliverySummary, PatientSelect, ProviderSelect, ResourceState } from './shared';
 import type { Delivery, FollowUp } from '../../types';
 export default function FollowUpsPage() {
-  const { user, run, notify } = useApp(),
+  const { user, run, notify, refresh, setAppointmentFollowUpAttempted } = useApp(),
     resource = useResource<{ followUps: FollowUp[] }>('/follow-ups'),
-    initial = useLocation().state as { patientId?: string; providerId?: string } | null;
+    initial = useLocation().state as { patientId?: string; providerId?: string; appointmentId?: string } | null,
+    [searchParams] = useSearchParams(),
+    appointmentId = initial?.appointmentId || searchParams.get('appointmentId') || undefined;
   const [open, setOpen] = useState(!!initial?.patientId),
     [patientId, setPatient] = useState(initial?.patientId || ''),
     [providerId, setProvider] = useState(
@@ -33,6 +35,7 @@ export default function FollowUpsPage() {
       await mutate('/follow-ups', 'POST', {
         patientId,
         providerId,
+        appointmentId,
         dueAt: new Date(`${date}T${time}`).toISOString(),
         internalNote: internal,
         reminderMessage: message,
@@ -46,7 +49,7 @@ export default function FollowUpsPage() {
     }
     setBusy(false);
   }
-  async function action(id: string, action: string) {
+  async function action(id: string, action: string, followUpAppointmentId?: string | null) {
     if (action === 'send' && !window.confirm('Send this follow-up reminder now?')) return;
     if (
       action === 'delete' &&
@@ -54,20 +57,38 @@ export default function FollowUpsPage() {
     )
       return;
     setBusy(true);
-    await run(async () => {
-      if (action === 'send') {
+    if (action === 'send') {
+      const linkedAppointmentId = followUpAppointmentId || appointmentId;
+      if (linkedAppointmentId) {
+        setAppointmentFollowUpAttempted(linkedAppointmentId, true);
+      }
+      let deliveries: Delivery[] = [];
+      const sent = await run(async () => {
         const result = await mutate<{ deliveries: Delivery[] }>(
           `/follow-ups/${id}/send`,
           'POST',
-          {},
+          { appointmentId: linkedAppointmentId },
         );
-        notify(deliverySummary(result.deliveries));
-      } else if (action === 'delete') {
-        await mutate(`/follow-ups/${id}`, 'DELETE');
-        notify('Follow-up deleted');
-      } else await mutate(`/follow-ups/${id}/status`, 'PATCH', { status: action });
-      await resource.reload();
-    });
+        deliveries = result.deliveries;
+      });
+      if (sent) {
+        notify(deliverySummary(deliveries));
+        await resource.reload();
+        try {
+          await refresh();
+        } catch {
+          // Keep the delivery result visible; the appointment list can refresh on next load.
+        }
+      }
+    } else {
+      await run(async () => {
+        if (action === 'delete') {
+          await mutate(`/follow-ups/${id}`, 'DELETE');
+          notify('Follow-up deleted');
+        } else await mutate(`/follow-ups/${id}/status`, 'PATCH', { status: action });
+        await resource.reload();
+      });
+    }
     setBusy(false);
   }
   return (
@@ -136,7 +157,7 @@ export default function FollowUpsPage() {
                                 disabled={busy}
                                 className="btn secondary small"
                                 key={a}
-                                onClick={() => void action(f.id, a)}
+                                onClick={() => void action(f.id, a, f.appointment_id)}
                               >
                                 {label}
                               </button>

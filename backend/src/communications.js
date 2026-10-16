@@ -21,7 +21,7 @@ export async function sendPatientCommunication({
 }) {
   const selectedChannels = cleanChannels(channels);
   if (!selectedChannels.length) {
-    const error = new Error('Choose Email, SMS, or both');
+    const error = new Error('Choose Email, SMS, WhatsApp, or any combination');
     error.statusCode = 400;
     throw error;
   }

@@ -3,7 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../src/db.js';
 
-const migrations = ['020_whatsapp_inbound.sql', '021_whatsapp_delivery_channel.sql'];
+const migrations = [
+  '020_whatsapp_inbound.sql',
+  '021_whatsapp_delivery_channel.sql',
+  '022_whatsapp_workflow_channels.sql',
+  '023_followup_appointment_link.sql',
+  '024_followup_send_attempt.sql',
+];
 
 try {
   for (const migration of migrations) {

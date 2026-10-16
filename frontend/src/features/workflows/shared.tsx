@@ -104,7 +104,10 @@ export function ResourceState({
     <p role="status">Loading…</p>
   ) : null;
 }
-export function deliverySummary(deliveries: { status: string }[]) {
-  const failed = deliveries.filter((d) => d.status !== 'sent').length;
-  return `Success · ${failed} failed`;
+export function deliverySummary(deliveries: { channel?: string; status: string; error_message?: string | null }[]) {
+  const sent = deliveries.filter((delivery) => delivery.status === 'sent').length;
+  const failed = deliveries.filter((delivery) => delivery.status !== 'sent');
+  const counts = `Follow-up: ${sent} success, ${failed.length} failed`;
+  const reasons = [...new Set(failed.map((delivery) => delivery.error_message).filter(Boolean))];
+  return reasons.length ? `${counts} (${reasons.join('; ')})` : counts;
 }

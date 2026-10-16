@@ -111,7 +111,7 @@ export interface Appointment {
   invoice_company_id?: string | null;
   invoice_billing_customer_type?: string | null;
   message_sent?: boolean;
-  follow_up_sent?: boolean;
+  follow_up_attempted?: boolean;
 }
 export interface Location {
   id: string;
@@ -210,6 +210,7 @@ export interface LoginResult extends RegistrationResult {
 }
 export interface FollowUp {
   id: string;
+  appointment_id?: string | null;
   patient_id: string;
   provider_id: string;
   patient_name: string;

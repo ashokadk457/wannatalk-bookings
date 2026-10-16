@@ -191,8 +191,33 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
             EXISTS (
               SELECT 1 FROM follow_ups fu
               WHERE fu.patient_id = a.patient_id AND fu.provider_id = a.provider_id
-                AND fu.reminder_sent_at IS NOT NULL AND fu.reminder_sent_at >= a.created_at
-            ) AS follow_up_sent
+                AND (
+                  fu.reminder_attempted_at IS NOT NULL
+                  OR
+                  fu.reminder_sent_at IS NOT NULL
+                  OR EXISTS (
+                    SELECT 1 FROM communication_deliveries cd
+                    WHERE cd.follow_up_id = fu.id AND cd.status = 'sent'
+                  )
+                )
+                AND (
+                  fu.appointment_id = a.id
+                  OR (
+                    fu.appointment_id IS NULL
+                    AND (
+                      fu.reminder_attempted_at >= a.created_at
+                      OR
+                      fu.reminder_sent_at >= a.created_at
+                      OR EXISTS (
+                        SELECT 1 FROM communication_deliveries cd
+                        WHERE cd.follow_up_id = fu.id
+                          AND cd.status = 'sent'
+                          AND cd.created_at >= a.created_at
+                      )
+                    )
+                  )
+                )
+            ) AS follow_up_attempted
      FROM appointments a
      JOIN patients pat ON pat.id = a.patient_id
      JOIN app_users pu ON pu.id = pat.user_id

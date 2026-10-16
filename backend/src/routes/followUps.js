@@ -40,6 +40,7 @@ followUpsRouter.get('/', authRequired(['admin', 'provider']), async (req, res) =
 followUpsRouter.post('/', authRequired(['admin', 'provider']), async (req, res) => {
   const patientId = String(req.body.patientId || '');
   let providerId = String(req.body.providerId || '');
+  const appointmentId = String(req.body.appointmentId || '') || null;
   const dueAt = new Date(req.body.dueAt);
   const internalNote = String(req.body.internalNote || '').trim().slice(0, 2000);
   const reminderMessage = String(req.body.reminderMessage || '').trim().slice(0, 1000);
@@ -49,11 +50,18 @@ followUpsRouter.post('/', authRequired(['admin', 'provider']), async (req, res) 
     if (!providerId || !(await providerOwnsPatient(providerId, patientId))) return res.status(403).json({ error: 'You may only create follow-ups for your own patients' });
   }
   if (!patientId || !providerId || Number.isNaN(dueAt.getTime())) return res.status(400).json({ error: 'Patient, provider, follow-up date, and time are required' });
+  if (appointmentId) {
+    const appointment = await query(
+      `SELECT 1 FROM appointments WHERE id = $1 AND patient_id = $2 AND provider_id = $3`,
+      [appointmentId, patientId, providerId]
+    );
+    if (!appointment.rows[0]) return res.status(400).json({ error: 'Selected appointment does not match this patient and provider' });
+  }
   const result = await query(
-    `INSERT INTO follow_ups (patient_id, provider_id, created_by_user_id, due_at, internal_note, reminder_message, reminder_channels)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::text[])
+    `INSERT INTO follow_ups (patient_id, provider_id, appointment_id, created_by_user_id, due_at, internal_note, reminder_message, reminder_channels)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::text[])
      RETURNING *`,
-    [patientId, providerId, req.user.id, dueAt.toISOString(), internalNote || null, reminderMessage || null, reminderChannels]
+    [patientId, providerId, appointmentId, req.user.id, dueAt.toISOString(), internalNote || null, reminderMessage || null, reminderChannels]
   );
   await query(
     `INSERT INTO audit_logs (user_id, user_name, user_role, action, details)
@@ -122,6 +130,21 @@ followUpsRouter.post('/:id/send', authRequired(['admin', 'provider']), async (re
   );
   const followUp = followUpResult.rows[0];
   if (!followUp) return res.status(404).json({ error: 'Follow-up not found' });
+  const requestedAppointmentId = String(req.body.appointmentId || '') || followUp.appointment_id || null;
+  if (requestedAppointmentId) {
+    const appointmentResult = await query(
+      `SELECT 1 FROM appointments WHERE id = $1 AND patient_id = $2 AND provider_id = $3`,
+      [requestedAppointmentId, followUp.patient_id, followUp.provider_id]
+    );
+    if (!appointmentResult.rows[0]) return res.status(400).json({ error: 'Selected appointment does not match this follow-up' });
+    if (followUp.appointment_id && followUp.appointment_id !== requestedAppointmentId) {
+      return res.status(400).json({ error: 'This follow-up is already linked to another appointment' });
+    }
+    if (!followUp.appointment_id) {
+      await query(`UPDATE follow_ups SET appointment_id = $2, updated_at = now() WHERE id = $1`, [followUp.id, requestedAppointmentId]);
+    }
+  }
+  await query(`UPDATE follow_ups SET reminder_attempted_at = now(), updated_at = now() WHERE id = $1`, [followUp.id]);
   const channels = cleanChannels(req.body.channels?.length ? req.body.channels : followUp.reminder_channels);
   const message = String(req.body.message || followUp.reminder_message || 'WannaTalk reminder: please contact us to arrange your recommended follow-up session.').trim().slice(0, 1000);
   const delivery = await sendPatientCommunication({ patientId: followUp.patient_id, providerId: followUp.provider_id, followUpId: followUp.id, sentByUserId: req.user.id, channels, subject: 'WannaTalk follow-up reminder', message });

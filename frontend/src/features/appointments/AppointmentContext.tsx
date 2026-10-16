@@ -591,10 +591,11 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
                     className="btn secondary btn-with-icon"
                     onClick={() => {
                       close();
-                      navigate(`/${user?.role}/followups`, {
+                      navigate(`/${user?.role}/followups?appointmentId=${encodeURIComponent(appointment.id)}`, {
                         state: {
                           patientId: appointment.patient_id,
                           providerId: appointment.provider_id,
+                          appointmentId: appointment.id,
                         },
                       });
                     }}
