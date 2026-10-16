@@ -102,6 +102,16 @@ export interface Appointment {
   provider_mobile: string | null;
   professional_title: string;
   location_name: string | null;
+  invoice_id?: string | null;
+  invoice_number?: string | null;
+  invoice_status?: string | null;
+  outstanding_balance?: number | null;
+  invoice_provider_id?: string | null;
+  invoice_patient_id?: string | null;
+  invoice_company_id?: string | null;
+  invoice_billing_customer_type?: string | null;
+  message_sent?: boolean;
+  follow_up_sent?: boolean;
 }
 export interface Location {
   id: string;

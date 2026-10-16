@@ -4,7 +4,7 @@ import Modal from '../../components/Modal';
 import { Card, Empty, Field, Heading, StatusPill } from '../../components/ui';
 import { api, mutate } from '../../services/api';
 import BillingNav from './BillingNav';
-interface Invoice {
+export interface Invoice {
   id: string;
   invoice_number: string;
   provider_id: string;
@@ -51,7 +51,7 @@ interface Credit {
 const today = () => new Date().toISOString().slice(0, 10);
 const money = (x: number) =>
   `R ${x.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-function PaymentEditor({
+export function PaymentEditor({
   invoices,
   initialInvoice,
   onClose,
@@ -81,7 +81,8 @@ function PaymentEditor({
       initialInvoice ? { [initialInvoice.id]: String(initialInvoice.outstanding_balance) } : {},
     ),
     [companies, setCompanies] = useState<Company[]>([]),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
   useEffect(() => {
     api<{ companies: Company[] }>('/billing/companies').then((x) =>
       setCompanies(x.companies.filter((c) => c.is_active)),
@@ -114,6 +115,7 @@ function PaymentEditor({
   }
   async function save(e: FormEvent) {
     e.preventDefault();
+    setError('');
     setBusy(true);
     try {
       await mutate('/billing/payments', 'POST', {
@@ -133,7 +135,7 @@ function PaymentEditor({
       notify('Payment captured and balances updated');
       onSaved();
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Unable to capture payment');
+      setError(error instanceof Error ? error.message : 'Unable to capture payment');
     } finally {
       setBusy(false);
     }
@@ -141,6 +143,7 @@ function PaymentEditor({
   return (
     <Modal title="Capture payment" className="payment-dialog" onClose={onClose}>
       <form className="payment-editor" onSubmit={save}>
+        {error && <p className="payment-editor-error" role="alert">{error}</p>}
         <div className="form-grid">
           <Field label="Provider">
             <select
@@ -169,10 +172,10 @@ function PaymentEditor({
               }}
             >
               <option value="patient">Patient</option>
-              <option value="company">Company</option>
+              <option value="company">Financially Responsible Party</option>
             </select>
           </Field>
-          <Field label={type === 'company' ? 'Company' : 'Patient'}>
+          <Field label={type === 'company' ? 'Financially Responsible Party' : 'Patient'}>
             <select
               required
               value={customerId}

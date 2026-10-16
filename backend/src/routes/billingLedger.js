@@ -28,6 +28,11 @@ billingLedgerRouter.get('/overview',authRequired(['admin']),asyncHandler(async(r
 
 billingLedgerRouter.get('/payments',authRequired(['admin']),asyncHandler(async(req,res)=>{const result=await query(`SELECT p.*,u.full_name patient_name,c.registered_name company_name,pu.full_name provider_name,COALESCE(json_agg(json_build_object('invoiceId',i.id,'invoiceNumber',i.invoice_number,'amount',a.amount)) FILTER(WHERE a.id IS NOT NULL),'[]') allocations FROM billing_payments p JOIN providers pr ON pr.id=p.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN patients pt ON pt.id=p.patient_id LEFT JOIN app_users u ON u.id=pt.user_id LEFT JOIN billing_companies c ON c.id=p.company_id LEFT JOIN billing_payment_allocations a ON a.payment_id=p.id LEFT JOIN invoices i ON i.id=a.invoice_id GROUP BY p.id,u.full_name,c.registered_name,pu.full_name ORDER BY p.payment_date DESC,p.created_at DESC`);res.json({payments:result.rows.map(x=>({...x,amount:Number(x.amount),unallocated_amount:Number(x.unallocated_amount)}))});}));
 
+billingLedgerRouter.get('/invoices/:invoiceId/payments',authRequired(['admin']),asyncHandler(async(req,res)=>{
+  const result=await query(`SELECT p.id,p.payment_date::date::text AS payment_date,a.amount AS allocated_amount,p.amount AS payment_amount,p.method,p.reference,p.notes,p.status,p.reversal_reason FROM billing_payment_allocations a JOIN billing_payments p ON p.id=a.payment_id WHERE a.invoice_id=$1 ORDER BY p.payment_date DESC,p.created_at DESC`,[req.params.invoiceId]);
+  res.json({payments:result.rows.map(p=>({...p,allocated_amount:Number(p.allocated_amount),payment_amount:Number(p.payment_amount)}))});
+}));
+
 billingLedgerRouter.post('/payments',authRequired(['admin']),asyncHandler(async(req,res)=>{
   const amount=cash(req.body.amount),paymentDate=date(req.body.paymentDate),providerId=String(req.body.providerId||''),type=req.body.customerType==='company'?'company':'patient',customerId=String(req.body.customerId||''),allocations=Array.isArray(req.body.allocations)?req.body.allocations:[];
   if(!amount||amount<=0||!paymentDate||!providerId||!customerId)throw fail('Provider, customer, payment date and a valid amount are required');

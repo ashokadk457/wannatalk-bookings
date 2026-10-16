@@ -17,6 +17,7 @@ const Appointments = lazy(() => import('../features/admin/AppointmentsPage'));
 const Registrations = lazy(() => import('../features/admin/RegistrationsPage'));
 const Audit = lazy(() => import('../features/admin/AuditPage'));
 const Health = lazy(() => import('../features/admin/HealthPage'));
+const WhatsAppTest = lazy(() => import('../features/admin/WhatsAppTestPage'));
 const Messages = lazy(() => import('../features/workflows/MessagesPage'));
 const AppointmentMessages = lazy(() => import('../features/workflows/AppointmentMessagesPage'));
 const AutomaticReminders = lazy(() => import('../features/provider/AutomaticRemindersPage'));
@@ -104,6 +105,7 @@ export default function Router() {
           <Route path="registrations" element={<Registrations />} />
           <Route path="audit" element={<Audit />} />
           <Route path="health" element={<Health />} />
+          <Route path="whatsapp-test" element={<WhatsAppTest />} />
           <Route path="messages" element={<Messages />} />
           <Route path="appointment-messages" element={<AppointmentMessages />} />
           <Route path="followups" element={<FollowUps />} />

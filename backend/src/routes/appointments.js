@@ -181,13 +181,35 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
             a.note, a.intake_requested, a.meeting_url, a.created_at, a.updated_at,
             pu.full_name AS patient_name, pu.email AS patient_email, pu.mobile AS patient_mobile,
             pr.full_name AS provider_name, pr.email AS provider_email, pr.mobile AS provider_mobile,
-            pro.professional_title, l.name AS location_name
+            pro.professional_title, l.name AS location_name,
+            inv.invoice_id, inv.invoice_number, inv.invoice_status, inv.outstanding_balance,
+            EXISTS (
+              SELECT 1 FROM communication_deliveries cd
+              WHERE cd.patient_id = a.patient_id AND cd.provider_id = a.provider_id
+                AND cd.status = 'sent' AND cd.created_at >= a.created_at
+            ) AS message_sent,
+            EXISTS (
+              SELECT 1 FROM follow_ups fu
+              WHERE fu.patient_id = a.patient_id AND fu.provider_id = a.provider_id
+                AND fu.reminder_sent_at IS NOT NULL AND fu.reminder_sent_at >= a.created_at
+            ) AS follow_up_sent
      FROM appointments a
      JOIN patients pat ON pat.id = a.patient_id
      JOIN app_users pu ON pu.id = pat.user_id
      JOIN providers pro ON pro.id = a.provider_id
      JOIN app_users pr ON pr.id = pro.user_id
      LEFT JOIN locations l ON l.id = a.location_id
+     LEFT JOIN LATERAL (
+       SELECT i.id AS invoice_id, i.invoice_number, i.status AS invoice_status,
+              i.outstanding_balance, i.provider_id AS invoice_provider_id,
+              i.patient_id AS invoice_patient_id, i.company_id AS invoice_company_id,
+              i.billing_customer_type AS invoice_billing_customer_type
+       FROM invoice_items ii
+       JOIN invoices i ON i.id = ii.invoice_id
+       WHERE ii.appointment_id = a.id AND i.status NOT IN ('Void', 'Credited')
+       ORDER BY i.created_at DESC
+       LIMIT 1
+     ) inv ON true
      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
      ORDER BY a.appointment_date, a.appointment_time`,
     params

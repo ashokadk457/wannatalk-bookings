@@ -21,6 +21,8 @@ import { registrationsRouter } from './routes/registrations.js';
 import { waitingListRouter } from './routes/waitingList.js';
 import { reminderTemplatesRouter } from './routes/reminderTemplates.js';
 import { automaticRemindersRouter } from './routes/automaticReminders.js';
+import { whatsappInboundRouter } from './routes/whatsappInbound.js';
+import { whatsappTestRouter } from './routes/whatsappTest.js';
 import { startAutomaticReminders } from './automaticReminders.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 
@@ -31,7 +33,7 @@ const allowedOrigins = String(process.env.CORS_ORIGIN || '').split(',').map((ori
 app.set('trust proxy', 'loopback');
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : true }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '1mb', verify: (req, _res, body) => { req.rawBody = Buffer.from(body); } }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use('/api/uploads', express.static(fileURLToPath(new URL('../uploads/', import.meta.url)), { fallthrough: false, maxAge: '1y', immutable: true }));
 
@@ -52,6 +54,8 @@ app.use('/api/audit-logs', auditLogsRouter);
 app.use('/api/billing/companies', billingCompaniesRouter);
 app.use('/api/billing', billingLedgerRouter);
 app.use('/api/communications', communicationsRouter);
+app.use('/api/whatsapp-inbound', whatsappInboundRouter);
+app.use('/api/whatsapp-test', whatsappTestRouter);
 app.use('/api/reminder-templates', reminderTemplatesRouter);
 app.use('/api/automatic-reminders', automaticRemindersRouter);
 app.use('/api/follow-ups', followUpsRouter);

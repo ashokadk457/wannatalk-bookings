@@ -105,6 +105,6 @@ export function ResourceState({
   ) : null;
 }
 export function deliverySummary(deliveries: { status: string }[]) {
-  const sent = deliveries.filter((d) => d.status === 'sent').length;
-  return `${sent} delivered · ${deliveries.length - sent} failed`;
+  const failed = deliveries.filter((d) => d.status !== 'sent').length;
+  return `Success · ${failed} failed`;
 }

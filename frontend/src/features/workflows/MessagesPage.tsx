@@ -288,7 +288,7 @@ export default function MessagesPage({
           <div className="notice">
             Only the message entered here is sent. Private follow-up notes are never included.
           </div>
-          <p>Delivery status depends on the configured Email and SMS services.</p>
+          <p>Delivery status depends on the configured Email, SMS, and WhatsApp services.</p>
         </Card>
       </div>
       <Card title="Delivery history" className="space-top">

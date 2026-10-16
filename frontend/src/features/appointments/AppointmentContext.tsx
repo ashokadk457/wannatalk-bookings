@@ -59,6 +59,43 @@ const LOCAL_STYLES = `
     width: 16px;
     height: 16px;
   }
+  .app .appointment-icon-action {
+    position: relative;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+  .app .appointment-icon-action > svg {
+    width: 17px;
+    height: 17px;
+  }
+  .app .appointment-icon-action::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    z-index: 30;
+    left: 50%;
+    bottom: calc(100% + 7px);
+    transform: translate(-50%, 3px);
+    padding: 5px 8px;
+    border-radius: 5px;
+    background: #123d2d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .12s ease, transform .12s ease;
+  }
+  .app .appointment-icon-action:hover::after,
+  .app .appointment-icon-action:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+  }
   @media (max-width: 480px) {
     .booking-dialog .detail-row {
       grid-template-columns: 20px 1fr;
@@ -195,6 +232,12 @@ const Icon = {
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
     </svg>
   ),
+  View: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
 };
 
 /* =================================================================
@@ -215,6 +258,23 @@ function DetailRow({
       <span className="detail-label">{label}</span>
       <strong className="detail-value">{value}</strong>
     </div>
+  );
+}
+
+function invoicePaymentDetails(appointment: Appointment): ReactNode {
+  if (!appointment.invoice_id) return appointment.payment_status;
+  const balance = Number(appointment.outstanding_balance || 0);
+  const status = balance <= 0
+    ? 'Payment done'
+    : appointment.invoice_status === 'Overdue'
+      ? 'Payment overdue'
+      : 'Payment due';
+  return (
+    <>
+      {status}
+      {balance > 0 && <div className="sub">R {balance.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} outstanding</div>}
+      {appointment.invoice_number && <div className="sub">{appointment.invoice_number}</div>}
+    </>
   );
 }
 
@@ -426,7 +486,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
             />
             <DetailRow icon={<Icon.Type />}     label="Type"             value={appointment.appointment_type} />
             <DetailRow icon={<Icon.Location />} label="Location / mode"  value={appointment.location_name || appointment.mode} />
-            <DetailRow icon={<Icon.Payment />}  label="Payment"          value={appointment.payment_status} />
+            <DetailRow icon={<Icon.Payment />}  label="Payment"          value={invoicePaymentDetails(appointment)} />
 
             <div className="detail-row">
               <span className="detail-icon" aria-hidden="true"><Icon.Status /></span>
@@ -578,16 +638,17 @@ export function AppointmentActions({
       {user?.role === 'admin' && active(a) && (
         <button
           disabled={actions.busy}
-          className={`btn secondary${view ? ' small' : ''} btn-with-icon`}
+          className={`btn secondary small appointment-icon-action`}
+          data-tooltip="Edit appointment"
+          aria-label="Edit appointment"
           onClick={() => actions.edit(a)}
         >
           <Icon.Repeat />
-          <span>Edit</span>
         </button>
       )}
       {view && (
-        <button className="btn secondary small" onClick={() => actions.open(a)}>
-          View
+        <button className="btn secondary small appointment-icon-action" data-tooltip="View appointment" aria-label="View appointment" onClick={() => actions.open(a)}>
+          <Icon.View />
         </button>
       )}
       {active(a) && (
@@ -595,31 +656,34 @@ export function AppointmentActions({
           {rescheduleAllowed(a.appointment_date, a.appointment_time) && (
             <button
               disabled={actions.busy}
-              className="btn secondary small btn-with-icon"
+              className="btn secondary small appointment-icon-action"
+              data-tooltip="Reschedule appointment"
+              aria-label="Reschedule appointment"
               onClick={() => actions.open(a, true)}
             >
               <Icon.Repeat />
-              <span>Reschedule</span>
             </button>
           )}
           <button
             disabled={actions.busy}
-            className="btn danger small btn-with-icon"
+            className="btn danger small appointment-icon-action"
+            data-tooltip="Cancel appointment"
+            aria-label="Cancel appointment"
             onClick={() => void actions.cancel(a)}
           >
             <Icon.Close />
-            <span>Cancel</span>
           </button>
         </>
       )}
       {user?.role === 'admin' && (
         <button
           disabled={actions.busy}
-          className="btn danger small btn-with-icon"
+          className="btn danger small appointment-icon-action"
+          data-tooltip="Delete appointment"
+          aria-label="Delete appointment"
           onClick={() => void actions.remove(a)}
         >
           <Icon.Delete />
-          <span>Delete</span>
         </button>
       )}
     </div>
