@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DateRange } from '@daypicker/react';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, Heading } from '../../components/ui';
@@ -14,11 +14,15 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
     [status, setStatus] = useState(''),
     [range, setRange] = useState<DateRange | undefined>(undefined),
     [sort, setSort] = useState('soonest'),
-    [create, setCreate] = useState(false);
+    [create, setCreate] = useState(false),
+    [page, setPage] = useState(1),
+    [pageSize, setPageSize] = useState(25);
   const apps = data.appointments
     .filter(
       (a) =>
-        (!cancellations || ['Cancelled', 'No-show'].includes(a.status)) &&
+        (cancellations
+          ? ['Cancelled', 'No-show'].includes(a.status)
+          : a.status !== 'Cancelled') &&
         (!provider || a.provider_id === provider) &&
         (!status || a.status === status) &&
         (!range?.from || a.appointment_date >= isoDate(range.from)) &&
@@ -33,6 +37,16 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
           b.appointment_date + b.appointment_time,
         ) * (sort === 'latest' ? -1 : 1),
     );
+  const pageCount = Math.max(1, Math.ceil(apps.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visibleApps = apps.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, provider, status, range, sort, cancellations]);
   return (
     <section>
       <div className="section-title">
@@ -76,9 +90,11 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
           <Field label="Status filter">
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">All statuses</option>
-              {statuses.map((s) => (
+              {statuses
+                .filter((s) => cancellations || s !== 'Cancelled')
+                .map((s) => (
                 <option key={s}>{s}</option>
-              ))}
+                ))}
             </select>
           </Field>
           <DateRangeFilter value={range} onChange={setRange} />
@@ -88,8 +104,49 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               <option value="latest">Latest first</option>
             </select>
           </Field>
+          <Field label="Rows per page">
+            <select
+              className="pagination_select"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </Field>
         </div>
-        <AppointmentTable appointments={apps} editable bulkMessaging fullInvoiceEditor />
+        <AppointmentTable appointments={visibleApps} editable bulkMessaging fullInvoiceEditor />
+        {apps.length > 0 && (
+          <div className="pagination-controls">
+            <span>
+              Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, apps.length)} of {apps.length}
+            </span>
+            <div className="actions">
+              <button
+                type="button"
+                className="btn secondary small"
+                disabled={currentPage === 1}
+                onClick={() => setPage(Math.max(1, currentPage - 1))}
+              >
+                Previous
+              </button>
+              <span className="pill">Page {currentPage} of {pageCount}</span>
+              <button
+                type="button"
+                className="btn secondary small"
+                disabled={currentPage === pageCount}
+                onClick={() => setPage(Math.min(pageCount, currentPage + 1))}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
       {create && <BookingCreator onClose={() => setCreate(false)} />}
     </section>
