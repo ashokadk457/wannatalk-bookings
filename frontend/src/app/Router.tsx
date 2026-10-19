@@ -27,6 +27,7 @@ const Waiting = lazy(() => import('../features/workflows/WaitingPage'));
 const ProviderBillingProfiles = lazy(() => import('../features/billing/ProviderBillingProfilesPage'));
 const BillingCompanies = lazy(() => import('../features/billing/CompaniesPage'));
 const BillingInvoices = lazy(() => import('../features/billing/InvoicesPage'));
+const BillingOutstanding = lazy(() => import('../features/billing/OutstandingPage'));
 const BillingOverview = lazy(() => import('../features/billing/BillingOverviewPage'));
 const BillingStatements = lazy(() => import('../features/billing/StatementsPage'));
 const BillingPayments = lazy(() => import('../features/billing/PaymentsPage'));
@@ -99,6 +100,7 @@ export default function Router() {
           <Route path="billing/providers" element={<ProviderBillingProfiles />} />
           <Route path="billing/companies" element={<BillingCompanies />} />
           <Route path="billing/invoices" element={<BillingInvoices />} />
+          <Route path="billing/outstanding" element={<BillingOutstanding />} />
           <Route path="billing/statements" element={<BillingStatements />} />
           <Route path="billing/payments" element={<BillingPayments />} />
           <Route path="billing/audit" element={<BillingAudit />} />
