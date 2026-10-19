@@ -1,77 +1,602 @@
-import { Router } from 'express';
-import { query, withTransaction } from '../db.js';
-import { authRequired } from '../middleware/authRequired.js';
-import { generateHtmlPdf } from '../invoice.js';
+import { Router } from "express";
+import { query, withTransaction } from "../db.js";
+import { authRequired } from "../middleware/authRequired.js";
+import { generateHtmlPdf } from "../invoice.js";
 
-export const billingLedgerRouter=Router();
-const asyncHandler=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
-const fail=message=>Object.assign(new Error(message),{statusCode:400});
-const cash=value=>Math.round(Number(value)*100)/100;
-const date=value=>/^\d{4}-\d{2}-\d{2}$/.test(String(value||''))?String(value):null;
-const actor=user=>user.name||user.email||'Administrator';
-const html=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const formatMoney=value=>`R ${Number(value||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-async function audit(client,user,action,details){await client.query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,$4,$5::jsonb)`,[user.id,actor(user),user.role,action,JSON.stringify(details)]);}
-async function refreshInvoice(client,id){
-  const result=await client.query(`SELECT i.total_amount,COALESCE((SELECT SUM(pa.amount) FROM billing_payment_allocations pa JOIN billing_payments p ON p.id=pa.payment_id WHERE pa.invoice_id=i.id AND p.status='Active'),0) paid,COALESCE((SELECT SUM(c.amount) FROM billing_credit_notes c WHERE c.invoice_id=i.id AND c.status='Issued'),0) credited,i.due_at,i.due_date FROM invoices i WHERE i.id=$1 FOR UPDATE`,[id]);
-  if(!result.rows[0])throw fail('Invoice not found');const row=result.rows[0],outstanding=Math.max(0,cash(Number(row.total_amount)-Number(row.paid)-Number(row.credited)));
-  const status=Number(row.credited)>=Number(row.total_amount)?'Credited':outstanding===0?'Paid':Number(row.paid)>0||Number(row.credited)>0?'Part Paid':new Date(row.due_at||`${row.due_date}T23:59:59+02:00`)<new Date()?'Overdue':'Issued';
-  await client.query(`UPDATE invoices SET payments_received=$1,outstanding_balance=$2,status=$3,updated_at=now() WHERE id=$4`,[row.paid,outstanding,status,id]);return outstanding;
+export const billingLedgerRouter = Router();
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+const fail = (message) =>
+  Object.assign(new Error(message), { statusCode: 400 });
+const cash = (value) => Math.round(Number(value) * 100) / 100;
+const date = (value) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? String(value) : null;
+const actor = (user) => user.name || user.email || "Administrator";
+const html = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+const formatMoney = (value) =>
+  `R ${Number(value || 0).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+async function audit(client, user, action, details) {
+  await client.query(
+    `INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,$4,$5::jsonb)`,
+    [user.id, actor(user), user.role, action, JSON.stringify(details)],
+  );
 }
-function accountWhere(providerId,type,customerId,startIndex=1){return type==='company'?{sql:`provider_id=$${startIndex} AND company_id=$${startIndex+1}`,params:[providerId,customerId]}:{sql:`provider_id=$${startIndex} AND customer_type='patient' AND patient_id=$${startIndex+1}`,params:[providerId,customerId]};}
+async function refreshInvoice(client, id) {
+  const result = await client.query(
+    `SELECT i.total_amount,COALESCE((SELECT SUM(pa.amount) FROM billing_payment_allocations pa JOIN billing_payments p ON p.id=pa.payment_id WHERE pa.invoice_id=i.id AND p.status='Active'),0) paid,COALESCE((SELECT SUM(c.amount) FROM billing_credit_notes c WHERE c.invoice_id=i.id AND c.status='Issued'),0) credited,i.due_at,i.due_date FROM invoices i WHERE i.id=$1 FOR UPDATE`,
+    [id],
+  );
+  if (!result.rows[0]) throw fail("Invoice not found");
+  const row = result.rows[0],
+    outstanding = Math.max(
+      0,
+      cash(Number(row.total_amount) - Number(row.paid) - Number(row.credited)),
+    );
+  const status =
+    Number(row.credited) >= Number(row.total_amount)
+      ? "Credited"
+      : outstanding === 0
+        ? "Paid"
+        : Number(row.paid) > 0 || Number(row.credited) > 0
+          ? "Part Paid"
+          : new Date(row.due_at || `${row.due_date}T23:59:59+02:00`) <
+              new Date()
+            ? "Overdue"
+            : "Issued";
+  await client.query(
+    `UPDATE invoices SET payments_received=$1,outstanding_balance=$2,status=$3,updated_at=now() WHERE id=$4`,
+    [row.paid, outstanding, status, id],
+  );
+  return outstanding;
+}
+function accountWhere(providerId, type, customerId, startIndex = 1) {
+  return type === "company"
+    ? {
+        sql: `provider_id=$${startIndex} AND company_id=$${startIndex + 1}`,
+        params: [providerId, customerId],
+      }
+    : {
+        sql: `provider_id=$${startIndex} AND customer_type='patient' AND patient_id=$${startIndex + 1}`,
+        params: [providerId, customerId],
+      };
+}
 
-billingLedgerRouter.get('/overview',authRequired(['admin']),asyncHandler(async(req,res)=>{
-  await query(`UPDATE invoices SET status='Overdue',updated_at=now() WHERE status='Issued' AND outstanding_balance>0 AND due_at<now()`);
-  const result=await query(`SELECT COALESCE(SUM(total_amount),0) invoiced,COALESCE(SUM(payments_received),0) paid,COALESCE(SUM(outstanding_balance),0) outstanding,COUNT(*)::int invoice_count,COUNT(*) FILTER(WHERE status='Paid')::int paid_count,COUNT(*) FILTER(WHERE status='Issued')::int due_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Issued'),0) due_amount,COUNT(*) FILTER(WHERE status='Overdue')::int overdue_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Overdue'),0) overdue_amount,COUNT(*) FILTER(WHERE status='Part Paid')::int partially_paid_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Part Paid'),0) partially_paid_amount,COUNT(*) FILTER(WHERE status='Credited')::int credited_count,COALESCE(SUM(total_amount) FILTER(WHERE status='Credited'),0) credited_amount,COUNT(*) FILTER(WHERE billing_review)::int billing_review_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE billing_review),0) billing_review_amount FROM invoices WHERE status NOT IN('Void')`);
-  const payments=await query(`SELECT COALESCE(SUM(amount),0) received,COALESCE(SUM(unallocated_amount),0) unallocated FROM billing_payments WHERE status='Active'`);
-  const creditTotals=await query(`SELECT COUNT(*)::int credited_count,COALESCE(SUM(amount),0) credited_amount FROM billing_credit_notes WHERE status='Issued'`);
-  const overdue=await query(`SELECT i.id,i.invoice_number,u.full_name patient_name,a.appointment_date::text,i.outstanding_balance,GREATEST(0,FLOOR(EXTRACT(EPOCH FROM (now()-i.due_at))/86400))::int days_overdue FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN LATERAL(SELECT COALESCE(ap.appointment_date,ii.service_date) appointment_date FROM invoice_items ii LEFT JOIN appointments ap ON ap.id=ii.appointment_id WHERE ii.invoice_id=i.id ORDER BY ii.created_at LIMIT 1)a ON true WHERE i.status='Overdue' ORDER BY i.due_at LIMIT 5`);
-  const upcoming=await query(`SELECT a.id appointment_id,a.appointment_date::text,a.appointment_time::time::text appointment_time,a.payment_status,u.full_name patient_name,pu.full_name provider_name,i.id invoice_id,i.invoice_number,i.total_amount,i.outstanding_balance,i.status,i.billing_review FROM appointments a JOIN patients p ON p.id=a.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=a.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN LATERAL(SELECT iv.* FROM invoice_items ii JOIN invoices iv ON iv.id=ii.invoice_id WHERE ii.appointment_id=a.id AND iv.status NOT IN('Void','Credited') ORDER BY iv.created_at DESC LIMIT 1)i ON true WHERE (a.appointment_date+a.appointment_time)>=now() AND a.status NOT IN('Cancelled','No-show') AND i.id IS NULL ORDER BY a.appointment_date,a.appointment_time LIMIT 5`);
-  const credits=await query(`SELECT c.id,c.credit_note_number,i.id invoice_id,i.invoice_number,u.full_name patient_name,c.amount,c.reason,c.credit_date::text FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id JOIN patients p ON p.id=c.patient_id JOIN app_users u ON u.id=p.user_id WHERE c.status='Issued' ORDER BY c.credit_date DESC,c.created_at DESC LIMIT 5`);
-  res.json({summary:{...result.rows[0],...payments.rows[0],...creditTotals.rows[0]},overdue:overdue.rows.map(x=>({...x,outstanding_balance:Number(x.outstanding_balance)})),upcoming:upcoming.rows.map(x=>({...x,total_amount:Number(x.total_amount||0),outstanding_balance:Number(x.outstanding_balance||0)})),credits:credits.rows.map(x=>({...x,amount:Number(x.amount)}))});
-}));
+billingLedgerRouter.get(
+  "/overview",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    await query(
+      `UPDATE invoices SET status='Overdue',updated_at=now() WHERE status='Issued' AND outstanding_balance>0 AND due_at<now()`,
+    );
+    const result = await query(
+      `SELECT COALESCE(SUM(total_amount),0) invoiced,COALESCE(SUM(payments_received),0) paid,COALESCE(SUM(outstanding_balance),0) outstanding,COUNT(*)::int invoice_count,COUNT(*) FILTER(WHERE status='Paid')::int paid_count,COUNT(*) FILTER(WHERE status='Issued')::int due_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Issued'),0) due_amount,COUNT(*) FILTER(WHERE status='Overdue')::int overdue_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Overdue'),0) overdue_amount,COUNT(*) FILTER(WHERE status='Part Paid')::int partially_paid_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Part Paid'),0) partially_paid_amount,COUNT(*) FILTER(WHERE status='Credited')::int credited_count,COALESCE(SUM(total_amount) FILTER(WHERE status='Credited'),0) credited_amount,COUNT(*) FILTER(WHERE billing_review)::int billing_review_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE billing_review),0) billing_review_amount FROM invoices WHERE status NOT IN('Void')`,
+    );
+    const payments = await query(
+      `SELECT COALESCE(SUM(amount),0) received,COALESCE(SUM(unallocated_amount),0) unallocated FROM billing_payments WHERE status='Active'`,
+    );
+    const creditTotals = await query(
+      `SELECT COUNT(*)::int credited_count,COALESCE(SUM(amount),0) credited_amount FROM billing_credit_notes WHERE status='Issued'`,
+    );
+    const overdue = await query(
+      `SELECT i.id,i.invoice_number,u.full_name patient_name,a.appointment_date::text,i.outstanding_balance,GREATEST(0,FLOOR(EXTRACT(EPOCH FROM (now()-i.due_at))/86400))::int days_overdue FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN LATERAL(SELECT COALESCE(ap.appointment_date,ii.service_date) appointment_date FROM invoice_items ii LEFT JOIN appointments ap ON ap.id=ii.appointment_id WHERE ii.invoice_id=i.id ORDER BY ii.created_at LIMIT 1)a ON true WHERE i.status='Overdue' ORDER BY i.due_at`,
+    );
+    const upcoming = await query(
+      `SELECT a.id appointment_id,a.appointment_date::text,a.appointment_time::time::text appointment_time,a.payment_status,u.full_name patient_name,pu.full_name provider_name,i.id invoice_id,i.invoice_number,i.total_amount,i.outstanding_balance,i.status,i.billing_review FROM appointments a JOIN patients p ON p.id=a.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=a.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN LATERAL(SELECT iv.* FROM invoice_items ii JOIN invoices iv ON iv.id=ii.invoice_id WHERE ii.appointment_id=a.id AND iv.status NOT IN('Void','Credited') ORDER BY iv.created_at DESC LIMIT 1)i ON true WHERE (a.appointment_date+a.appointment_time)>=now() AND a.status NOT IN('Cancelled','No-show') AND i.id IS NULL ORDER BY a.appointment_date,a.appointment_time`,
+    );
+    const credits = await query(
+      `SELECT c.id,c.credit_note_number,i.id invoice_id,i.invoice_number,u.full_name patient_name,c.amount,c.reason,c.credit_date::text FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id JOIN patients p ON p.id=c.patient_id JOIN app_users u ON u.id=p.user_id WHERE c.status='Issued' ORDER BY c.credit_date DESC,c.created_at DESC`,
+    );
+    res.json({
+      summary: {
+        ...result.rows[0],
+        ...payments.rows[0],
+        ...creditTotals.rows[0],
+      },
+      overdue: overdue.rows.map((x) => ({
+        ...x,
+        outstanding_balance: Number(x.outstanding_balance),
+      })),
+      upcoming: upcoming.rows.map((x) => ({
+        ...x,
+        total_amount: Number(x.total_amount || 0),
+        outstanding_balance: Number(x.outstanding_balance || 0),
+      })),
+      credits: credits.rows.map((x) => ({ ...x, amount: Number(x.amount) })),
+    });
+  }),
+);
 
-billingLedgerRouter.get('/payments',authRequired(['admin']),asyncHandler(async(req,res)=>{const result=await query(`SELECT p.*,u.full_name patient_name,c.registered_name company_name,pu.full_name provider_name,COALESCE(json_agg(json_build_object('invoiceId',i.id,'invoiceNumber',i.invoice_number,'amount',a.amount)) FILTER(WHERE a.id IS NOT NULL),'[]') allocations FROM billing_payments p JOIN providers pr ON pr.id=p.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN patients pt ON pt.id=p.patient_id LEFT JOIN app_users u ON u.id=pt.user_id LEFT JOIN billing_companies c ON c.id=p.company_id LEFT JOIN billing_payment_allocations a ON a.payment_id=p.id LEFT JOIN invoices i ON i.id=a.invoice_id GROUP BY p.id,u.full_name,c.registered_name,pu.full_name ORDER BY p.payment_date DESC,p.created_at DESC`);res.json({payments:result.rows.map(x=>({...x,amount:Number(x.amount),unallocated_amount:Number(x.unallocated_amount)}))});}));
+billingLedgerRouter.get(
+  "/payments",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const result = await query(
+      `SELECT p.*,u.full_name patient_name,c.registered_name company_name,pu.full_name provider_name,COALESCE(json_agg(json_build_object('invoiceId',i.id,'invoiceNumber',i.invoice_number,'amount',a.amount)) FILTER(WHERE a.id IS NOT NULL),'[]') allocations FROM billing_payments p JOIN providers pr ON pr.id=p.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN patients pt ON pt.id=p.patient_id LEFT JOIN app_users u ON u.id=pt.user_id LEFT JOIN billing_companies c ON c.id=p.company_id LEFT JOIN billing_payment_allocations a ON a.payment_id=p.id LEFT JOIN invoices i ON i.id=a.invoice_id GROUP BY p.id,u.full_name,c.registered_name,pu.full_name ORDER BY p.payment_date DESC,p.created_at DESC`,
+    );
+    res.json({
+      payments: result.rows.map((x) => ({
+        ...x,
+        amount: Number(x.amount),
+        unallocated_amount: Number(x.unallocated_amount),
+      })),
+    });
+  }),
+);
 
-billingLedgerRouter.get('/invoices/:invoiceId/payments',authRequired(['admin']),asyncHandler(async(req,res)=>{
-  const result=await query(`SELECT p.id,p.payment_date::date::text AS payment_date,a.amount AS allocated_amount,p.amount AS payment_amount,p.method,p.reference,p.notes,p.status,p.reversal_reason FROM billing_payment_allocations a JOIN billing_payments p ON p.id=a.payment_id WHERE a.invoice_id=$1 ORDER BY p.payment_date DESC,p.created_at DESC`,[req.params.invoiceId]);
-  res.json({payments:result.rows.map(p=>({...p,allocated_amount:Number(p.allocated_amount),payment_amount:Number(p.payment_amount)}))});
-}));
+billingLedgerRouter.get(
+  "/invoices/:invoiceId/payments",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const result = await query(
+      `SELECT p.id,p.payment_date::date::text AS payment_date,a.amount AS allocated_amount,p.amount AS payment_amount,p.method,p.reference,p.notes,p.status,p.reversal_reason FROM billing_payment_allocations a JOIN billing_payments p ON p.id=a.payment_id WHERE a.invoice_id=$1 ORDER BY p.payment_date DESC,p.created_at DESC`,
+      [req.params.invoiceId],
+    );
+    res.json({
+      payments: result.rows.map((p) => ({
+        ...p,
+        allocated_amount: Number(p.allocated_amount),
+        payment_amount: Number(p.payment_amount),
+      })),
+    });
+  }),
+);
 
-billingLedgerRouter.post('/payments',authRequired(['admin']),asyncHandler(async(req,res)=>{
-  const amount=cash(req.body.amount),paymentDate=date(req.body.paymentDate),providerId=String(req.body.providerId||''),type=req.body.customerType==='company'?'company':'patient',customerId=String(req.body.customerId||''),allocations=Array.isArray(req.body.allocations)?req.body.allocations:[];
-  if(!amount||amount<=0||!paymentDate||!providerId||!customerId)throw fail('Provider, customer, payment date and a valid amount are required');
-  const payment=await withTransaction(async client=>{let allocated=0,seen=new Set();for(const allocation of allocations){const value=cash(allocation.amount);if(!allocation.invoiceId||!value||value<=0||seen.has(allocation.invoiceId))throw fail('Enter valid, unique invoice allocations');seen.add(allocation.invoiceId);allocated=cash(allocated+value);}if(allocated>amount)throw fail('Allocated amount cannot exceed the payment amount');
-    const ids=[...seen];let invoices=[];if(ids.length){const found=await client.query(`SELECT id,provider_id,patient_id,company_id,billing_customer_type,outstanding_balance,invoice_number FROM invoices WHERE id=ANY($1::uuid[]) FOR UPDATE`,[ids]);if(found.rows.length!==ids.length)throw fail('One or more invoices no longer exist');invoices=found.rows;}
-    for(const allocation of allocations){const invoice=invoices.find(x=>x.id===allocation.invoiceId),value=cash(allocation.amount);if(invoice.provider_id!==providerId||invoice.billing_customer_type!==type||(type==='company'?invoice.company_id:invoice.patient_id)!==customerId)throw fail(`Invoice ${invoice.invoice_number} belongs to a different ledger`);if(value>Number(invoice.outstanding_balance))throw fail(`Allocation exceeds the outstanding balance on ${invoice.invoice_number}`);}
-    const saved=await client.query(`INSERT INTO billing_payments(provider_id,patient_id,company_id,customer_type,payment_date,amount,unallocated_amount,method,reference,notes,created_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[providerId,type==='patient'?customerId:null,type==='company'?customerId:null,type,paymentDate,amount,cash(amount-allocated),String(req.body.method||'Bank transfer').slice(0,80),String(req.body.reference||'').trim().slice(0,150)||null,String(req.body.notes||'').trim().slice(0,1000)||null,req.user.id]);
-    for(const allocation of allocations){await client.query(`INSERT INTO billing_payment_allocations(payment_id,invoice_id,amount) VALUES($1,$2,$3)`,[saved.rows[0].id,allocation.invoiceId,cash(allocation.amount)]);await refreshInvoice(client,allocation.invoiceId);}
-    await audit(client,req.user,'Captured billing payment',{paymentId:saved.rows[0].id,amount,allocated,reference:saved.rows[0].reference});return saved.rows[0];});res.status(201).json({payment});
-}));
+billingLedgerRouter.post(
+  "/payments",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const amount = cash(req.body.amount),
+      paymentDate = date(req.body.paymentDate),
+      providerId = String(req.body.providerId || ""),
+      type = req.body.customerType === "company" ? "company" : "patient",
+      customerId = String(req.body.customerId || ""),
+      allocations = Array.isArray(req.body.allocations)
+        ? req.body.allocations
+        : [];
+    if (!amount || amount <= 0 || !paymentDate || !providerId || !customerId)
+      throw fail(
+        "Provider, customer, payment date and a valid amount are required",
+      );
+    const payment = await withTransaction(async (client) => {
+      let allocated = 0,
+        seen = new Set();
+      for (const allocation of allocations) {
+        const value = cash(allocation.amount);
+        if (
+          !allocation.invoiceId ||
+          !value ||
+          value <= 0 ||
+          seen.has(allocation.invoiceId)
+        )
+          throw fail("Enter valid, unique invoice allocations");
+        seen.add(allocation.invoiceId);
+        allocated = cash(allocated + value);
+      }
+      if (allocated > amount)
+        throw fail("Allocated amount cannot exceed the payment amount");
+      const ids = [...seen];
+      let invoices = [];
+      if (ids.length) {
+        const found = await client.query(
+          `SELECT id,provider_id,patient_id,company_id,billing_customer_type,outstanding_balance,invoice_number FROM invoices WHERE id=ANY($1::uuid[]) FOR UPDATE`,
+          [ids],
+        );
+        if (found.rows.length !== ids.length)
+          throw fail("One or more invoices no longer exist");
+        invoices = found.rows;
+      }
+      for (const allocation of allocations) {
+        const invoice = invoices.find((x) => x.id === allocation.invoiceId),
+          value = cash(allocation.amount);
+        if (
+          invoice.provider_id !== providerId ||
+          invoice.billing_customer_type !== type ||
+          (type === "company" ? invoice.company_id : invoice.patient_id) !==
+            customerId
+        )
+          throw fail(
+            `Invoice ${invoice.invoice_number} belongs to a different ledger`,
+          );
+        if (value > Number(invoice.outstanding_balance))
+          throw fail(
+            `Allocation exceeds the outstanding balance on ${invoice.invoice_number}`,
+          );
+      }
+      const saved = await client.query(
+        `INSERT INTO billing_payments(provider_id,patient_id,company_id,customer_type,payment_date,amount,unallocated_amount,method,reference,notes,created_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [
+          providerId,
+          type === "patient" ? customerId : null,
+          type === "company" ? customerId : null,
+          type,
+          paymentDate,
+          amount,
+          cash(amount - allocated),
+          String(req.body.method || "Bank transfer").slice(0, 80),
+          String(req.body.reference || "")
+            .trim()
+            .slice(0, 150) || null,
+          String(req.body.notes || "")
+            .trim()
+            .slice(0, 1000) || null,
+          req.user.id,
+        ],
+      );
+      for (const allocation of allocations) {
+        await client.query(
+          `INSERT INTO billing_payment_allocations(payment_id,invoice_id,amount) VALUES($1,$2,$3)`,
+          [saved.rows[0].id, allocation.invoiceId, cash(allocation.amount)],
+        );
+        await refreshInvoice(client, allocation.invoiceId);
+      }
+      await audit(client, req.user, "Captured billing payment", {
+        paymentId: saved.rows[0].id,
+        amount,
+        allocated,
+        reference: saved.rows[0].reference,
+      });
+      return saved.rows[0];
+    });
+    res.status(201).json({ payment });
+  }),
+);
 
-billingLedgerRouter.post('/payments/:id/reverse',authRequired(['admin']),asyncHandler(async(req,res)=>{const reason=String(req.body.reason||'').trim();if(!reason)throw fail('A reversal reason is required');await withTransaction(async client=>{const p=await client.query(`SELECT * FROM billing_payments WHERE id=$1 FOR UPDATE`,[req.params.id]);if(!p.rows[0])throw fail('Payment not found');if(p.rows[0].status==='Reversed')throw fail('Payment has already been reversed');const allocations=await client.query(`SELECT invoice_id FROM billing_payment_allocations WHERE payment_id=$1`,[req.params.id]);await client.query(`UPDATE billing_payments SET status='Reversed',reversed_by_user_id=$1,reversed_at=now(),reversal_reason=$2 WHERE id=$3`,[req.user.id,reason,req.params.id]);for(const x of allocations.rows)await refreshInvoice(client,x.invoice_id);await audit(client,req.user,'Reversed billing payment',{paymentId:req.params.id,reason});});res.json({success:true});}));
+billingLedgerRouter.post(
+  "/payments/:id/reverse",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const reason = String(req.body.reason || "").trim();
+    if (!reason) throw fail("A reversal reason is required");
+    await withTransaction(async (client) => {
+      const p = await client.query(
+        `SELECT * FROM billing_payments WHERE id=$1 FOR UPDATE`,
+        [req.params.id],
+      );
+      if (!p.rows[0]) throw fail("Payment not found");
+      if (p.rows[0].status === "Reversed")
+        throw fail("Payment has already been reversed");
+      const allocations = await client.query(
+        `SELECT invoice_id FROM billing_payment_allocations WHERE payment_id=$1`,
+        [req.params.id],
+      );
+      await client.query(
+        `UPDATE billing_payments SET status='Reversed',reversed_by_user_id=$1,reversed_at=now(),reversal_reason=$2 WHERE id=$3`,
+        [req.user.id, reason, req.params.id],
+      );
+      for (const x of allocations.rows)
+        await refreshInvoice(client, x.invoice_id);
+      await audit(client, req.user, "Reversed billing payment", {
+        paymentId: req.params.id,
+        reason,
+      });
+    });
+    res.json({ success: true });
+  }),
+);
 
-billingLedgerRouter.post('/credit-notes',authRequired(['admin']),asyncHandler(async(req,res)=>{const amount=cash(req.body.amount),creditDate=date(req.body.creditDate),reason=String(req.body.reason||'').trim();if(!amount||amount<=0||!creditDate||!reason)throw fail('Credit date, amount and reason are required');const credit=await withTransaction(async client=>{const invoiceResult=await client.query(`SELECT * FROM invoices WHERE id=$1 FOR UPDATE`,[req.body.invoiceId]);const invoice=invoiceResult.rows[0];if(!invoice)throw fail('Invoice not found');if(['Void','Credited'].includes(invoice.status))throw fail('This invoice cannot be credited');if(amount>Number(invoice.outstanding_balance))throw fail('Credit amount cannot exceed the invoice outstanding balance');const profile=await client.query(`SELECT * FROM provider_billing_profiles WHERE provider_id=$1 FOR UPDATE`,[invoice.provider_id]);const p=profile.rows[0];if(!p)throw fail('Provider billing profile not found');const number=`CN-${p.invoice_prefix}-${String(p.credit_note_next_number).padStart(p.invoice_number_padding,'0')}`;const saved=await client.query(`INSERT INTO billing_credit_notes(credit_note_number,provider_id,invoice_id,patient_id,company_id,credit_date,amount,reason,issuer_snapshot,customer_snapshot,created_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[number,invoice.provider_id,invoice.id,invoice.patient_id,invoice.company_id,creditDate,amount,reason,invoice.issuer_snapshot,invoice.customer_snapshot,req.user.id]);await client.query(`UPDATE provider_billing_profiles SET credit_note_next_number=credit_note_next_number+1 WHERE provider_id=$1`,[invoice.provider_id]);await refreshInvoice(client,invoice.id);await client.query(`UPDATE invoices SET billing_review=false,billing_review_reason=NULL WHERE id=$1`,[invoice.id]);await audit(client,req.user,'Issued credit note',{creditNoteId:saved.rows[0].id,creditNoteNumber:number,invoiceId:invoice.id,amount,reason});return saved.rows[0];});res.status(201).json({credit});}));
+billingLedgerRouter.post(
+  "/credit-notes",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const amount = cash(req.body.amount),
+      creditDate = date(req.body.creditDate),
+      reason = String(req.body.reason || "").trim();
+    if (!amount || amount <= 0 || !creditDate || !reason)
+      throw fail("Credit date, amount and reason are required");
+    const credit = await withTransaction(async (client) => {
+      const invoiceResult = await client.query(
+        `SELECT * FROM invoices WHERE id=$1 FOR UPDATE`,
+        [req.body.invoiceId],
+      );
+      const invoice = invoiceResult.rows[0];
+      if (!invoice) throw fail("Invoice not found");
+      if (["Void", "Credited"].includes(invoice.status))
+        throw fail("This invoice cannot be credited");
+      if (amount > Number(invoice.outstanding_balance))
+        throw fail(
+          "Credit amount cannot exceed the invoice outstanding balance",
+        );
+      const profile = await client.query(
+        `SELECT * FROM provider_billing_profiles WHERE provider_id=$1 FOR UPDATE`,
+        [invoice.provider_id],
+      );
+      const p = profile.rows[0];
+      if (!p) throw fail("Provider billing profile not found");
+      const number = `CN-${p.invoice_prefix}-${String(p.credit_note_next_number).padStart(p.invoice_number_padding, "0")}`;
+      const saved = await client.query(
+        `INSERT INTO billing_credit_notes(credit_note_number,provider_id,invoice_id,patient_id,company_id,credit_date,amount,reason,issuer_snapshot,customer_snapshot,created_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [
+          number,
+          invoice.provider_id,
+          invoice.id,
+          invoice.patient_id,
+          invoice.company_id,
+          creditDate,
+          amount,
+          reason,
+          invoice.issuer_snapshot,
+          invoice.customer_snapshot,
+          req.user.id,
+        ],
+      );
+      await client.query(
+        `UPDATE provider_billing_profiles SET credit_note_next_number=credit_note_next_number+1 WHERE provider_id=$1`,
+        [invoice.provider_id],
+      );
+      await refreshInvoice(client, invoice.id);
+      await client.query(
+        `UPDATE invoices SET billing_review=false,billing_review_reason=NULL WHERE id=$1`,
+        [invoice.id],
+      );
+      await audit(client, req.user, "Issued credit note", {
+        creditNoteId: saved.rows[0].id,
+        creditNoteNumber: number,
+        invoiceId: invoice.id,
+        amount,
+        reason,
+      });
+      return saved.rows[0];
+    });
+    res.status(201).json({ credit });
+  }),
+);
 
-billingLedgerRouter.get('/credit-notes',authRequired(['admin']),asyncHandler(async(req,res)=>{const result=await query(`SELECT c.id,c.credit_note_number,c.credit_date::text,c.amount,c.reason,c.status,c.reversal_reason,i.invoice_number,u.full_name patient_name,bc.registered_name company_name,pu.full_name provider_name FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id JOIN patients p ON p.id=c.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=c.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies bc ON bc.id=c.company_id ORDER BY c.credit_date DESC,c.created_at DESC`);res.json({credits:result.rows.map(x=>({...x,amount:Number(x.amount)}))});}));
+billingLedgerRouter.get(
+  "/credit-notes",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const result = await query(
+      `SELECT c.id,c.credit_note_number,c.credit_date::text,c.amount,c.reason,c.status,c.reversal_reason,i.invoice_number,u.full_name patient_name,bc.registered_name company_name,pu.full_name provider_name FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id JOIN patients p ON p.id=c.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=c.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies bc ON bc.id=c.company_id ORDER BY c.credit_date DESC,c.created_at DESC`,
+    );
+    res.json({
+      credits: result.rows.map((x) => ({ ...x, amount: Number(x.amount) })),
+    });
+  }),
+);
 
-billingLedgerRouter.post('/credit-notes/:id/reverse',authRequired(['admin']),asyncHandler(async(req,res)=>{const reason=String(req.body.reason||'').trim();if(!reason)throw fail('A reversal reason is required');await withTransaction(async client=>{const found=await client.query(`SELECT * FROM billing_credit_notes WHERE id=$1 FOR UPDATE`,[req.params.id]);const credit=found.rows[0];if(!credit)throw fail('Credit note not found');if(credit.status==='Reversed')throw fail('Credit note has already been reversed');await client.query(`UPDATE billing_credit_notes SET status='Reversed',reversed_by_user_id=$1,reversed_at=now(),reversal_reason=$2 WHERE id=$3`,[req.user.id,reason,req.params.id]);await refreshInvoice(client,credit.invoice_id);await audit(client,req.user,'Reversed credit note',{creditNoteId:credit.id,creditNoteNumber:credit.credit_note_number,reason});});res.json({success:true});}));
+billingLedgerRouter.post(
+  "/credit-notes/:id/reverse",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const reason = String(req.body.reason || "").trim();
+    if (!reason) throw fail("A reversal reason is required");
+    await withTransaction(async (client) => {
+      const found = await client.query(
+        `SELECT * FROM billing_credit_notes WHERE id=$1 FOR UPDATE`,
+        [req.params.id],
+      );
+      const credit = found.rows[0];
+      if (!credit) throw fail("Credit note not found");
+      if (credit.status === "Reversed")
+        throw fail("Credit note has already been reversed");
+      await client.query(
+        `UPDATE billing_credit_notes SET status='Reversed',reversed_by_user_id=$1,reversed_at=now(),reversal_reason=$2 WHERE id=$3`,
+        [req.user.id, reason, req.params.id],
+      );
+      await refreshInvoice(client, credit.invoice_id);
+      await audit(client, req.user, "Reversed credit note", {
+        creditNoteId: credit.id,
+        creditNoteNumber: credit.credit_note_number,
+        reason,
+      });
+    });
+    res.json({ success: true });
+  }),
+);
 
-billingLedgerRouter.get('/refunds',authRequired(['admin']),asyncHandler(async(req,res)=>{const result=await query(`SELECT r.id,r.refund_date::text,r.amount,r.method,r.reference,r.reason,r.status,r.reversal_reason,i.invoice_number,u.full_name patient_name,pu.full_name provider_name FROM billing_refunds r JOIN invoices i ON i.id=r.invoice_id JOIN patients p ON p.id=r.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=r.provider_id JOIN app_users pu ON pu.id=pr.user_id ORDER BY r.refund_date DESC,r.created_at DESC`);res.json({refunds:result.rows.map(x=>({...x,amount:Number(x.amount)}))});}));
+billingLedgerRouter.get(
+  "/refunds",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const result = await query(
+      `SELECT r.id,r.refund_date::text,r.amount,r.method,r.reference,r.reason,r.status,r.reversal_reason,i.invoice_number,u.full_name patient_name,pu.full_name provider_name FROM billing_refunds r JOIN invoices i ON i.id=r.invoice_id JOIN patients p ON p.id=r.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=r.provider_id JOIN app_users pu ON pu.id=pr.user_id ORDER BY r.refund_date DESC,r.created_at DESC`,
+    );
+    res.json({
+      refunds: result.rows.map((x) => ({ ...x, amount: Number(x.amount) })),
+    });
+  }),
+);
 
-billingLedgerRouter.post('/refunds',authRequired(['admin']),asyncHandler(async(req,res)=>{const amount=cash(req.body.amount),refundDate=date(req.body.refundDate),reason=String(req.body.reason||'').trim(),method=String(req.body.method||'').trim();if(!amount||amount<=0||!refundDate||!reason||!method)throw fail('Refund date, amount, method and reason are required');const refund=await withTransaction(async client=>{const found=await client.query(`SELECT i.*,COALESCE((SELECT SUM(r.amount) FROM billing_refunds r WHERE r.invoice_id=i.id AND r.status='Paid'),0) refunded FROM invoices i WHERE i.id=$1 FOR UPDATE`,[req.body.invoiceId]);const invoice=found.rows[0];if(!invoice)throw fail('Invoice not found');if(amount>Number(invoice.payments_received)-Number(invoice.refunded))throw fail('Refund amount cannot exceed payments received less earlier refunds');const saved=await client.query(`INSERT INTO billing_refunds(provider_id,patient_id,company_id,invoice_id,payment_id,refund_date,amount,method,reference,reason,created_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[invoice.provider_id,invoice.patient_id,invoice.company_id,invoice.id,req.body.paymentId||null,refundDate,amount,method.slice(0,80),String(req.body.reference||'').trim().slice(0,150)||null,reason.slice(0,1000),req.user.id]);await client.query(`UPDATE invoices SET billing_review=false,billing_review_reason=NULL,updated_at=now() WHERE id=$1`,[invoice.id]);await audit(client,req.user,'Recorded billing refund',{refundId:saved.rows[0].id,invoiceId:invoice.id,amount,reason,method});return saved.rows[0];});res.status(201).json({refund});}));
+billingLedgerRouter.post(
+  "/refunds",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const amount = cash(req.body.amount),
+      refundDate = date(req.body.refundDate),
+      reason = String(req.body.reason || "").trim(),
+      method = String(req.body.method || "").trim();
+    if (!amount || amount <= 0 || !refundDate || !reason || !method)
+      throw fail("Refund date, amount, method and reason are required");
+    const refund = await withTransaction(async (client) => {
+      const found = await client.query(
+        `SELECT i.*,COALESCE((SELECT SUM(r.amount) FROM billing_refunds r WHERE r.invoice_id=i.id AND r.status='Paid'),0) refunded FROM invoices i WHERE i.id=$1 FOR UPDATE`,
+        [req.body.invoiceId],
+      );
+      const invoice = found.rows[0];
+      if (!invoice) throw fail("Invoice not found");
+      if (amount > Number(invoice.payments_received) - Number(invoice.refunded))
+        throw fail(
+          "Refund amount cannot exceed payments received less earlier refunds",
+        );
+      const saved = await client.query(
+        `INSERT INTO billing_refunds(provider_id,patient_id,company_id,invoice_id,payment_id,refund_date,amount,method,reference,reason,created_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [
+          invoice.provider_id,
+          invoice.patient_id,
+          invoice.company_id,
+          invoice.id,
+          req.body.paymentId || null,
+          refundDate,
+          amount,
+          method.slice(0, 80),
+          String(req.body.reference || "")
+            .trim()
+            .slice(0, 150) || null,
+          reason.slice(0, 1000),
+          req.user.id,
+        ],
+      );
+      await client.query(
+        `UPDATE invoices SET billing_review=false,billing_review_reason=NULL,updated_at=now() WHERE id=$1`,
+        [invoice.id],
+      );
+      await audit(client, req.user, "Recorded billing refund", {
+        refundId: saved.rows[0].id,
+        invoiceId: invoice.id,
+        amount,
+        reason,
+        method,
+      });
+      return saved.rows[0];
+    });
+    res.status(201).json({ refund });
+  }),
+);
 
-async function buildStatement(input){const providerId=String(input.providerId||''),type=input.customerType==='company'?'company':'patient',customerId=String(input.customerId||''),from=date(input.from),to=date(input.to);if(!providerId||!customerId||!from||!to)throw fail('Provider, account and statement period are required');const aw=accountWhere(providerId,type,1);
-  const invoices=await query(`SELECT id,invoice_number,issue_date::text transaction_date,total_amount amount,outstanding_balance,status FROM invoices WHERE ${aw.sql} AND issue_date<=$3 AND status<>'Void' ORDER BY issue_date,invoice_number`,[...aw.params,to]);
-  const payments=await query(`SELECT p.id,p.payment_date::text transaction_date,p.reference,p.amount,p.status FROM billing_payments p WHERE ${aw.sql} AND p.payment_date<=$3 ORDER BY p.payment_date,p.created_at`,[...aw.params,to]);
-  const credits=await query(`SELECT c.id,c.credit_note_number,c.credit_date::text transaction_date,c.amount,c.reason,c.status,i.invoice_number FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id WHERE c.provider_id=$1 AND ${type==='company'?'c.company_id':'c.patient_id'}=$2 AND c.credit_date<=$3 ORDER BY c.credit_date,c.created_at`,[providerId,customerId,to]);
-  const priorInvoices=invoices.rows.filter(x=>x.transaction_date<from).reduce((s,x)=>s+Number(x.amount),0),priorPayments=payments.rows.filter(x=>x.transaction_date<from&&x.status==='Active').reduce((s,x)=>s+Number(x.amount),0),priorCredits=credits.rows.filter(x=>x.transaction_date<from&&x.status==='Issued').reduce((s,x)=>s+Number(x.amount),0);let balance=cash(priorInvoices-priorPayments-priorCredits);const openingBalance=balance;
-  const transactions=[...invoices.rows.filter(x=>x.transaction_date>=from).map(x=>({date:x.transaction_date,type:'Invoice',reference:x.invoice_number,debit:Number(x.amount),credit:0,status:x.status})),...payments.rows.filter(x=>x.transaction_date>=from&&x.status==='Active').map(x=>({date:x.transaction_date,type:'Payment',reference:x.reference||'Payment',debit:0,credit:Number(x.amount),status:x.status})),...credits.rows.filter(x=>x.transaction_date>=from&&x.status==='Issued').map(x=>({date:x.transaction_date,type:'Credit note',reference:x.credit_note_number,debit:0,credit:Number(x.amount),status:x.status}))].sort((a,b)=>a.date.localeCompare(b.date)||a.type.localeCompare(b.type)).map(x=>{balance=cash(balance+x.debit-x.credit);return {...x,balance};});
-  const provider=await query(`SELECT u.full_name,bp.registered_business_name,bp.billing_email,bp.billing_phone FROM providers p JOIN app_users u ON u.id=p.user_id LEFT JOIN provider_billing_profiles bp ON bp.provider_id=p.id WHERE p.id=$1`,[providerId]);const customer=type==='company'?await query(`SELECT registered_name name,billing_email email,phone FROM billing_companies WHERE id=$1`,[customerId]):await query(`SELECT u.full_name name,u.email,u.mobile phone FROM patients p JOIN app_users u ON u.id=p.user_id WHERE p.id=$1`,[customerId]);
-  if(!provider.rows[0]||!customer.rows[0])throw fail('Provider or billing account not found');return {provider:provider.rows[0],customer:customer.rows[0],customerType:type,from,to,openingBalance,transactions,closingBalance:balance};}
+async function buildStatement(input) {
+  const providerId = String(input.providerId || ""),
+    type = input.customerType === "company" ? "company" : "patient",
+    customerId = String(input.customerId || ""),
+    from = date(input.from),
+    to = date(input.to);
+  if (!providerId || !customerId || !from || !to)
+    throw fail("Provider, account and statement period are required");
+  const aw = accountWhere(providerId, type, 1);
+  const invoices = await query(
+    `SELECT id,invoice_number,issue_date::text transaction_date,total_amount amount,outstanding_balance,status FROM invoices WHERE ${aw.sql} AND issue_date<=$3 AND status<>'Void' ORDER BY issue_date,invoice_number`,
+    [...aw.params, to],
+  );
+  const payments = await query(
+    `SELECT p.id,p.payment_date::text transaction_date,p.reference,p.amount,p.status FROM billing_payments p WHERE ${aw.sql} AND p.payment_date<=$3 ORDER BY p.payment_date,p.created_at`,
+    [...aw.params, to],
+  );
+  const credits = await query(
+    `SELECT c.id,c.credit_note_number,c.credit_date::text transaction_date,c.amount,c.reason,c.status,i.invoice_number FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id WHERE c.provider_id=$1 AND ${type === "company" ? "c.company_id" : "c.patient_id"}=$2 AND c.credit_date<=$3 ORDER BY c.credit_date,c.created_at`,
+    [providerId, customerId, to],
+  );
+  const priorInvoices = invoices.rows
+      .filter((x) => x.transaction_date < from)
+      .reduce((s, x) => s + Number(x.amount), 0),
+    priorPayments = payments.rows
+      .filter((x) => x.transaction_date < from && x.status === "Active")
+      .reduce((s, x) => s + Number(x.amount), 0),
+    priorCredits = credits.rows
+      .filter((x) => x.transaction_date < from && x.status === "Issued")
+      .reduce((s, x) => s + Number(x.amount), 0);
+  let balance = cash(priorInvoices - priorPayments - priorCredits);
+  const openingBalance = balance;
+  const transactions = [
+    ...invoices.rows
+      .filter((x) => x.transaction_date >= from)
+      .map((x) => ({
+        date: x.transaction_date,
+        type: "Invoice",
+        reference: x.invoice_number,
+        debit: Number(x.amount),
+        credit: 0,
+        status: x.status,
+      })),
+    ...payments.rows
+      .filter((x) => x.transaction_date >= from && x.status === "Active")
+      .map((x) => ({
+        date: x.transaction_date,
+        type: "Payment",
+        reference: x.reference || "Payment",
+        debit: 0,
+        credit: Number(x.amount),
+        status: x.status,
+      })),
+    ...credits.rows
+      .filter((x) => x.transaction_date >= from && x.status === "Issued")
+      .map((x) => ({
+        date: x.transaction_date,
+        type: "Credit note",
+        reference: x.credit_note_number,
+        debit: 0,
+        credit: Number(x.amount),
+        status: x.status,
+      })),
+  ]
+    .sort(
+      (a, b) => a.date.localeCompare(b.date) || a.type.localeCompare(b.type),
+    )
+    .map((x) => {
+      balance = cash(balance + x.debit - x.credit);
+      return { ...x, balance };
+    });
+  const provider = await query(
+    `SELECT u.full_name,bp.registered_business_name,bp.billing_email,bp.billing_phone FROM providers p JOIN app_users u ON u.id=p.user_id LEFT JOIN provider_billing_profiles bp ON bp.provider_id=p.id WHERE p.id=$1`,
+    [providerId],
+  );
+  const customer =
+    type === "company"
+      ? await query(
+          `SELECT registered_name name,billing_email email,phone FROM billing_companies WHERE id=$1`,
+          [customerId],
+        )
+      : await query(
+          `SELECT u.full_name name,u.email,u.mobile phone FROM patients p JOIN app_users u ON u.id=p.user_id WHERE p.id=$1`,
+          [customerId],
+        );
+  if (!provider.rows[0] || !customer.rows[0])
+    throw fail("Provider or billing account not found");
+  return {
+    provider: provider.rows[0],
+    customer: customer.rows[0],
+    customerType: type,
+    from,
+    to,
+    openingBalance,
+    transactions,
+    closingBalance: balance,
+  };
+}
 
-function statementHtml(s){const rows=s.transactions.map(x=>`<tr><td>${html(x.date)}</td><td>${html(x.type)}</td><td>${html(x.reference)}</td><td>${x.debit?html(formatMoney(x.debit)):'—'}</td><td>${x.credit?html(formatMoney(x.credit)):'—'}</td><td><b>${html(formatMoney(x.balance))}</b></td></tr>`).join('');return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font:12px Arial;color:#17352c;margin:0}.page{border-top:8px solid #07865f;padding:28px}header{display:flex;justify-content:space-between;border-bottom:2px solid #07865f;padding-bottom:20px}h1{margin:4px 0;color:#075f49}.period{text-align:right}.balance{display:flex;justify-content:flex-end;gap:25px;padding:17px;font-size:16px}table{width:100%;border-collapse:collapse}th{background:#eaf7f2;color:#075f49;text-align:left;padding:10px}td{padding:10px;border-bottom:1px solid #dce8e3}.closing{margin-top:18px;background:#102f3d;color:#fff;border-radius:8px;font-size:18px}</style></head><body><main class="page"><header><div><small>ACCOUNT STATEMENT</small><h1>${html(s.provider.registered_business_name||s.provider.full_name)}</h1><p>${html(s.customer.name)}</p></div><div class="period"><span>Statement period</span><h3>${html(s.from)} — ${html(s.to)}</h3></div></header><div class="balance"><span>Opening balance</span><b>${html(formatMoney(s.openingBalance))}</b></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No transactions during this period.</td></tr>'}</tbody></table><div class="balance closing"><span>Closing balance</span><b>${html(formatMoney(s.closingBalance))}</b></div></main></body></html>`;}
-billingLedgerRouter.get('/statements',authRequired(['admin']),asyncHandler(async(req,res)=>res.json({statement:await buildStatement(req.query)})));
-billingLedgerRouter.get('/statements/pdf',authRequired(['admin']),asyncHandler(async(req,res)=>{const s=await buildStatement(req.query),pdf=await generateHtmlPdf(statementHtml(s));res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="statement-${s.from}-${s.to}.pdf"`);res.send(pdf);}));
+function statementHtml(s) {
+  const rows = s.transactions
+    .map(
+      (x) =>
+        `<tr><td>${html(x.date)}</td><td>${html(x.type)}</td><td>${html(x.reference)}</td><td>${x.debit ? html(formatMoney(x.debit)) : "—"}</td><td>${x.credit ? html(formatMoney(x.credit)) : "—"}</td><td><b>${html(formatMoney(x.balance))}</b></td></tr>`,
+    )
+    .join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font:12px Arial;color:#17352c;margin:0}.page{border-top:8px solid #07865f;padding:28px}header{display:flex;justify-content:space-between;border-bottom:2px solid #07865f;padding-bottom:20px}h1{margin:4px 0;color:#075f49}.period{text-align:right}.balance{display:flex;justify-content:flex-end;gap:25px;padding:17px;font-size:16px}table{width:100%;border-collapse:collapse}th{background:#eaf7f2;color:#075f49;text-align:left;padding:10px}td{padding:10px;border-bottom:1px solid #dce8e3}.closing{margin-top:18px;background:#102f3d;color:#fff;border-radius:8px;font-size:18px}</style></head><body><main class="page"><header><div><small>ACCOUNT STATEMENT</small><h1>${html(s.provider.registered_business_name || s.provider.full_name)}</h1><p>${html(s.customer.name)}</p></div><div class="period"><span>Statement period</span><h3>${html(s.from)} — ${html(s.to)}</h3></div></header><div class="balance"><span>Opening balance</span><b>${html(formatMoney(s.openingBalance))}</b></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No transactions during this period.</td></tr>'}</tbody></table><div class="balance closing"><span>Closing balance</span><b>${html(formatMoney(s.closingBalance))}</b></div></main></body></html>`;
+}
+billingLedgerRouter.get(
+  "/statements",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) =>
+    res.json({ statement: await buildStatement(req.query) }),
+  ),
+);
+billingLedgerRouter.get(
+  "/statements/pdf",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const s = await buildStatement(req.query),
+      pdf = await generateHtmlPdf(statementHtml(s));
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="statement-${s.from}-${s.to}.pdf"`,
+    );
+    res.send(pdf);
+  }),
+);
 
-billingLedgerRouter.get('/audit',authRequired(['admin']),asyncHandler(async(req,res)=>{const result=await query(`SELECT id,user_name,user_role,action,details,created_at FROM audit_logs WHERE action ILIKE '%billing%' OR action ILIKE '%invoice%' OR action ILIKE '%credit note%' ORDER BY created_at DESC LIMIT 500`);res.json({history:result.rows});}));
+billingLedgerRouter.get(
+  "/audit",
+  authRequired(["admin"]),
+  asyncHandler(async (req, res) => {
+    const result = await query(
+      `SELECT id,user_name,user_role,action,details,created_at FROM audit_logs WHERE action ILIKE '%billing%' OR action ILIKE '%invoice%' OR action ILIKE '%credit note%' ORDER BY created_at DESC LIMIT 500`,
+    );
+    res.json({ history: result.rows });
+  }),
+);
