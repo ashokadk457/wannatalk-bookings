@@ -26,13 +26,15 @@ export default function FollowUpsPage() {
       'WannaTalk reminder: please contact us to arrange your recommended follow-up session.',
     ),
     [channels, setChannels] = useState(['email', 'sms']),
+    [deliveryMode, setDeliveryMode] = useState<'scheduled' | 'manual' | 'immediate'>('scheduled'),
     [busy, setBusy] = useState(false);
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!channels.length) return notify('Choose Email, SMS, or both');
     setBusy(true);
+    let created: FollowUp | null = null;
     const ok = await run(async () => {
-      await mutate('/follow-ups', 'POST', {
+      const result = await mutate<{ followUp: FollowUp }>('/follow-ups', 'POST', {
         patientId,
         providerId,
         appointmentId,
@@ -40,12 +42,39 @@ export default function FollowUpsPage() {
         internalNote: internal,
         reminderMessage: message,
         reminderChannels: channels,
+        scheduleReminder: deliveryMode === 'scheduled',
       });
+      created = result.followUp;
       await resource.reload();
-    }, 'Follow-up saved');
+    });
     if (ok) {
       setOpen(false);
       setInternal('');
+      const followUp = created as FollowUp | null;
+      if (deliveryMode === 'immediate' && followUp) {
+        const linkedAppointmentId = followUp.appointment_id || appointmentId;
+        if (linkedAppointmentId) setAppointmentFollowUpAttempted(linkedAppointmentId, true);
+        let deliveries: Delivery[] = [];
+        const sent = await run(async () => {
+          const result = await mutate<{ deliveries: Delivery[] }>(
+            `/follow-ups/${followUp.id}/send`,
+            'POST',
+            { appointmentId: linkedAppointmentId },
+          );
+          deliveries = result.deliveries;
+        });
+        if (sent) {
+          notify(deliverySummary(deliveries));
+          await resource.reload();
+          try {
+            await refresh();
+          } catch {
+            // Keep the delivery result visible; the appointment list can refresh on next load.
+          }
+        }
+      } else {
+        notify('Follow-up saved');
+      }
     }
     setBusy(false);
   }
@@ -136,9 +165,11 @@ export default function FollowUpsPage() {
                     <td>
                       {f.reminder_channels.join(' + ')}
                       <div className="sub">
-                        {f.reminder_sent_at
-                          ? `Sent ${new Date(f.reminder_sent_at).toLocaleString('en-ZA')}`
-                          : 'Not sent'}
+                        {f.reminder_schedule_enabled
+                          ? `Scheduled for ${new Date(f.due_at).toLocaleString('en-ZA')}`
+                          : f.reminder_sent_at
+                            ? `Sent ${new Date(f.reminder_sent_at).toLocaleString('en-ZA')}`
+                            : 'Not sent'}
                       </div>
                     </td>
                     <td>
@@ -149,7 +180,7 @@ export default function FollowUpsPage() {
                         {f.status === 'open' && (
                           <div className="actions">
                             {[
-                              ['send', 'Send reminder'],
+                              ['send', f.reminder_schedule_enabled ? 'Send now' : 'Send reminder'],
                               ['completed', 'Complete'],
                               ['cancelled', 'Cancel'],
                             ].map(([a, label]) => (
@@ -231,6 +262,37 @@ export default function FollowUpsPage() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                   />
+                </Field>
+                <Field label="Reminder delivery" full>
+                  <div className="workflow-checks">
+                    <label className="check-row">
+                      <input
+                        type="radio"
+                        name="follow-up-delivery-mode"
+                        checked={deliveryMode === 'scheduled'}
+                        onChange={() => setDeliveryMode('scheduled')}
+                      />{' '}
+                      Schedule automatically for the selected date and time
+                    </label>
+                    <label className="check-row">
+                      <input
+                        type="radio"
+                        name="follow-up-delivery-mode"
+                        checked={deliveryMode === 'manual'}
+                        onChange={() => setDeliveryMode('manual')}
+                      />{' '}
+                      Quick send manually using “Send reminder”
+                    </label>
+                    <label className="check-row">
+                      <input
+                        type="radio"
+                        name="follow-up-delivery-mode"
+                        checked={deliveryMode === 'immediate'}
+                        onChange={() => setDeliveryMode('immediate')}
+                      />{' '}
+                      Send immediately after saving this follow-up
+                    </label>
+                  </div>
                 </Field>
                 <Channels value={channels} onChange={setChannels} />
               </div>

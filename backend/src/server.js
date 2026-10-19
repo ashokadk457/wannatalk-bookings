@@ -24,6 +24,7 @@ import { automaticRemindersRouter } from './routes/automaticReminders.js';
 import { whatsappInboundRouter } from './routes/whatsappInbound.js';
 import { whatsappTestRouter } from './routes/whatsappTest.js';
 import { startAutomaticReminders } from './automaticReminders.js';
+import { startScheduledFollowUps } from './followUpScheduler.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 
 const app = express();
@@ -66,5 +67,8 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`WannaTalk bookings API listening on port ${port}`);
-  if (process.env.AUTOMATIC_REMINDERS_WORKER !== 'false') startAutomaticReminders();
+  if (process.env.AUTOMATIC_REMINDERS_WORKER !== 'false') {
+    startAutomaticReminders();
+    startScheduledFollowUps();
+  }
 });

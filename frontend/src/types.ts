@@ -220,6 +220,8 @@ export interface FollowUp {
   reminder_message: string;
   reminder_channels: string[];
   reminder_sent_at: string | null;
+  reminder_schedule_enabled?: boolean;
+  reminder_schedule_attempts?: number;
   status: 'open' | 'completed' | 'cancelled';
 }
 export interface Delivery {

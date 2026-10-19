@@ -9,6 +9,7 @@ const migrations = [
   '022_whatsapp_workflow_channels.sql',
   '023_followup_appointment_link.sql',
   '024_followup_send_attempt.sql',
+  '025_scheduled_followup_reminders.sql',
 ];
 
 try {

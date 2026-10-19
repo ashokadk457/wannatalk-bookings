@@ -45,6 +45,7 @@ followUpsRouter.post('/', authRequired(['admin', 'provider']), async (req, res) 
   const internalNote = String(req.body.internalNote || '').trim().slice(0, 2000);
   const reminderMessage = String(req.body.reminderMessage || '').trim().slice(0, 1000);
   const reminderChannels = cleanChannels(req.body.reminderChannels);
+  const scheduleReminder = req.body.scheduleReminder === true;
   if (req.user.role === 'provider') {
     providerId = await ownProviderId(req.user.id);
     if (!providerId || !(await providerOwnsPatient(providerId, patientId))) return res.status(403).json({ error: 'You may only create follow-ups for your own patients' });
@@ -58,10 +59,10 @@ followUpsRouter.post('/', authRequired(['admin', 'provider']), async (req, res) 
     if (!appointment.rows[0]) return res.status(400).json({ error: 'Selected appointment does not match this patient and provider' });
   }
   const result = await query(
-    `INSERT INTO follow_ups (patient_id, provider_id, appointment_id, created_by_user_id, due_at, internal_note, reminder_message, reminder_channels)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::text[])
+    `INSERT INTO follow_ups (patient_id, provider_id, appointment_id, created_by_user_id, due_at, internal_note, reminder_message, reminder_channels, reminder_schedule_enabled)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::text[],$9)
      RETURNING *`,
-    [patientId, providerId, appointmentId, req.user.id, dueAt.toISOString(), internalNote || null, reminderMessage || null, reminderChannels]
+    [patientId, providerId, appointmentId, req.user.id, dueAt.toISOString(), internalNote || null, reminderMessage || null, reminderChannels, scheduleReminder]
   );
   await query(
     `INSERT INTO audit_logs (user_id, user_name, user_role, action, details)
@@ -81,7 +82,10 @@ followUpsRouter.patch('/:id/status', authRequired(['admin', 'provider']), async 
     access = `AND EXISTS (SELECT 1 FROM providers p WHERE p.id = follow_ups.provider_id AND p.user_id = $3)`;
   }
   const result = await query(
-    `UPDATE follow_ups SET status = $1, completed_at = CASE WHEN $1 = 'completed' THEN now() ELSE NULL END, updated_at = now()
+    `UPDATE follow_ups SET status = $1, completed_at = CASE WHEN $1 = 'completed' THEN now() ELSE NULL END,
+       reminder_schedule_enabled = CASE WHEN $1 = 'open' THEN reminder_schedule_enabled ELSE false END,
+       reminder_schedule_claimed_at = CASE WHEN $1 = 'open' THEN reminder_schedule_claimed_at ELSE NULL END,
+       updated_at = now()
      WHERE id = $2 ${access} RETURNING *`,
     params
   );
@@ -144,7 +148,8 @@ followUpsRouter.post('/:id/send', authRequired(['admin', 'provider']), async (re
       await query(`UPDATE follow_ups SET appointment_id = $2, updated_at = now() WHERE id = $1`, [followUp.id, requestedAppointmentId]);
     }
   }
-  await query(`UPDATE follow_ups SET reminder_attempted_at = now(), updated_at = now() WHERE id = $1`, [followUp.id]);
+  await query(`UPDATE follow_ups SET reminder_schedule_enabled = false, reminder_schedule_claimed_at = NULL,
+    reminder_attempted_at = now(), updated_at = now() WHERE id = $1`, [followUp.id]);
   const channels = cleanChannels(req.body.channels?.length ? req.body.channels : followUp.reminder_channels);
   const message = String(req.body.message || followUp.reminder_message || 'WannaTalk reminder: please contact us to arrange your recommended follow-up session.').trim().slice(0, 1000);
   const delivery = await sendPatientCommunication({ patientId: followUp.patient_id, providerId: followUp.provider_id, followUpId: followUp.id, sentByUserId: req.user.id, channels, subject: 'WannaTalk follow-up reminder', message });
