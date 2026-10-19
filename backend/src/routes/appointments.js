@@ -145,6 +145,7 @@ async function audit(client, user, action, appointmentId, details = {}) {
 }
 
 appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
+  await query(`UPDATE invoices SET status='Overdue',updated_at=now() WHERE status='Issued' AND outstanding_balance>0 AND due_at<now()`);
   const params = [];
   const where = [];
 
@@ -182,7 +183,11 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
             pu.full_name AS patient_name, pu.email AS patient_email, pu.mobile AS patient_mobile,
             pr.full_name AS provider_name, pr.email AS provider_email, pr.mobile AS provider_mobile,
             pro.professional_title, l.name AS location_name,
-            inv.invoice_id, inv.invoice_number, inv.invoice_status, inv.outstanding_balance,
+            inv.invoice_id, inv.invoice_number, inv.invoice_status, inv.total_amount,
+            inv.payments_received, inv.outstanding_balance, inv.due_at,
+            inv.billing_review, inv.billing_review_reason,
+            inv.invoice_provider_id, inv.invoice_patient_id, inv.invoice_company_id, inv.invoice_billing_customer_type,
+            (inv.outstanding_balance > 0 AND (a.appointment_date + a.appointment_time) < now()) AS appointment_passed_unpaid,
             EXISTS (
               SELECT 1 FROM communication_deliveries cd
               WHERE cd.patient_id = a.patient_id AND cd.provider_id = a.provider_id
@@ -226,7 +231,8 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
      LEFT JOIN locations l ON l.id = a.location_id
      LEFT JOIN LATERAL (
        SELECT i.id AS invoice_id, i.invoice_number, i.status AS invoice_status,
-              i.outstanding_balance, i.provider_id AS invoice_provider_id,
+              i.total_amount, i.payments_received, i.outstanding_balance, i.due_at,
+              i.billing_review, i.billing_review_reason, i.provider_id AS invoice_provider_id,
               i.patient_id AS invoice_patient_id, i.company_id AS invoice_company_id,
               i.billing_customer_type AS invoice_billing_customer_type
        FROM invoice_items ii
@@ -318,6 +324,11 @@ appointmentsRouter.patch('/:id/reschedule', authRequired(['admin', 'provider', '
       [appointmentDate, appointmentTime, req.params.id]
     );
     await audit(client, req.user, 'Rescheduled booking', req.params.id, { appointmentDate, appointmentTime });
+    await client.query(
+      `UPDATE invoices i SET due_date=$2, due_at=($2::date + $3::time) AT TIME ZONE 'Africa/Johannesburg', updated_at=now()
+       FROM invoice_items ii WHERE ii.invoice_id=i.id AND ii.appointment_id=$1 AND i.status NOT IN ('Void','Credited')`,
+      [req.params.id, appointmentDate, appointmentTime]
+    );
     return updated.rows[0];
   });
 
@@ -371,6 +382,22 @@ appointmentsRouter.patch('/:id/edit', authRequired(['admin']), asyncHandler(asyn
       patientId, providerId, locationId, appointmentDate, appointmentTime, durationMinutes: duration,
       appointmentType, mode, intakeRequested: Boolean(intakeRequested),
     });
+    const billingChanged = String(providerId) !== String(current.rows[0].provider_id)
+      || String(appointmentType) !== String(current.rows[0].appointment_type);
+    if (billingChanged) {
+      await client.query(
+        `UPDATE invoices i SET billing_review=true, billing_review_reason='Provider or service changed after invoice issue', updated_at=now()
+         FROM invoice_items ii WHERE ii.invoice_id=i.id AND ii.appointment_id=$1 AND i.status NOT IN ('Void','Credited')`,
+        [req.params.id]
+      );
+      await audit(client, req.user, 'Flagged invoice for billing review', req.params.id, { reason: 'Provider or service changed after invoice issue' });
+    } else if (whenChanged) {
+      await client.query(
+        `UPDATE invoices i SET due_date=$2, due_at=($2::date + $3::time) AT TIME ZONE 'Africa/Johannesburg', updated_at=now()
+         FROM invoice_items ii WHERE ii.invoice_id=i.id AND ii.appointment_id=$1 AND i.status NOT IN ('Void','Credited')`,
+        [req.params.id, appointmentDate, appointmentTime]
+      );
+    }
     return updated.rows[0];
   });
   res.json({ appointment });
@@ -391,18 +418,26 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
     access = `AND EXISTS (SELECT 1 FROM patients p WHERE p.id = appointments.patient_id AND p.user_id = $${params.length})`;
   }
 
-  const result = await query(
-    `UPDATE appointments SET status = $1, updated_at = now() WHERE id = $2 ${access} RETURNING *`,
-    params
-  );
-  if (!result.rows[0]) return res.status(404).json({ error: 'Appointment not found' });
-  await query(
-    `INSERT INTO audit_logs (user_id, user_name, user_role, action, appointment_id, details)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-    [req.user.id, req.user.name || req.user.email || req.user.role, req.user.role, status === 'Cancelled' ? 'Cancelled booking' : 'Changed booking status', req.params.id, JSON.stringify({ status })]
-  );
-  res.json({ appointment: result.rows[0] });
-  if (status === 'Cancelled') void notifyProvider(result.rows[0].id, 'cancelled');
+  const appointment = await withTransaction(async client => {
+    const result = await client.query(
+      `UPDATE appointments SET status = $1, updated_at = now() WHERE id = $2 ${access} RETURNING *`,
+      params
+    );
+    if (!result.rows[0]) return null;
+    await audit(client, req.user, status === 'Cancelled' ? 'Cancelled booking' : 'Changed booking status', req.params.id, { status });
+    if (status === 'Cancelled') {
+      await client.query(
+        `UPDATE invoices i SET billing_review=true, billing_review_reason='Appointment cancelled - credit, refund, or cancellation fee decision required', updated_at=now()
+         FROM invoice_items ii WHERE ii.invoice_id=i.id AND ii.appointment_id=$1 AND i.status NOT IN ('Void','Credited')`,
+        [req.params.id]
+      );
+      await audit(client, req.user, 'Flagged invoice for billing review', req.params.id, { reason: 'Appointment cancelled' });
+    }
+    return result.rows[0];
+  });
+  if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+  res.json({ appointment });
+  if (status === 'Cancelled') void notifyProvider(appointment.id, 'cancelled');
 }));
 
 appointmentsRouter.delete('/:id', authRequired(['admin']), asyncHandler(async (req, res) => {

@@ -15,6 +15,7 @@ export interface Invoice {
   provider_name: string;
   company_name: string | null;
   outstanding_balance: number;
+  payments_received?: number;
   status: string;
 }
 interface Payment {
@@ -48,6 +49,7 @@ interface Credit {
   company_name: string | null;
   provider_name: string;
 }
+interface Refund { id:string; refund_date:string; amount:number; method:string; reference:string|null; reason:string; status:string; invoice_number:string; patient_name:string; provider_name:string; reversal_reason:string|null }
 const today = () => new Date().toISOString().slice(0, 10);
 const money = (x: number) =>
   `R ${x.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -373,24 +375,34 @@ function CreditEditor({
     </Modal>
   );
 }
+function RefundEditor({invoice,onClose,onSaved}:{invoice:Invoice;onClose:()=>void;onSaved:()=>void}) {
+  const {notify}=useApp();
+  const [amount,setAmount]=useState(String(invoice.payments_received||'')),[refundDate,setDate]=useState(today()),[method,setMethod]=useState('Bank transfer'),[reference,setReference]=useState(''),[reason,setReason]=useState(''),[busy,setBusy]=useState(false);
+  async function save(e:FormEvent){e.preventDefault();setBusy(true);try{await mutate('/billing/refunds','POST',{invoiceId:invoice.id,refundDate,amount:Number(amount),method,reference,reason});notify('Refund recorded separately from the credit note');onSaved();}catch(error){notify(error instanceof Error?error.message:'Unable to record refund');}finally{setBusy(false);}}
+  return <Modal title={`Refund ${invoice.invoice_number}`} onClose={onClose}><form onSubmit={save}><p className="sub">Payments received: {money(invoice.payments_received||0)}. A refund does not replace a credit note.</p><div className="form-grid"><Field label="Refund date"><input required type="date" value={refundDate} onChange={e=>setDate(e.target.value)}/></Field><Field label="Amount"><input required type="number" min="0.01" step="0.01" max={invoice.payments_received||0} value={amount} onChange={e=>setAmount(e.target.value)}/></Field><Field label="Method"><input required value={method} onChange={e=>setMethod(e.target.value)}/></Field><Field label="Reference"><input value={reference} onChange={e=>setReference(e.target.value)}/></Field><Field label="Reason" full><textarea required rows={3} value={reason} onChange={e=>setReason(e.target.value)}/></Field></div><div className="modal-actions"><button className="btn danger" disabled={busy}>{busy?'Saving…':'Record refund'}</button><button type="button" className="btn secondary" onClick={onClose}>Cancel</button></div></form></Modal>;
+}
 export default function PaymentsPage() {
   const { notify } = useApp();
   const [payments, setPayments] = useState<Payment[]>([]),
     [invoices, setInvoices] = useState<Invoice[]>([]),
     [credits, setCredits] = useState<Credit[]>([]),
+    [refunds, setRefunds] = useState<Refund[]>([]),
     [creating, setCreating] = useState(false),
     [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null),
-    [crediting, setCrediting] = useState<Invoice | null>(null);
+    [crediting, setCrediting] = useState<Invoice | null>(null),
+    [refunding, setRefunding] = useState<Invoice | null>(null);
   const load = () =>
     Promise.all([
       api<{ payments: Payment[] }>('/billing/payments'),
       api<{ invoices: Invoice[] }>('/invoices'),
       api<{ credits: Credit[] }>('/billing/credit-notes'),
+      api<{ refunds: Refund[] }>('/billing/refunds'),
     ])
-      .then(([p, i, c]) => {
+      .then(([p, i, c, r]) => {
         setPayments(p.payments);
         setInvoices(i.invoices);
         setCredits(c.credits);
+        setRefunds(r.refunds);
       })
       .catch((e) => notify(e instanceof Error ? e.message : 'Unable to load billing ledger'));
   useEffect(() => {
@@ -530,6 +542,7 @@ export default function PaymentsPage() {
                         <button className="btn secondary small" onClick={() => setCrediting(i)}>
                           Credit note
                         </button>
+                        {Number(i.payments_received||0)>0&&<button className="btn secondary small" onClick={()=>setRefunding(i)}>Refund</button>}
                       </div>
                     </td>
                   </tr>
@@ -538,6 +551,7 @@ export default function PaymentsPage() {
           </table>
         </div>
       </Card>
+      <Card><h3>Refund history</h3>{refunds.length?<div className="dashboard-table"><table><thead><tr><th>Date</th><th>Invoice</th><th>Patient</th><th>Provider</th><th>Method / reference</th><th>Amount</th><th>Reason</th><th>Status</th></tr></thead><tbody>{refunds.map(r=><tr key={r.id}><td>{r.refund_date}</td><td>{r.invoice_number}</td><td>{r.patient_name}</td><td>{r.provider_name}</td><td>{r.method}<div className="sub">{r.reference||'No reference'}</div></td><td>{money(r.amount)}</td><td>{r.reason}</td><td><StatusPill status={r.status}/></td></tr>)}</tbody></table></div>:<Empty>No refunds have been recorded.</Empty>}</Card>
       <Card>
         <h3>Credit note history</h3>
         {credits.length ? (
@@ -607,6 +621,7 @@ export default function PaymentsPage() {
           }}
         />
       )}
+      {refunding&&<RefundEditor invoice={refunding} onClose={()=>setRefunding(null)} onSaved={()=>{setRefunding(null);void load();}}/>}
     </section>
   );
 }

@@ -202,16 +202,15 @@ export default function AppointmentTable({
                 )}
                 {user?.role === 'admin' && a.invoice_id && (
                   <div className="appointment-invoice-status" aria-label={`Invoice ${a.invoice_number}`}>
-                    <span className="invoice-status-badge generated">Invoice generated</span>
-                    {Number(a.outstanding_balance || 0) > 0 ? (
-                      <span className={`invoice-status-badge ${a.invoice_status === 'Overdue' ? 'overdue' : 'due'}`}>
-                        {a.invoice_status === 'Overdue' ? 'Payment overdue' : 'Payment due'}
-                      </span>
-                    ) : (
-                      <span className="invoice-status-badge paid">Payment done</span>
-                    )}
-                    <div className="sub">{a.invoice_number}</div>
+                    <span className={`invoice-status-badge ${a.billing_review ? 'overdue' : a.invoice_status === 'Paid' ? 'paid' : a.invoice_status === 'Overdue' ? 'overdue' : 'due'}`}>
+                      {a.billing_review ? 'Billing review' : a.invoice_status === 'Part Paid' ? 'Partially paid' : a.invoice_status === 'Issued' ? 'Due' : a.invoice_status}
+                    </span>
+                    {a.appointment_passed_unpaid && <span className="invoice-status-badge overdue">Appointment passed unpaid</span>}
+                    <div className="sub">{a.invoice_number} · R {Number(a.outstanding_balance||0).toFixed(2)} balance</div>
                   </div>
+                )}
+                {user?.role === 'admin' && !a.invoice_id && (
+                  <div className="appointment-invoice-status"><span className="invoice-status-badge">No invoice</span></div>
                 )}
               </td>
               <td>

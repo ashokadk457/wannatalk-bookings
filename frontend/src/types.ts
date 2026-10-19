@@ -105,7 +105,13 @@ export interface Appointment {
   invoice_id?: string | null;
   invoice_number?: string | null;
   invoice_status?: string | null;
+  total_amount?: number | null;
+  payments_received?: number | null;
   outstanding_balance?: number | null;
+  due_at?: string | null;
+  billing_review?: boolean;
+  billing_review_reason?: string | null;
+  appointment_passed_unpaid?: boolean;
   invoice_provider_id?: string | null;
   invoice_patient_id?: string | null;
   invoice_company_id?: string | null;
