@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, ProviderStatus, Stat } from '../../components/ui';
@@ -10,8 +10,6 @@ export default function DashboardPage() {
   const { user, data } = useApp(),
     admin = user?.role === 'admin';
   const [createBooking, setCreateBooking] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const sidebarId = useId();
   const apps = [...data.appointments].sort((a, b) =>
     (a.appointment_date + a.appointment_time).localeCompare(
       b.appointment_date + b.appointment_time,
@@ -20,10 +18,7 @@ export default function DashboardPage() {
   const todays = apps.filter((a) => a.appointment_date === today()),
     completed = apps.filter((a) => a.status === 'Completed'),
     cancelled = apps.filter((a) => ['Cancelled', 'No-show'].includes(a.status));
-  const online = data.providers.filter((p) => p.is_active && p.is_online).length,
-    upcoming = apps
-      .filter((a) => a.appointment_date >= today() && !['Cancelled', 'No-show'].includes(a.status))
-      .slice(0, 6);
+  const online = data.providers.filter((p) => p.is_active && p.is_online).length;
   return (
     <section>
       {user?.role === 'provider' && (
@@ -73,51 +68,21 @@ export default function DashboardPage() {
           note="Follow-up suggested"
         />
       </div>
-      {admin && (
-        <div className="dashboard-panel-controls space-top">
-          <button
-            type="button"
-            className="btn secondary small"
-            aria-expanded={sidebarOpen}
-            aria-controls={sidebarId}
-            onClick={() => setSidebarOpen((open) => !open)}
-          >
-            <span aria-hidden="true">{sidebarOpen ? '\u2192' : '\u2190'}</span>{' '}
-            {sidebarOpen
-              ? 'Hide practice health & quick actions'
-              : 'Show practice health & quick actions'}
-          </button>
-        </div>
-      )}
-      <div
-        className={
-          admin
-            ? `dashboard-overview-layout${sidebarOpen ? '' : ' panel-collapsed'}`
-            : 'grid two space-top flex-box'
-        }
-      >
-        <Card title={admin ? 'Upcoming appointments' : 'Upcoming appointments'}>
-          <AppointmentTable
-            appointments={
-              admin
-                ? upcoming
-                : apps
-                    .filter(
-                      (a) =>
-                        a.appointment_date >= today() &&
-                        !['Cancelled', 'No-show'].includes(a.status),
-                    )
-                    .slice(0, 20)
-            }
-            bulkMessaging={user?.role === 'provider'}
-            fullInvoiceEditor={admin}
-          />
-        </Card>
-        <div
-          className="grid dashboard-overview-panel"
-          id={sidebarId}
-          hidden={admin && !sidebarOpen}
-        >
+      <div className={admin ? 'grid two space-top' : 'grid two space-top flex-box'}>
+        {!admin && (
+          <Card title="Upcoming appointments">
+            <AppointmentTable
+              appointments={apps
+                .filter(
+                  (a) =>
+                    a.appointment_date >= today() && !['Cancelled', 'No-show'].includes(a.status),
+                )
+                .slice(0, 20)}
+              bulkMessaging
+            />
+          </Card>
+        )}
+        <div className="grid dashboard-overview-panel">
           <Card title={admin ? 'Practice health' : "Today's overview"}>
             {admin &&
               data.providers.map((p) => (
@@ -160,9 +125,11 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
-      <div className="space-top">
-        <Calendar appointments={apps} />
-      </div>
+      {!admin && (
+        <div className="space-top">
+          <Calendar appointments={apps} />
+        </div>
+      )}
       {createBooking && <BookingCreator onClose={() => setCreateBooking(false)} />}
     </section>
   );
