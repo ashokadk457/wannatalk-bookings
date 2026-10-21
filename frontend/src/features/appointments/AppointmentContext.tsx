@@ -628,15 +628,19 @@ export function useAppointments() {
 export function AppointmentActions({
   appointment: a,
   view = false,
+  includeDestructive = true,
+  destructiveOnly = false,
 }: {
   appointment: Appointment;
   view?: boolean;
+  includeDestructive?: boolean;
+  destructiveOnly?: boolean;
 }) {
   const actions = useAppointments(),
     { user } = useApp();
   return (
     <div className="actions">
-      {user?.role === 'admin' && active(a) && (
+      {!destructiveOnly && user?.role === 'admin' && active(a) && (
         <button
           disabled={actions.busy}
           className={`btn secondary small appointment-icon-action`}
@@ -647,12 +651,12 @@ export function AppointmentActions({
           <Icon.Repeat />
         </button>
       )}
-      {view && (
+      {!destructiveOnly && view && (
         <button className="btn secondary small appointment-icon-action" data-tooltip="View appointment" aria-label="View appointment" onClick={() => actions.open(a)}>
           <Icon.View />
         </button>
       )}
-      {active(a) && (
+      {!destructiveOnly && active(a) && (
         <>
           {rescheduleAllowed(a.appointment_date, a.appointment_time) && (
             <button
@@ -665,18 +669,20 @@ export function AppointmentActions({
               <Icon.Repeat />
             </button>
           )}
-          <button
-            disabled={actions.busy}
-            className="btn danger small appointment-icon-action"
-            data-tooltip="Cancel appointment"
-            aria-label="Cancel appointment"
-            onClick={() => void actions.cancel(a)}
-          >
-            <Icon.Close />
-          </button>
         </>
       )}
-      {user?.role === 'admin' && (
+      {includeDestructive && active(a) && (
+        <button
+          disabled={actions.busy}
+          className="btn danger small appointment-icon-action"
+          data-tooltip="Cancel appointment"
+          aria-label="Cancel appointment"
+          onClick={() => void actions.cancel(a)}
+        >
+          <Icon.Close />
+        </button>
+      )}
+      {includeDestructive && user?.role === 'admin' && (
         <button
           disabled={actions.busy}
           className="btn danger small appointment-icon-action"

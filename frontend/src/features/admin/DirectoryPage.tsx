@@ -146,7 +146,7 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
                         )}
                       </td>
                       <td>
-                        <div className="actions">
+                        <div className={`actions directory-row-actions${p ? ' provider-row-actions' : ' patient-row-actions'}`}>
                           {admin && (
                             <>
                               <button

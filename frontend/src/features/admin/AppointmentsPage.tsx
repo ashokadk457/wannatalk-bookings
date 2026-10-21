@@ -101,12 +101,12 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
             </select>
           </Field>
           <DateRangeFilter value={range} onChange={setRange} />
-          <Field label="Sort appointments">
+          {/* <Field label="Sort appointments">
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="soonest">Soonest first</option>
               <option value="latest">Latest first</option>
             </select>
-          </Field>
+          </Field> */}
           <Field label="Rows per page">
             <select
               className="pagination_select"

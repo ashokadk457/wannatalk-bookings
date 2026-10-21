@@ -202,11 +202,14 @@ export default function FollowUpsPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            className="btn danger small"
+                            className="btn danger small followup-delete-action"
                             aria-label={`Delete follow-up for ${f.patient_name}`}
+                            title={`Delete follow-up for ${f.patient_name}`}
                             onClick={() => void action(f.id, 'delete')}
                           >
-                            Delete
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
                           </button>
                         )}
                       </div>

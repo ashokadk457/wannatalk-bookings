@@ -181,7 +181,6 @@ export default function AppointmentTable({
               <td>
                 {a.appointment_type}
                 <div className="sub">📍 {a.location_name || a.mode}</div>
-                {joinAllowed(a) && <MeetingLink url={a.meeting_url} />}
                 {a.intake_requested && <div className="intake-badge">Intake selected</div>}
               </td>
               <td>
@@ -215,7 +214,7 @@ export default function AppointmentTable({
               </td>
               <td>
                 <div className="actions">
-                <AppointmentActions appointment={a} view />
+                {joinAllowed(a) && <MeetingLink url={a.meeting_url} />}
                 {user?.role !== 'patient' && (
                   <button
                     className="btn secondary small appointment-icon-action"
@@ -267,6 +266,8 @@ export default function AppointmentTable({
                     <ActionIcon type="followup" done={Boolean(a.follow_up_attempted)} />
                   </button>
                 )}
+                <AppointmentActions appointment={a} view includeDestructive={false} />
+                <AppointmentActions appointment={a} destructiveOnly />
                 </div>
               </td>
             </tr>
