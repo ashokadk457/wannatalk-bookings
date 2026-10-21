@@ -13,6 +13,7 @@ const migrations = [
   '027_application_follow_up_rules.sql',
   '028_flexible_application_follow_up_rules.sql',
   '029_recurring_bookings.sql',
+  '030_invoice_deletion_history.sql',
 ];
 
 try {

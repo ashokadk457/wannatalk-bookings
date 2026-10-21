@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Card, Empty, Field, Heading, StatusPill } from '../../components/ui';
-import { api } from '../../services/api';
+import { api, mutate } from '../../services/api';
 import BillingNav from './BillingNav';
 import { InvoiceEditor, type Invoice as EditorInvoice } from './InvoiceEditor';
 import Modal from '../../components/Modal';
@@ -14,6 +14,22 @@ interface Invoice extends EditorInvoice {
   appointment_time: string | null;
   service: string | null;
   appointments_cancelled: boolean;
+}
+interface DeletedInvoice {
+  id: string;
+  invoice_number: string;
+  issue_date: string;
+  total_amount: number;
+  payments_received: number;
+  outstanding_balance: number;
+  status_before_delete: string;
+  deleted_at: string;
+  deleted_by_name: string;
+  deletion_reason: string;
+  billing_customer_type: string;
+  patient_name: string;
+  provider_name: string;
+  company_name: string | null;
 }
 interface Summary {
   invoice_count: number;
@@ -216,6 +232,7 @@ function OverviewModal({
 export default function InvoicesPage() {
   const { notify } = useApp();
   const [invoices, setInvoices] = useState<Invoice[]>([]),
+    [deletedInvoices, setDeletedInvoices] = useState<DeletedInvoice[]>([]),
     [overview, setOverview] = useState<Overview | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
@@ -229,16 +246,19 @@ export default function InvoicesPage() {
     [to, setTo] = useState(''),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25),
+    [invoiceView, setInvoiceView] = useState<'active' | 'deleted'>('active'),
     [openPanel, setOpenPanel] = useState<OverviewPanel | null>(null);
   const load = async () => {
     setLoading(true);
     setError('');
     try {
-      const [invoiceResult, overviewResult] = await Promise.all([
+      const [invoiceResult, deletedResult, overviewResult] = await Promise.all([
         api<{ invoices: Invoice[] }>('/invoices'),
+        api<{ invoices: DeletedInvoice[] }>('/invoices/deleted'),
         api<Overview>('/billing/overview'),
       ]);
       setInvoices(invoiceResult.invoices.filter((x) => !x.appointments_cancelled));
+      setDeletedInvoices(deletedResult.invoices);
       setOverview(overviewResult);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unable to load billing data';
@@ -300,6 +320,30 @@ export default function InvoicesPage() {
     setTo('');
     setPage(1);
   };
+  const removeInvoice = async (invoice: Invoice) => {
+    const reason = window.prompt(
+      `Why are you deleting invoice ${invoice.invoice_number}? This reason will be kept in the deletion history.`,
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      notify('Enter a reason for deleting this invoice');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Delete invoice ${invoice.invoice_number}? It will remain in deleted history.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await mutate(`/invoices/${invoice.id}`, 'DELETE', { reason: reason.trim() });
+      notify(`Invoice ${invoice.invoice_number} moved to deleted history`);
+      await load();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Unable to delete invoice');
+    }
+  };
   const cards = overview
     ? ([
         ['Invoices issued', overview.summary.invoice_count, overview.summary.invoiced, 'All'],
@@ -333,11 +377,30 @@ export default function InvoicesPage() {
           title="Billing"
           subtitle="Invoices, payment status, credits and exceptions across the practice."
         />
-        <button className="btn" disabled={Boolean(error)} onClick={() => setCreating(true)}>
-          + Create invoice
-        </button>
+        {invoiceView === 'active' && (
+          <button className="btn" disabled={Boolean(error)} onClick={() => setCreating(true)}>
+            + Create invoice
+          </button>
+        )}
       </div>
       <BillingNav />
+      <nav className="workflow-tabs" aria-label="Invoice views">
+        <button
+          className={invoiceView === 'active' ? 'active' : ''}
+          onClick={() => setInvoiceView('active')}
+        >
+          Active invoices
+        </button>
+        <button
+          className={invoiceView === 'deleted' ? 'active' : ''}
+          onClick={() => setInvoiceView('deleted')}
+        >
+          Deleted invoices{' '}
+          <span aria-label={`${deletedInvoices.length} deleted invoices`}>
+            ({deletedInvoices.length})
+          </span>
+        </button>
+      </nav>
       {error ? (
         <Card>
           <p className="billing-load-error" role="alert">
@@ -349,133 +412,255 @@ export default function InvoicesPage() {
         </Card>
       ) : (
         <>
-          <div className="billing-kpi-grid">
-            {cards.map(([label, count, amount, filter]) => (
-              <button
-                key={label}
-                className={`billing-kpi ${status === filter ? 'selected' : ''}`}
-                onClick={() => setStatus(filter)}
-              >
-                <span>{label}</span>
-                <strong>{count}</strong>
-                <small>{money(amount)}</small>
-              </button>
-            ))}
-          </div>
-          <Card className="billing-invoice-card">
-            <div className="billing-filter-grid">
-              <Field label="Search">
-                <input
-                  type="search"
-                  placeholder="Invoice, patient or provider"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </Field>
-              <Field label="Status">
-                <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                  {[
-                    'All',
-                    'Due',
-                    'Partially paid',
-                    'Paid',
-                    'Overdue',
-                    'Credited',
-                    'Billing review',
-                  ].map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Provider">
-                <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-                  <option>All</option>
-                  {providers.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Patient">
-                <select value={patient} onChange={(e) => setPatient(e.target.value)}>
-                  <option>All</option>
-                  {patients.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Company">
-                <select value={company} onChange={(e) => setCompany(e.target.value)}>
-                  <option>All</option>
-                  {companies.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="From">
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-              </Field>
-              <Field label="To">
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-              </Field>
-              <button className="btn secondary" onClick={clear}>
-                Clear
-              </button>
+          {invoiceView === 'active' && (
+            <div className="billing-kpi-grid">
+              {cards.map(([label, count, amount, filter]) => (
+                <button
+                  key={label}
+                  className={`billing-kpi ${status === filter ? 'selected' : ''}`}
+                  onClick={() => setStatus(filter)}
+                >
+                  <span>{label}</span>
+                  <strong>{count}</strong>
+                  <small>{money(amount)}</small>
+                </button>
+              ))}
             </div>
-            {loading ? (
-              <p>Loading invoices…</p>
-            ) : rows.length ? (
-              <>
+          )}
+          {invoiceView === 'active' && (
+            <Card className="billing-invoice-card">
+              <div className="billing-filter-grid">
+                <Field label="Search">
+                  <input
+                    type="search"
+                    placeholder="Invoice, patient or provider"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </Field>
+                <Field label="Status">
+                  <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                    {[
+                      'All',
+                      'Due',
+                      'Partially paid',
+                      'Paid',
+                      'Overdue',
+                      'Credited',
+                      'Billing review',
+                    ].map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Provider">
+                  <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+                    <option>All</option>
+                    {providers.map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Patient">
+                  <select value={patient} onChange={(e) => setPatient(e.target.value)}>
+                    <option>All</option>
+                    {patients.map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Company">
+                  <select value={company} onChange={(e) => setCompany(e.target.value)}>
+                    <option>All</option>
+                    {companies.map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="From">
+                  <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                </Field>
+                <Field label="To">
+                  <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+                </Field>
+                <button className="btn secondary" onClick={clear}>
+                  Clear
+                </button>
+              </div>
+              {loading ? (
+                <p>Loading invoices…</p>
+              ) : rows.length ? (
+                <>
+                  <div className="dashboard-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Invoice no</th>
+                          <th>Date issued</th>
+                          <th>Patient / party</th>
+                          <th>Provider</th>
+                          <th>Appointment</th>
+                          <th>Service</th>
+                          <th>Amount</th>
+                          <th>Paid</th>
+                          <th>Balance</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleRows.map((x) => (
+                          <tr key={x.id}>
+                            <td>
+                              <button className="link-button" onClick={() => openInvoice(x.id)}>
+                                {x.invoice_number}
+                              </button>
+                            </td>
+                            <td>{x.issue_date}</td>
+                            <td>
+                              {x.company_name || x.patient_name}
+                              {x.company_name && (
+                                <div className="sub">Patient: {x.patient_name}</div>
+                              )}
+                            </td>
+                            <td>{x.provider_name}</td>
+                            <td>
+                              {x.appointment_date || '—'}
+                              {x.appointment_time && (
+                                <div className="sub">{x.appointment_time.slice(0, 5)}</div>
+                              )}
+                            </td>
+                            <td>{x.service || 'Professional service'}</td>
+                            <td>{money(x.total_amount)}</td>
+                            <td>{money(x.payments_received)}</td>
+                            <td>{money(x.outstanding_balance)}</td>
+                            <td>
+                              <StatusPill status={displayStatus(x)} />
+                              {x.billing_review_reason && (
+                                <div className="sub">{x.billing_review_reason}</div>
+                              )}
+                            </td>
+                            <td>
+                              <div className="actions">
+                                <button
+                                  className="btn secondary small"
+                                  onClick={() => openInvoice(x.id)}
+                                >
+                                  View
+                                </button>
+                                <button
+                                  className="btn danger small"
+                                  onClick={() => void removeInvoice(x)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="pagination-controls">
+                    <span>
+                      Showing {(currentPage - 1) * pageSize + 1}–
+                      {Math.min(currentPage * pageSize, rows.length)} of {rows.length}
+                    </span>
+                    <label className="pagination-size">
+                      Rows{' '}
+                      <select
+                        className="pagination_select"
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setPage(1);
+                        }}
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </label>
+                    <div className="actions">
+                      <button
+                        type="button"
+                        className="btn secondary small"
+                        disabled={currentPage === 1}
+                        onClick={() => setPage(Math.max(1, currentPage - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="pill">
+                        Page {currentPage} of {pageCount}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn secondary small"
+                        disabled={currentPage === pageCount}
+                        onClick={() => setPage(Math.min(pageCount, currentPage + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <Empty>No invoices match these filters.</Empty>
+              )}
+            </Card>
+          )}
+          {invoiceView === 'deleted' && (
+            <Card className="billing-invoice-card">
+              <div className="card-head">
+                <div>
+                  <h3>Deleted invoice history</h3>
+                  <p className="sub">
+                    Deleted invoices are retained for audit and cannot affect active billing totals.
+                  </p>
+                </div>
+                <span className="pill">{deletedInvoices.length}</span>
+              </div>
+              {deletedInvoices.length ? (
                 <div className="dashboard-table">
                   <table>
                     <thead>
                       <tr>
                         <th>Invoice no</th>
-                        <th>Date issued</th>
+                        <th>Issued</th>
                         <th>Patient / party</th>
                         <th>Provider</th>
-                        <th>Appointment</th>
-                        <th>Service</th>
                         <th>Amount</th>
-                        <th>Paid</th>
-                        <th>Balance</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th>Previous status</th>
+                        <th>Deleted</th>
+                        <th>Deleted by</th>
+                        <th>Reason</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleRows.map((x) => (
-                        <tr key={x.id}>
+                      {deletedInvoices.map((invoice) => (
+                        <tr key={invoice.id}>
+                          <td>{invoice.invoice_number}</td>
+                          <td>{invoice.issue_date}</td>
                           <td>
-                            <button className="link-button" onClick={() => openInvoice(x.id)}>
-                              {x.invoice_number}
-                            </button>
-                          </td>
-                          <td>{x.issue_date}</td>
-                          <td>
-                            {x.company_name || x.patient_name}
-                            {x.company_name && <div className="sub">Patient: {x.patient_name}</div>}
-                          </td>
-                          <td>{x.provider_name}</td>
-                          <td>
-                            {x.appointment_date || '—'}
-                            {x.appointment_time && (
-                              <div className="sub">{x.appointment_time.slice(0, 5)}</div>
+                            {invoice.company_name || invoice.patient_name}
+                            {invoice.company_name && (
+                              <div className="sub">Patient: {invoice.patient_name}</div>
                             )}
                           </td>
-                          <td>{x.service || 'Professional service'}</td>
-                          <td>{money(x.total_amount)}</td>
-                          <td>{money(x.payments_received)}</td>
-                          <td>{money(x.outstanding_balance)}</td>
+                          <td>{invoice.provider_name || '—'}</td>
+                          <td>{money(invoice.total_amount)}</td>
                           <td>
-                            <StatusPill status={displayStatus(x)} />
-                            {x.billing_review_reason && (
-                              <div className="sub">{x.billing_review_reason}</div>
-                            )}
+                            <StatusPill status={invoice.status_before_delete || 'Void'} />
                           </td>
+                          <td>{new Date(invoice.deleted_at).toLocaleString('en-ZA')}</td>
+                          <td>{invoice.deleted_by_name || 'Administrator'}</td>
+                          <td>{invoice.deletion_reason}</td>
                           <td>
                             <button
                               className="btn secondary small"
-                              onClick={() => openInvoice(x.id)}
+                              onClick={() => openInvoice(invoice.id)}
                             >
                               View
                             </button>
@@ -485,188 +670,147 @@ export default function InvoicesPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="pagination-controls">
-                  <span>
-                    Showing {(currentPage - 1) * pageSize + 1}–
-                    {Math.min(currentPage * pageSize, rows.length)} of {rows.length}
-                  </span>
-                  <label className="pagination-size">
-                    Rows{' '}
-                    <select
-                      className="pagination_select"
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(Number(e.target.value));
-                        setPage(1);
-                      }}
-                    >
-                      <option value={10}>10</option>
-                      <option value={25}>25</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
-                  </label>
-                  <div className="actions">
-                    <button
-                      type="button"
-                      className="btn secondary small"
-                      disabled={currentPage === 1}
-                      onClick={() => setPage(Math.max(1, currentPage - 1))}
-                    >
-                      Previous
+              ) : (
+                <Empty>No invoices have been deleted.</Empty>
+              )}
+            </Card>
+          )}
+          {invoiceView === 'active' && (
+            <div className="billing-panel-grid">
+              <Card>
+                <div className="card-head">
+                  <h3>Overdue invoices</h3>
+                  {overview && overview.overdue.length > 5 && (
+                    <button className="link-button" onClick={() => setOpenPanel('overdue')}>
+                      View all
                     </button>
-                    <span className="pill">
-                      Page {currentPage} of {pageCount}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn secondary small"
-                      disabled={currentPage === pageCount}
-                      onClick={() => setPage(Math.min(pageCount, currentPage + 1))}
-                    >
-                      Next
-                    </button>
+                  )}
+                </div>
+                {overview?.overdue.length ? (
+                  <div className="dashboard-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Invoice</th>
+                          <th>Patient</th>
+                          <th>Appointment</th>
+                          <th>Balance</th>
+                          <th>Days</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overview.overdue.slice(0, 5).map((x) => (
+                          <tr key={x.id}>
+                            <td>
+                              <button className="link-button" onClick={() => openInvoice(x.id)}>
+                                {x.invoice_number}
+                              </button>
+                            </td>
+                            <td>{x.patient_name}</td>
+                            <td>{x.appointment_date || '—'}</td>
+                            <td>{money(x.outstanding_balance)}</td>
+                            <td>{x.days_overdue}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-              </>
-            ) : (
-              <Empty>No invoices match these filters.</Empty>
-            )}
-          </Card>
-          <div className="billing-panel-grid">
-            <Card>
-              <div className="card-head">
-                <h3>Overdue invoices</h3>
-                {overview && overview.overdue.length > 5 && (
-                  <button className="link-button" onClick={() => setOpenPanel('overdue')}>
-                    View all
-                  </button>
+                ) : (
+                  <Empty>No overdue invoices.</Empty>
                 )}
-              </div>
-              {overview?.overdue.length ? (
-                <div className="dashboard-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Invoice</th>
-                        <th>Patient</th>
-                        <th>Appointment</th>
-                        <th>Balance</th>
-                        <th>Days</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overview.overdue.slice(0, 5).map((x) => (
-                        <tr key={x.id}>
-                          <td>
-                            <button className="link-button" onClick={() => openInvoice(x.id)}>
-                              {x.invoice_number}
-                            </button>
-                          </td>
-                          <td>{x.patient_name}</td>
-                          <td>{x.appointment_date || '—'}</td>
-                          <td>{money(x.outstanding_balance)}</td>
-                          <td>{x.days_overdue}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              </Card>
+              <Card>
+                <div className="card-head">
+                  <h3>Upcoming appointments - no invoice</h3>
+                  {overview && overview.upcoming.length > 5 && (
+                    <button className="link-button" onClick={() => setOpenPanel('upcoming')}>
+                      View all
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <Empty>No overdue invoices.</Empty>
-              )}
-            </Card>
-            <Card>
-              <div className="card-head">
-                <h3>Upcoming appointments - no invoice</h3>
-                {overview && overview.upcoming.length > 5 && (
-                  <button className="link-button" onClick={() => setOpenPanel('upcoming')}>
-                    View all
-                  </button>
+                {overview?.upcoming.length ? (
+                  <div className="dashboard-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Date / time</th>
+                          <th>Patient</th>
+                          <th>Provider</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overview.upcoming.slice(0, 5).map((x) => (
+                          <tr key={x.appointment_id}>
+                            <td>
+                              {x.appointment_date}
+                              <div className="sub">{x.appointment_time.slice(0, 5)}</div>
+                            </td>
+                            <td>{x.patient_name}</td>
+                            <td>{x.provider_name}</td>
+                            <td>—</td>
+                            <td>
+                              <StatusPill status={x.payment_status || 'Unpaid'} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <Empty>No upcoming appointments without an invoice.</Empty>
                 )}
-              </div>
-              {overview?.upcoming.length ? (
-                <div className="dashboard-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Date / time</th>
-                        <th>Patient</th>
-                        <th>Provider</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overview.upcoming.slice(0, 5).map((x) => (
-                        <tr key={x.appointment_id}>
-                          <td>
-                            {x.appointment_date}
-                            <div className="sub">{x.appointment_time.slice(0, 5)}</div>
-                          </td>
-                          <td>{x.patient_name}</td>
-                          <td>{x.provider_name}</td>
-                          <td>—</td>
-                          <td>
-                            <StatusPill status={x.payment_status || 'Unpaid'} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              </Card>
+              <Card>
+                <div className="card-head">
+                  <h3>Recent credit notes</h3>
+                  {overview && overview.credits.length > 5 && (
+                    <button className="link-button" onClick={() => setOpenPanel('credits')}>
+                      View all
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <Empty>No upcoming appointments without an invoice.</Empty>
-              )}
-            </Card>
-            <Card>
-              <div className="card-head">
-                <h3>Recent credit notes</h3>
-                {overview && overview.credits.length > 5 && (
-                  <button className="link-button" onClick={() => setOpenPanel('credits')}>
-                    View all
-                  </button>
+                {overview?.credits.length ? (
+                  <div className="dashboard-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Credit note</th>
+                          <th>Invoice</th>
+                          <th>Patient</th>
+                          <th>Amount</th>
+                          <th>Reason</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overview.credits.slice(0, 5).map((x) => (
+                          <tr key={x.id}>
+                            <td>{x.credit_note_number}</td>
+                            <td>
+                              <button
+                                className="link-button"
+                                onClick={() => openInvoice(x.invoice_id)}
+                              >
+                                {x.invoice_number}
+                              </button>
+                            </td>
+                            <td>{x.patient_name}</td>
+                            <td>{money(x.amount)}</td>
+                            <td>{x.reason}</td>
+                            <td>{x.credit_date}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <Empty>No credit notes.</Empty>
                 )}
-              </div>
-              {overview?.credits.length ? (
-                <div className="dashboard-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Credit note</th>
-                        <th>Invoice</th>
-                        <th>Patient</th>
-                        <th>Amount</th>
-                        <th>Reason</th>
-                        <th>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overview.credits.slice(0, 5).map((x) => (
-                        <tr key={x.id}>
-                          <td>{x.credit_note_number}</td>
-                          <td>
-                            <button
-                              className="link-button"
-                              onClick={() => openInvoice(x.invoice_id)}
-                            >
-                              {x.invoice_number}
-                            </button>
-                          </td>
-                          <td>{x.patient_name}</td>
-                          <td>{money(x.amount)}</td>
-                          <td>{x.reason}</td>
-                          <td>{x.credit_date}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <Empty>No credit notes.</Empty>
-              )}
-            </Card>
-          </div>
+              </Card>
+            </div>
+          )}
         </>
       )}
       {creating && !error && (
