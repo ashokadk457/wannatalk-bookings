@@ -10,6 +10,9 @@ const migrations = [
   '023_followup_appointment_link.sql',
   '024_followup_send_attempt.sql',
   '025_scheduled_followup_reminders.sql',
+  '027_application_follow_up_rules.sql',
+  '028_flexible_application_follow_up_rules.sql',
+  '029_recurring_bookings.sql',
 ];
 
 try {
