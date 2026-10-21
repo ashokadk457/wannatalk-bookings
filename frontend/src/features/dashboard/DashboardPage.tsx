@@ -19,6 +19,14 @@ export default function DashboardPage() {
     completed = apps.filter((a) => a.status === 'Completed'),
     cancelled = apps.filter((a) => ['Cancelled', 'No-show'].includes(a.status));
   const online = data.providers.filter((p) => p.is_active && p.is_online).length;
+  const inactiveProviders = data.providers.filter((p) => !p.is_active).length;
+  const providersWithoutAvailability = data.providers.filter(
+    (p) => p.is_active && !p.availability.some((slot) => slot.is_available),
+  ).length;
+  const billingIssues = apps.filter((a) => a.billing_review || a.appointment_passed_unpaid).length;
+  const recentActivity = [...data.auditLogs]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 5);
   return (
     <section>
       {user?.role === 'provider' && (
@@ -68,8 +76,80 @@ export default function DashboardPage() {
           note="Follow-up suggested"
         />
       </div>
-      <div className={admin ? 'grid two space-top' : 'grid two space-top flex-box'}>
-        {!admin && (
+      {admin ? (
+        <div className="grid two space-top dashboard-overview-panel">
+          <Card title="Needs attention">
+            <div className="quick-list">
+              <Link className="btn secondary" to="/admin/registrations">
+                Pending registrations <span className="pill">{data.registrations.length}</span>
+              </Link>
+              <Link className="btn secondary" to="/admin/availability">
+                Providers without availability{' '}
+                <span className="pill">{providersWithoutAvailability}</span>
+              </Link>
+              <Link className="btn secondary" to="/admin/providers">
+                Inactive providers <span className="pill">{inactiveProviders}</span>
+              </Link>
+              <Link className="btn secondary" to="/admin/billing/outstanding">
+                Billing items requiring review <span className="pill">{billingIssues}</span>
+              </Link>
+            </div>
+          </Card>
+          <Card title="Practice health">
+            {data.providers.map((p) => (
+              <div className="detail-row" key={p.id}>
+                <strong>{p.full_name}</strong>
+                <ProviderStatus active={p.is_active} online={p.is_online} />
+              </div>
+            ))}
+            <div className="quick-list space-top">
+              <Link className="btn secondary" to="/admin/availability">
+                Check provider availability
+              </Link>
+              <Link className="btn secondary" to="/admin/health">
+                View system health
+              </Link>
+            </div>
+          </Card>
+          <Card title="Quick actions">
+            <div className="quick-list">
+              <Link className="btn" to="/admin/registrations">
+                Register client/provider
+              </Link>
+              <Link className="btn secondary" to="/admin/followups">
+                View follow-ups
+              </Link>
+              <Link className="btn secondary" to="/admin/patients">
+                View patients
+              </Link>
+              <Link className="btn secondary" to="/admin/appointments">
+                Manage appointments
+              </Link>
+            </div>
+          </Card>
+          <Card title="Recent admin activity">
+            {recentActivity.length ? (
+              recentActivity.map((entry) => (
+                <div className="detail-row" key={entry.id}>
+                  <span>
+                    <strong>{entry.action}</strong>
+                    <small>{entry.user_name}</small>
+                  </span>
+                  <span className="sub">{new Date(entry.created_at).toLocaleString('en-ZA')}</span>
+                </div>
+              ))
+            ) : (
+              <p className="sub">No recent admin activity.</p>
+            )}
+            <div className="quick-list space-top">
+              <Link className="btn secondary" to="/admin/audit">
+                View full audit log
+              </Link>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid two space-top flex-box">
           <Card title="Upcoming appointments">
             <AppointmentTable
               appointments={apps
@@ -81,50 +161,33 @@ export default function DashboardPage() {
               bulkMessaging
             />
           </Card>
-        )}
-        <div className="grid dashboard-overview-panel">
-          <Card title={admin ? 'Practice health' : "Today's overview"}>
-            {admin &&
-              data.providers.map((p) => (
-                <div className="detail-row" key={p.id}>
-                  <strong>{p.full_name}</strong>
-                  <ProviderStatus active={p.is_active} online={p.is_online} />
-                </div>
-              ))}
-            <div className="quick-list space-top">
-              {(admin
-                ? [
-                    ['registrations', 'Register client/provider'],
-                    ['appointments', 'Manage appointments'],
-                    ['availability', 'Check provider availability'],
-                  ]
-                : [
-                    ['calendar', 'View calendar'],
-                    ['availability', 'Edit weekly availability'],
-                    ['messages', 'Send a message'],
-                  ]
-              ).map(([path, label]) => (
-                <Link className="btn secondary" key={path} to={`/${user?.role}/${path}`}>
-                  {label}
+          <div className="grid dashboard-overview-panel">
+            <Card title="Today's overview">
+              <div className="quick-list space-top">
+                {[
+                  ['calendar', 'View calendar'],
+                  ['availability', 'Edit weekly availability'],
+                  ['messages', 'Send a message'],
+                ].map(([path, label]) => (
+                  <Link className="btn secondary" key={path} to={`/${user?.role}/${path}`}>
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            </Card>
+            <Card title="Quick actions">
+              <div className="quick-list">
+                <Link className="btn" to={`/${user?.role}/followups`}>
+                  View follow-ups
                 </Link>
-              ))}
-            </div>
-          </Card>
-          <Card title="Quick actions">
-            <div className="quick-list">
-              <Link className="btn" to={`/${user?.role}/followups`}>
-                View follow-ups
-              </Link>
-              <Link
-                className="btn secondary"
-                to={`/${user?.role}/${admin ? 'patients' : 'patients'}`}
-              >
-                View patients
-              </Link>
-            </div>
-          </Card>
+                <Link className="btn secondary" to={`/${user?.role}/patients`}>
+                  View patients
+                </Link>
+              </div>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
       {!admin && (
         <div className="space-top">
           <Calendar appointments={apps} />
