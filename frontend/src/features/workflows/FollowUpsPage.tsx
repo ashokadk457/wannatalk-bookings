@@ -8,6 +8,7 @@ import { addDays, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import { Channels, deliverySummary, PatientSelect, ProviderSelect, ResourceState } from './shared';
 import type { Delivery, FollowUp } from '../../types';
+import ApplicationFollowUpRules from './ApplicationFollowUpRules';
 export default function FollowUpsPage() {
   const { user, run, notify, refresh, setAppointmentFollowUpAttempted } = useApp(),
     resource = useResource<{ followUps: FollowUp[] }>('/follow-ups'),
@@ -27,6 +28,7 @@ export default function FollowUpsPage() {
     ),
     [channels, setChannels] = useState(['email', 'sms']),
     [deliveryMode, setDeliveryMode] = useState<'scheduled' | 'manual' | 'immediate'>('scheduled'),
+    [tab,setTab]=useState<'individual'|'application'>('individual'),
     [busy, setBusy] = useState(false);
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -127,11 +129,12 @@ export default function FollowUpsPage() {
           title="Follow-ups"
           subtitle="Internal notes remain private. Only the reminder message is sent."
         />
-        <button className="btn" onClick={() => setOpen(true)}>
+        {tab==='individual'&&<button className="btn" onClick={() => setOpen(true)}>
           ＋ Create follow-up
-        </button>
+        </button>}
       </div>
-      <Card>
+      {user?.role==='admin'&&<nav className="workflow-tabs" aria-label="Follow-up configuration"><button className={tab==='individual'?'active':''} onClick={()=>setTab('individual')}>Patient follow-ups</button><button className={tab==='application'?'active':''} onClick={()=>setTab('application')}>Application follow-up rules</button></nav>}
+      {tab==='application'&&user?.role==='admin'?<ApplicationFollowUpRules/>:<Card>
         <ResourceState
           loading={resource.loading}
           error={resource.error}
@@ -216,8 +219,8 @@ export default function FollowUpsPage() {
         ) : (
           !resource.loading && !resource.error && <Empty>No follow-ups have been created.</Empty>
         )}
-      </Card>
-      {open && (
+      </Card>}
+      {tab==='individual'&&open && (
         <Modal title="Create follow-up" onClose={() => setOpen(false)}>
           <div className="notice">
             The internal note is private and is never included in Email or SMS messages.

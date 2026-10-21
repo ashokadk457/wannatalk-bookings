@@ -7,6 +7,7 @@ import { isoDate } from '../../lib/dates';
 import { statuses } from '../../types';
 import AppointmentTable from '../appointments/AppointmentTable';
 import BookingCreator from './BookingCreator';
+import RecurringBookingsTab from './RecurringBookingsTab';
 export default function AppointmentsPage({ cancellations = false }: { cancellations?: boolean }) {
   const { data } = useApp();
   const [search, setSearch] = useState(''),
@@ -17,6 +18,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
     [create, setCreate] = useState(false),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25);
+  const [tab,setTab]=useState<'appointments'|'recurring'>('appointments');
   const apps = data.appointments
     .filter(
       (a) =>
@@ -58,13 +60,14 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               : 'Search, filter and update every booking.'
           }
         />
-        {!cancellations && (
+        {!cancellations && tab==='appointments' && (
           <button className="btn" onClick={() => setCreate(true)}>
             ＋ Create booking
           </button>
         )}
       </div>
-      <Card className="appointments-admin-card">
+      {!cancellations&&<nav className="workflow-tabs" aria-label="Appointment booking views"><button className={tab==='appointments'?'active':''} onClick={()=>setTab('appointments')}>Appointments</button><button className={tab==='recurring'?'active':''} onClick={()=>setTab('recurring')}>Recurring bookings</button></nav>}
+      {tab==='recurring'&&!cancellations?<RecurringBookingsTab createSingle={()=>setCreate(true)}/>:<Card className="appointments-admin-card">
         <div className="appointments-toolbar">
           <div><strong>{apps.length} appointment{apps.length === 1 ? '' : 's'}</strong><span className="sub"> matching the current filters</span></div>
           {(search || provider || status || range || sort !== 'soonest') && <button className="btn secondary small" onClick={() => { setSearch(''); setProvider(''); setStatus(''); setRange(undefined); setSort('soonest'); }}>Clear filters</button>}
@@ -147,7 +150,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
             </div>
           </div>
         )}
-      </Card>
+      </Card>}
       {create && <BookingCreator onClose={() => setCreate(false)} />}
     </section>
   );
