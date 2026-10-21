@@ -13,6 +13,7 @@ interface Invoice extends EditorInvoice {
   appointment_date: string | null;
   appointment_time: string | null;
   service: string | null;
+  appointments_cancelled: boolean;
 }
 interface Summary {
   invoice_count: number;
@@ -237,7 +238,7 @@ export default function InvoicesPage() {
         api<{ invoices: Invoice[] }>('/invoices'),
         api<Overview>('/billing/overview'),
       ]);
-      setInvoices(invoiceResult.invoices);
+      setInvoices(invoiceResult.invoices.filter((x) => !x.appointments_cancelled));
       setOverview(overviewResult);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unable to load billing data';
