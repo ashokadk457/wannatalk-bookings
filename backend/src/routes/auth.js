@@ -105,8 +105,8 @@ authRouter.post('/register', registrationRateLimit, async (req, res, next) => {
     return res.status(400).json({ error: 'Valid name, email and account type are required' });
   }
   if (role === 'admin') return res.status(403).json({ error: 'Administrator accounts cannot be registered publicly' });
-  if (password.length < 12 || password.length > 128) {
-    return res.status(400).json({ error: 'Password must be between 12 and 128 characters' });
+  if (password.length < 8 || password.length > 128) {
+    return res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
   }
 
   const isPatient = role === 'patient';
@@ -327,8 +327,8 @@ authRouter.post('/reset-password', passwordResetRateLimit, async (req, res, next
 
   if (!token || token.length > 200) return res.status(400).json({ error: 'Invalid or expired password reset link' });
   if (password !== confirmPassword) return res.status(400).json({ error: 'Passwords do not match' });
-  if (password.length < 12 || password.length > 128) {
-    return res.status(400).json({ error: 'Password must be between 12 and 128 characters' });
+  if (password.length < 8 || password.length > 128) {
+    return res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
   }
 
   try {

@@ -304,12 +304,12 @@ export default function RegistrationForm({
                 required
                 type="password"
                 autoComplete="new-password"
-                minLength={12}
+                minLength={8}
                 maxLength={128}
                 value={form.password}
                 onChange={(e) => set('password', e.target.value)}
               />
-              <span className="sub">Use at least 12 characters.</span>
+              <span className="sub">Minimum 8 characters. Any characters are allowed.</span>
             </Field>
             {!administrator && (
               <fieldset className="otp-choice field full">

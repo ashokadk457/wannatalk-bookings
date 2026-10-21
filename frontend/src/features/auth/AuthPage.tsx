@@ -169,11 +169,12 @@ export default function AuthPage() {
                   required
                   autoComplete="new-password"
                   type="password"
-                  minLength={12}
+                  minLength={8}
                   maxLength={128}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <span className="sub">Minimum 8 characters. Any characters are allowed.</span>
               </Field>
               <div className="space-top">
                 <Field label="Confirm new password">
@@ -181,7 +182,7 @@ export default function AuthPage() {
                     required
                     autoComplete="new-password"
                     type="password"
-                    minLength={12}
+                    minLength={8}
                     maxLength={128}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
