@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DateRange } from '@daypicker/react';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, Heading } from '../../components/ui';
@@ -18,6 +18,78 @@ function savedProviderFilters() {
   } catch {
     return [];
   }
+}
+
+function ProviderFilter({
+  options,
+  value,
+  onChange,
+}: {
+  options: { id: string; full_name: string }[];
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const label = !value.length
+    ? 'All providers'
+    : value.length === 1
+      ? options.find((provider) => provider.id === value[0])?.full_name || '1 provider'
+      : `${value.length} providers selected`;
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!detailsRef.current?.contains(event.target as Node)) detailsRef.current?.removeAttribute('open');
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        detailsRef.current?.removeAttribute('open');
+        detailsRef.current?.querySelector('summary')?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+  return (
+    <details ref={detailsRef} className="provider-filter-select">
+      <summary aria-label="Provider filters">
+        <span>{label}</span>
+        <span className="provider-filter-chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div className="provider-filter-options">
+        <button type="button" className="provider-filter-all" onClick={() => onChange([])}>
+          All providers
+        </button>
+        {options.map((provider) => (
+          <label key={provider.id} className={value.includes(provider.id) ? 'selected' : ''}>
+            <input
+              type="checkbox"
+              checked={value.includes(provider.id)}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...value, provider.id]
+                    : value.filter((id) => id !== provider.id),
+                )
+              }
+            />
+            <span>{provider.full_name}</span>
+          </label>
+        ))}
+        <div className="provider-filter-footer">
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => detailsRef.current?.removeAttribute('open')}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </details>
+  );
 }
 
 export default function AppointmentsPage({ cancellations = false }: { cancellations?: boolean }) {
@@ -147,21 +219,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               />
             </Field>
             <Field label="Provider filter">
-              <select
-                multiple
-                size={Math.min(Math.max(data.providers.length, 2), 5)}
-                value={providers}
-                aria-label="Provider filters"
-                onChange={(e) =>
-                  setProviders(Array.from(e.target.selectedOptions, (option) => option.value))
-                }
-              >
-                {data.providers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}
-                  </option>
-                ))}
-              </select>
+              <ProviderFilter options={data.providers} value={providers} onChange={setProviders} />
             </Field>
             <Field label="Status filter">
               <select value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -229,21 +287,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               />
             </Field>
             <Field label="Provider filter">
-              <select
-                multiple
-                size={Math.min(Math.max(data.providers.length, 2), 5)}
-                value={providers}
-                aria-label="Provider filters"
-                onChange={(e) =>
-                  setProviders(Array.from(e.target.selectedOptions, (option) => option.value))
-                }
-              >
-                {data.providers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}
-                  </option>
-                ))}
-              </select>
+              <ProviderFilter options={data.providers} value={providers} onChange={setProviders} />
             </Field>
             <Field label="Status filter">
               <select value={status} onChange={(e) => setStatus(e.target.value)}>

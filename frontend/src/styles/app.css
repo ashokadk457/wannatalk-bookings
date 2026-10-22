@@ -1574,6 +1574,18 @@ table input[type='radio'] {
   border-radius: 9px;
   font-size: 0.8rem;
 }
+.provider-filter-select { position:relative; }
+.provider-filter-select>summary { display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:.8rem;list-style:none;cursor:pointer; }
+.provider-filter-select>summary::-webkit-details-marker { display:none; }
+.provider-filter-select>summary:hover { border-color:#9fc8ef; }
+.provider-filter-select[open]>summary,.provider-filter-select>summary:focus-visible { border-color:var(--blue);outline:none;box-shadow:0 0 0 3px rgba(21,94,168,.14); }
+.provider-filter-chevron { flex:0 0 auto;color:var(--muted);font-size:14px;transition:transform .15s ease; }
+.provider-filter-select[open] .provider-filter-chevron { transform:rotate(180deg); }
+.provider-filter-options { position:absolute;z-index:85;top:calc(100% + 6px);left:0;right:0;min-width:210px;max-height:260px;overflow:auto;padding:6px;border:1px solid #cfe0d7;border-radius:11px;background:#fff;box-shadow:0 14px 32px rgba(19,52,40,.18); }
+.provider-filter-options label,.provider-filter-all { display:flex;align-items:center;gap:8px;width:100%;padding:8px 9px;border:0;border-radius:8px;background:transparent;color:var(--text);font:inherit;font-size:.8rem;text-align:left;cursor:pointer; }
+.provider-filter-options label:hover,.provider-filter-options label.selected,.provider-filter-all:hover { background:#edf8f3; }
+.provider-filter-options input { width:auto!important;min-height:0!important;margin:0;accent-color:#087b5b; }
+.provider-filter-footer { position:sticky;bottom:-6px;display:flex;justify-content:flex-end;margin:5px -6px -6px;padding:8px;border-top:1px solid #e2ece7;background:#fff; }
 .appointments-admin-card .dashboard-table td:nth-child(4),
 .appointments-admin-card .dashboard-table td:nth-child(5) {
   max-width: 190px;
