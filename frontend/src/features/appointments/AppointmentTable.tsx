@@ -23,13 +23,25 @@ interface InvoicePaymentDetail {
   reversal_reason: string | null;
 }
 
-function ActionIcon({ type, done = false }: { type: 'message' | 'invoice' | 'payment' | 'money' | 'followup'; done?: boolean }) {
+function ActionIcon({
+  type,
+  done = false,
+}: {
+  type: 'message' | 'invoice' | 'payment' | 'money' | 'followup';
+  done?: boolean;
+}) {
   const tone = done ? '#079b4b' : '#c52227';
   if (type === 'money') {
     return (
       <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="12" fill={tone} />
-        <path d="M15.4 8.6c-.6-.7-1.7-1.1-3-1.1-1.6 0-2.7.8-2.7 2s1.1 1.8 2.7 2.2 2.7 1 2.7 2.2-1.1 2.2-2.8 2.2c-1.2 0-2.4-.5-3.1-1.2M12.3 5.8v12.4" fill="none" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
+        <path
+          d="M15.4 8.6c-.6-.7-1.7-1.1-3-1.1-1.6 0-2.7.8-2.7 2s1.1 1.8 2.7 2.2 2.7 1 2.7 2.2-1.1 2.2-2.8 2.2c-1.2 0-2.4-.5-3.1-1.2M12.3 5.8v12.4"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
       </svg>
     );
   }
@@ -48,27 +60,89 @@ function ActionIcon({ type, done = false }: { type: 'message' | 'invoice' | 'pay
     return (
       <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="12" fill={tone} />
-        <path d="M7 4.5h7l3 3V19H7z" fill="none" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
-        <path d="M14 4.8v3h3M9.5 10h4M9.5 12h4" fill="none" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
-        <path d="M12.2 13.4v4m1.2-3.3c-.3-.4-.7-.5-1.2-.5-.7 0-1.1.3-1.1.8s.4.7 1.1.9 1.1.4 1.1.9-.4.8-1.1.8c-.5 0-1-.2-1.3-.5" fill="none" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+        <path
+          d="M7 4.5h7l3 3V19H7z"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M14 4.8v3h3M9.5 10h4M9.5 12h4"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+        <path
+          d="M12.2 13.4v4m1.2-3.3c-.3-.4-.7-.5-1.2-.5-.7 0-1.1.3-1.1.8s.4.7 1.1.9 1.1.4 1.1.9-.4.8-1.1.8c-.5 0-1-.2-1.3-.5"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+        />
       </svg>
     );
   }
-  if (type === 'payment') return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="12" fill={tone} />
-      <rect x="4.5" y="6" width="14" height="10" rx="1.7" fill="none" stroke="white" strokeWidth="1.5" />
-      <path d="M5 9h13M7 13h3" fill="none" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
-      <circle cx="16.5" cy="16.5" r="4.5" fill="white" />
-      <path d="m14.7 16.5 1.2 1.2 2.4-2.5" fill="none" stroke={tone} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  if (type === 'payment')
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="12" fill={tone} />
+        <rect
+          x="4.5"
+          y="6"
+          width="14"
+          height="10"
+          rx="1.7"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M5 9h13M7 13h3"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
+        <circle cx="16.5" cy="16.5" r="4.5" fill="white" />
+        <path
+          d="m14.7 16.5 1.2 1.2 2.4-2.5"
+          fill="none"
+          stroke={tone}
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="12" fill={tone} />
-      <path d="M7 5.5h8l3 3V19H7z" fill="none" stroke="white" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M10 11h5M10 14h5M10 17h3" fill="none" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
-      {done && <path d="m14.5 17 1.3 1.3 2.5-2.8" fill="none" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />}
+      <path
+        d="M7 5.5h8l3 3V19H7z"
+        fill="none"
+        stroke="white"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 11h5M10 14h5M10 17h3"
+        fill="none"
+        stroke="white"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+      {done && (
+        <path
+          d="m14.5 17 1.3 1.3 2.5-2.8"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
     </svg>
   );
 }
@@ -110,7 +184,9 @@ export default function AppointmentTable({
       );
       setPaymentDetails(result.payments);
     } catch (error) {
-      setPaymentDetailsError(error instanceof Error ? error.message : 'Unable to load payment details');
+      setPaymentDetailsError(
+        error instanceof Error ? error.message : 'Unable to load payment details',
+      );
     } finally {
       setPaymentDetailsLoading(false);
     }
@@ -164,7 +240,11 @@ export default function AppointmentTable({
               <td>{formatDate(a.appointment_date)}</td>
               <td>
                 <strong>{a.appointment_time}</strong>
-                <div className="sub">{a.duration_minutes} min</div>
+                <span
+                  className={`duration-pill duration-${a.duration_minutes <= 45 ? 'short' : a.duration_minutes <= 60 ? 'standard' : a.duration_minutes <= 90 ? 'long' : 'extended'}`}
+                >
+                  {a.duration_minutes} min
+                </span>
               </td>
               {user?.role !== 'patient' && (
                 <td>
@@ -200,74 +280,122 @@ export default function AppointmentTable({
                   <StatusPill status={a.status} />
                 )}
                 {user?.role === 'admin' && a.invoice_id && (
-                  <div className="appointment-invoice-status" aria-label={`Invoice ${a.invoice_number}`}>
-                    <span className={`invoice-status-badge ${a.billing_review ? 'overdue' : a.invoice_status === 'Paid' ? 'paid' : a.invoice_status === 'Overdue' ? 'overdue' : 'due'}`}>
-                      {a.billing_review ? 'Billing review' : a.invoice_status === 'Part Paid' ? 'Partially paid' : a.invoice_status === 'Issued' ? 'Due' : a.invoice_status}
+                  <div
+                    className="appointment-invoice-status"
+                    aria-label={`Invoice ${a.invoice_number}`}
+                  >
+                    <span
+                      className={`invoice-status-badge ${a.billing_review ? 'overdue' : a.invoice_status === 'Paid' ? 'paid' : a.invoice_status === 'Overdue' ? 'overdue' : 'due'}`}
+                    >
+                      {a.billing_review
+                        ? 'Billing review'
+                        : a.invoice_status === 'Part Paid'
+                          ? 'Partially paid'
+                          : a.invoice_status === 'Issued'
+                            ? 'Due'
+                            : a.invoice_status}
                     </span>
-                    {a.appointment_passed_unpaid && <span className="invoice-status-badge overdue">Appointment passed unpaid</span>}
-                    <div className="sub">{a.invoice_number} · R {Number(a.outstanding_balance||0).toFixed(2)} balance</div>
+                    {a.appointment_passed_unpaid && (
+                      <span className="invoice-status-badge overdue">
+                        Appointment passed unpaid
+                      </span>
+                    )}
+                    <div className="sub">
+                      {a.invoice_number} · R {Number(a.outstanding_balance || 0).toFixed(2)} balance
+                    </div>
                   </div>
                 )}
                 {user?.role === 'admin' && !a.invoice_id && (
-                  <div className="appointment-invoice-status"><span className="invoice-status-badge">No invoice</span></div>
+                  <div className="appointment-invoice-status">
+                    <span className="invoice-status-badge">No invoice</span>
+                  </div>
                 )}
               </td>
               <td>
                 <div className="actions">
-                {joinAllowed(a) && <MeetingLink url={a.meeting_url} />}
-                {user?.role !== 'patient' && (
-                  <button
-                    className="btn secondary small appointment-icon-action"
-                    data-tooltip="Message patient"
-                    aria-label="Message patient"
-                    onClick={() => actions.contact(a)}
-                  >
-                    <ActionIcon type="message" done={Boolean(a.message_sent)} />
-                  </button>
-                  
-                )}
-                {user?.role === 'admin' && !a.invoice_id && (
-                  <button
-                    className="btn secondary small appointment-icon-action"
-                    data-tooltip="Generate invoice"
-                    aria-label="Generate invoice"
-                    onClick={() => setInvoiceAppointment(a)}
-                  >
-                    <ActionIcon type="invoice" done={Boolean(a.invoice_id)} />
-                  </button>
-                )}
-                {user?.role === 'admin' && a.invoice_id && (
-                  <>
+                  {joinAllowed(a) && <MeetingLink url={a.meeting_url} />}
+                  {user?.role !== 'patient' && (
                     <button
                       className="btn secondary small appointment-icon-action"
-                      data-tooltip="View invoice"
-                      aria-label="View invoice"
-                      onClick={() => window.open(`/invoice.html?invoiceId=${encodeURIComponent(a.invoice_id!)}`, '_blank')}
+                      data-tooltip="Message patient"
+                      aria-label="Message patient"
+                      onClick={() => actions.contact(a)}
                     >
-                      <ActionIcon type="invoice" done />
+                      <ActionIcon type="message" done={Boolean(a.message_sent)} />
                     </button>
-                    <button className="btn secondary small appointment-icon-action" data-tooltip="View payment details" aria-label="View payment details" onClick={() => void showPaymentDetails(a)}>
-                      <ActionIcon type="payment" done={Number(a.outstanding_balance || 0) <= 0} />
+                  )}
+                  {user?.role === 'admin' && !a.invoice_id && (
+                    <button
+                      className="btn secondary small appointment-icon-action"
+                      data-tooltip="Generate invoice"
+                      aria-label="Generate invoice"
+                      onClick={() => setInvoiceAppointment(a)}
+                    >
+                      <ActionIcon type="invoice" done={Boolean(a.invoice_id)} />
                     </button>
-                    {Number(a.outstanding_balance || 0) > 0 && (
-                      <button className="btn secondary small appointment-icon-action" data-tooltip="Record payment" aria-label="Record payment" onClick={() => setPaymentAppointment(a)}>
-                        <ActionIcon type="money" />
+                  )}
+                  {user?.role === 'admin' && a.invoice_id && (
+                    <>
+                      <button
+                        className="btn secondary small appointment-icon-action"
+                        data-tooltip="View invoice"
+                        aria-label="View invoice"
+                        onClick={() =>
+                          window.open(
+                            `/invoice.html?invoiceId=${encodeURIComponent(a.invoice_id!)}`,
+                            '_blank',
+                          )
+                        }
+                      >
+                        <ActionIcon type="invoice" done />
                       </button>
-                    )}
-                  </>
-                )}
-                {user?.role !== 'patient' && (
-                  <button
-                    className="btn secondary small appointment-icon-action"
-                    data-tooltip={a.follow_up_attempted ? 'Follow-up send attempted' : 'Send follow-up'}
-                    aria-label={a.follow_up_attempted ? 'Follow-up send attempted' : 'Send follow-up'}
-                    onClick={() => navigate(`/${user?.role}/followups?appointmentId=${encodeURIComponent(a.id)}`, { state: { patientId: a.patient_id, providerId: a.provider_id, appointmentId: a.id } })}
-                  >
-                    <ActionIcon type="followup" done={Boolean(a.follow_up_attempted)} />
-                  </button>
-                )}
-                <AppointmentActions appointment={a} view includeDestructive={false} />
-                <AppointmentActions appointment={a} destructiveOnly />
+                      <button
+                        className="btn secondary small appointment-icon-action"
+                        data-tooltip="View payment details"
+                        aria-label="View payment details"
+                        onClick={() => void showPaymentDetails(a)}
+                      >
+                        <ActionIcon type="payment" done={Number(a.outstanding_balance || 0) <= 0} />
+                      </button>
+                      {Number(a.outstanding_balance || 0) > 0 && (
+                        <button
+                          className="btn secondary small appointment-icon-action"
+                          data-tooltip="Record payment"
+                          aria-label="Record payment"
+                          onClick={() => setPaymentAppointment(a)}
+                        >
+                          <ActionIcon type="money" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {user?.role !== 'patient' && (
+                    <button
+                      className="btn secondary small appointment-icon-action"
+                      data-tooltip={
+                        a.follow_up_attempted ? 'Follow-up send attempted' : 'Send follow-up'
+                      }
+                      aria-label={
+                        a.follow_up_attempted ? 'Follow-up send attempted' : 'Send follow-up'
+                      }
+                      onClick={() =>
+                        navigate(
+                          `/${user?.role}/followups?appointmentId=${encodeURIComponent(a.id)}`,
+                          {
+                            state: {
+                              patientId: a.patient_id,
+                              providerId: a.provider_id,
+                              appointmentId: a.id,
+                            },
+                          },
+                        )
+                      }
+                    >
+                      <ActionIcon type="followup" done={Boolean(a.follow_up_attempted)} />
+                    </button>
+                  )}
+                  <AppointmentActions appointment={a} view includeDestructive={false} />
+                  <AppointmentActions appointment={a} destructiveOnly />
                 </div>
               </td>
             </tr>
@@ -289,8 +417,8 @@ export default function AppointmentTable({
           </button>
         </div>
       )}
-      {invoiceAppointment && (
-        fullInvoiceEditor ? (
+      {invoiceAppointment &&
+        (fullInvoiceEditor ? (
           <InvoiceEditor
             initialAppointment={invoiceAppointment}
             onClose={() => setInvoiceAppointment(null)}
@@ -301,8 +429,7 @@ export default function AppointmentTable({
             appointment={invoiceAppointment}
             onClose={() => setInvoiceAppointment(null)}
           />
-        )
-      )}
+        ))}
       {paymentAppointment?.invoice_id && (
         <PaymentEditor
           invoices={[
@@ -349,12 +476,20 @@ export default function AppointmentTable({
           {paymentDetailsLoading ? (
             <p className="payment-details-message">Loading payment details…</p>
           ) : paymentDetailsError ? (
-            <p className="payment-editor-error" role="alert">{paymentDetailsError}</p>
+            <p className="payment-editor-error" role="alert">
+              {paymentDetailsError}
+            </p>
           ) : paymentDetails.length ? (
             <div className="dashboard-table payment-details-table">
               <table>
                 <thead>
-                  <tr><th>Date</th><th>Applied</th><th>Payment amount</th><th>Method / reference</th><th>Status</th></tr>
+                  <tr>
+                    <th>Date</th>
+                    <th>Applied</th>
+                    <th>Payment amount</th>
+                    <th>Method / reference</th>
+                    <th>Status</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {paymentDetails.map((payment) => (
@@ -362,15 +497,26 @@ export default function AppointmentTable({
                       <td>{payment.payment_date}</td>
                       <td>R {payment.allocated_amount.toFixed(2)}</td>
                       <td>R {payment.payment_amount.toFixed(2)}</td>
-                      <td>{payment.method}<div className="sub">{payment.reference || 'No reference'}</div>{payment.notes && <div className="sub">{payment.notes}</div>}</td>
-                      <td><StatusPill status={payment.status} />{payment.reversal_reason && <div className="sub">{payment.reversal_reason}</div>}</td>
+                      <td>
+                        {payment.method}
+                        <div className="sub">{payment.reference || 'No reference'}</div>
+                        {payment.notes && <div className="sub">{payment.notes}</div>}
+                      </td>
+                      <td>
+                        <StatusPill status={payment.status} />
+                        {payment.reversal_reason && (
+                          <div className="sub">{payment.reversal_reason}</div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="payment-details-message">No payments have been recorded for this invoice yet.</p>
+            <p className="payment-details-message">
+              No payments have been recorded for this invoice yet.
+            </p>
           )}
         </Modal>
       )}
