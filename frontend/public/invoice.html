@@ -16,6 +16,9 @@
     .address-box span{display:block;color:#365b50;white-space:pre-line}
     .doc-title{text-align:center;font-size:20px;font-weight:800;margin:20px 0}
     .account-name{font-size:18px;font-weight:700;margin:0 0 72px 86px}
+    .patient-box{max-width:430px;margin:0 0 24px;padding:14px 16px;border:1px solid #9fc8b8;border-radius:12px;background:#f5fbf8;font-size:12px;font-weight:400;line-height:1.45}
+    .patient-box h3{margin:0 0 9px;color:#075f49;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+    .patient-box strong,.patient-box span{display:block}.patient-box strong{font-size:13px;color:#102f3d}.patient-box .invoice-customer-details,.patient-box .invoice-patient-summary{color:#365b50;white-space:pre-line}
     .meta{margin-left:auto;width:310px;font-size:14px;line-height:1.65}
     .meta .row{display:flex;justify-content:space-between;gap:12px}
     .billing-table{width:100%;border-collapse:collapse;margin-top:10px}
@@ -53,7 +56,8 @@
       .top{gap:20px;padding-bottom:16px;margin-bottom:16px}
       .practice h1{font-size:20px}
       .doc-title{font-size:26px;margin:12px 0}
-      .account-name{font-size:16px;margin-bottom:16px}
+      .account-name{font-size:12px;margin-bottom:16px}
+      .patient-box{padding:10px 14px;break-inside:avoid}
       .meta{font-size:12px;padding:10px 14px;margin-bottom:16px}
       .billing-table th{padding:8px;font-size:10px}
       .billing-table td{padding:10px 8px}
@@ -84,7 +88,7 @@
     </section>
 
     <div class="doc-title">Invoice</div>
-    <p class="account-name"><span class="invoice-patient-name"></span><br><span class="invoice-customer-details"></span><br><span class="invoice-patient-summary"></span></p>
+    <section class="account-name patient-box"><h3>Patient details</h3><strong class="invoice-patient-name"></strong><span class="invoice-customer-details"></span><span class="invoice-patient-summary"></span></section>
 
     <section class="meta">
       <div class="row"><strong>Issued:</strong><span class="invoice-issued-date"></span></div>
@@ -153,6 +157,12 @@
         for (var i = 0; i < nodes.length; i++) nodes[i].textContent = value;
       }
 
+      function properCase(value) {
+        return String(value || '').toLocaleLowerCase('en-ZA').replace(/(^|[\s'-])([\p{L}])/gu, function (_, separator, letter) {
+          return separator + letter.toLocaleUpperCase('en-ZA');
+        });
+      }
+
       function renderParties(invoice) {
         var issuer = invoice.issuer_snapshot || {}, customer = invoice.customer_snapshot || {};
         setText('invoice-issuer-name', issuer.name || invoice.provider_name || 'WannaTalk');
@@ -200,7 +210,7 @@
           description.className = 'desc';
           var patient = document.createElement('div');
           patient.className = 'service-main';
-          patient.textContent = ['00', patientName, formatDateOfBirth(patientDateOfBirth)].filter(Boolean).join(' ');
+          patient.textContent = ['00', properCase(patientName), formatDateOfBirth(patientDateOfBirth)].filter(Boolean).join(' ');
           var provider = document.createElement('div');
           provider.className = 'service-sub';
           provider.textContent = 'Seen by: ' + String(item.provider_name || '');
@@ -256,8 +266,9 @@
             setText('invoice-number', invoice.invoice_number);
             setText('invoice-issued-date', formatInvoiceDate(invoice.issue_date || invoice.issued_at));
             setText('invoice-due-date', formatInvoiceDate(invoice.due_date));
-            setText('invoice-patient-name', (invoice.customer_snapshot && invoice.customer_snapshot.name) || [invoice.patient_title, invoice.patient_name].filter(Boolean).join(' '));
-            setText('invoice-patient-summary', [invoice.patient_name, formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' · '));
+            var customerName = (invoice.customer_snapshot && invoice.customer_snapshot.name) || [invoice.patient_title, invoice.patient_name].filter(Boolean).join(' ');
+            setText('invoice-patient-name', invoice.customer_snapshot && invoice.customer_snapshot.type === 'company' ? customerName : properCase(customerName));
+            setText('invoice-patient-summary', formatDateOfBirth(invoice.patient_date_of_birth));
             setText('invoice-total', 'R ' + formatAmount(Number(invoice.total_amount)));
             renderItems(invoice.items || [], invoice.patient_name, invoice.patient_date_of_birth);
             renderParties(invoice);
@@ -290,8 +301,8 @@
           var provider = data.provider || {};
           var title = String(patient.title || '').trim();
           var name = String(patient.name || '').trim();
-          setText('invoice-patient-name', [title, name].filter(Boolean).join(' '));
-          setText('invoice-patient-summary', [name, formatDateOfBirth(patient.dateOfBirth)].filter(Boolean).join(' '));
+          setText('invoice-patient-name', properCase([title, name].filter(Boolean).join(' ')));
+          setText('invoice-patient-summary', formatDateOfBirth(patient.dateOfBirth));
           setText('invoice-provider-name', String(provider.name || '').trim());
           setText('invoice-amount', formatAmount(amount));
           setText('invoice-number', 'Preview');

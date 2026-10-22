@@ -102,9 +102,11 @@ export async function renderStoredInvoiceHtml(invoice) {
     throw error;
   }
   const issuer=invoice.issuer_snapshot||{}, customer=invoice.customer_snapshot||{};
-  const displayName = customer.name || [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
-  const summary = [String(invoice.patient_name || '').trim(), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
-  const patientSummary = [String(invoice.patient_name || '').trim(), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
+  const properCase = value => String(value||'').toLocaleLowerCase('en-ZA').replace(/(^|[\s'-])([\p{L}])/gu,(_,separator,letter)=>separator+letter.toLocaleUpperCase('en-ZA'));
+  const rawDisplayName = customer.name || [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
+  const displayName = customer.type === 'company' ? rawDisplayName : properCase(rawDisplayName);
+  const summary = formatDateOfBirth(invoice.patient_date_of_birth);
+  const patientSummary = [properCase(invoice.patient_name), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
   const rows = invoice.items.map((item) => `<tr>
     <td><strong>${escapeHtml(formatDate(item.service_date||item.appointment_date))} ${escapeHtml(formatTime(item.appointment_time))}</strong><br><br><span class="code">${escapeHtml(item.tariff_code||'81305')}</span></td>
     <td class="desc"><div class="service-main">00 ${escapeHtml(patientSummary)}</div><div class="service-sub">Seen by: ${escapeHtml(item.provider_name)}</div><br><div class="service-description">Assessment, consultation, counselling and/or therapy (individual)</div></td>
