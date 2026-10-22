@@ -24,7 +24,10 @@ const AutomaticReminders = lazy(() => import('../features/provider/AutomaticRemi
 const CancellationPolicy = lazy(() => import('../features/provider/CancellationPolicyPage'));
 const FollowUps = lazy(() => import('../features/workflows/FollowUpsPage'));
 const Waiting = lazy(() => import('../features/workflows/WaitingPage'));
-const ProviderBillingProfiles = lazy(() => import('../features/billing/ProviderBillingProfilesPage'));
+const ProviderBillingProfiles = lazy(
+  () => import('../features/billing/ProviderBillingProfilesPage'),
+);
+const DefaultBankAccount = lazy(() => import('../features/billing/DefaultBankAccountPage'));
 const BillingCompanies = lazy(() => import('../features/billing/CompaniesPage'));
 const BillingInvoices = lazy(() => import('../features/billing/InvoicesPage'));
 const BillingOutstanding = lazy(() => import('../features/billing/OutstandingPage'));
@@ -58,11 +61,7 @@ export default function Router() {
       </div>
     );
   return (
-    <Suspense
-      fallback={
-        <SplashScreen />
-      }
-    >
+    <Suspense fallback={<SplashScreen />}>
       <Routes>
         <Route path="/login" element={<Auth />} />
         <Route path="/reset-password" element={<Auth />} />
@@ -98,6 +97,7 @@ export default function Router() {
           <Route path="billing" element={<Navigate to="overview" replace />} />
           <Route path="billing/overview" element={<BillingOverview />} />
           <Route path="billing/providers" element={<ProviderBillingProfiles />} />
+          <Route path="billing/default-bank" element={<DefaultBankAccount />} />
           <Route path="billing/companies" element={<BillingCompanies />} />
           <Route path="billing/invoices" element={<BillingInvoices />} />
           <Route path="billing/outstanding" element={<BillingOutstanding />} />

@@ -61,13 +61,6 @@ type FormState = {
   paymentTermsDays: number;
   currencyCode: string;
 };
-type DefaultBankAccount = {
-  bankAccountHolder: string;
-  bankName: string;
-  bankAccountNumber: string;
-  bankAccountType: string;
-  bankBranchCode: string;
-};
 function formFromProfile(p: BillingProfile): FormState {
   return {
     registeredBusinessName: p.registered_business_name || p.private_practice_name || '',
@@ -103,7 +96,6 @@ export default function ProviderBillingProfilesPage() {
   const [loading, setLoading] = useState(false),
     [search, setSearch] = useState(''),
     [uploadingLogo, setUploadingLogo] = useState(false);
-  const [defaultBank, setDefaultBank] = useState<DefaultBankAccount | null>(null);
   useEffect(() => {
     if (!selectedId) return;
     let active = true;
@@ -128,22 +120,6 @@ export default function ProviderBillingProfilesPage() {
       active = false;
     };
   }, [selectedId, notify]);
-  useEffect(() => {
-    let active = true;
-    api<{ bankAccount: DefaultBankAccount }>('/invoices/settings/default-bank')
-      .then((result) => {
-        if (active) setDefaultBank(result.bankAccount);
-      })
-      .catch((error) => {
-        if (active)
-          notify(
-            error instanceof Error ? error.message : 'Unable to load the default bank account',
-          );
-      });
-    return () => {
-      active = false;
-    };
-  }, [notify]);
   const providers = data.providers.filter((p) =>
     `${p.full_name} ${p.private_practice_name || ''} ${p.practice_number || ''}`
       .toLowerCase()
@@ -162,24 +138,6 @@ export default function ProviderBillingProfilesPage() {
       );
       setProfile((current) => (current ? { ...current, ...result.profile } : current));
     }, 'Provider billing profile saved');
-  }
-  async function saveDefaultBank(event: FormEvent) {
-    event.preventDefault();
-    if (!defaultBank) return;
-    await run(async () => {
-      const result = await mutate<{ bankAccount: DefaultBankAccount }>(
-        '/invoices/settings/default-bank',
-        'PUT',
-        {
-          accountHolder: defaultBank.bankAccountHolder,
-          bankName: defaultBank.bankName,
-          accountNumber: defaultBank.bankAccountNumber,
-          accountType: defaultBank.bankAccountType,
-          branchCode: defaultBank.bankBranchCode,
-        },
-      );
-      setDefaultBank(result.bankAccount);
-    }, 'Default bank account saved');
   }
   async function uploadLogo(file: File | undefined) {
     if (!file || !selectedId) return;
@@ -214,79 +172,6 @@ export default function ProviderBillingProfilesPage() {
         subtitle="Maintain the legal issuer, banking, branding and invoice settings used for each provider or practice."
       />
       <BillingNav />
-      <Card title="Default Bank Account" className="space-top">
-        {defaultBank ? (
-          <form onSubmit={saveDefaultBank}>
-            <p className="sub">
-              Used on new and existing invoices whenever the selected provider has no bank details.
-            </p>
-            <div className="form-grid">
-              <Field label="Account holder">
-                <input
-                  required
-                  value={defaultBank.bankAccountHolder}
-                  onChange={(e) =>
-                    setDefaultBank((current) =>
-                      current ? { ...current, bankAccountHolder: e.target.value } : current,
-                    )
-                  }
-                />
-              </Field>
-              <Field label="Bank">
-                <input
-                  required
-                  value={defaultBank.bankName}
-                  onChange={(e) =>
-                    setDefaultBank((current) =>
-                      current ? { ...current, bankName: e.target.value } : current,
-                    )
-                  }
-                />
-              </Field>
-              <Field label="Account number">
-                <input
-                  required
-                  value={defaultBank.bankAccountNumber}
-                  onChange={(e) =>
-                    setDefaultBank((current) =>
-                      current ? { ...current, bankAccountNumber: e.target.value } : current,
-                    )
-                  }
-                />
-              </Field>
-              <Field label="Account type">
-                <select
-                  required
-                  value={defaultBank.bankAccountType}
-                  onChange={(e) =>
-                    setDefaultBank((current) =>
-                      current ? { ...current, bankAccountType: e.target.value } : current,
-                    )
-                  }
-                >
-                  <option value="">Select account type</option>
-                  <option value="CHEQUE ACCOUNT">Cheque Account</option>
-                  <option value="CURRENT ACCOUNT">Current Account</option>
-                  <option value="SAVINGS ACCOUNT">Savings Account</option>
-                </select>
-              </Field>
-              <Field label="Branch code">
-                <input
-                  value={defaultBank.bankBranchCode}
-                  onChange={(e) =>
-                    setDefaultBank((current) =>
-                      current ? { ...current, bankBranchCode: e.target.value } : current,
-                    )
-                  }
-                />
-              </Field>
-            </div>
-            <button className="btn space-top">Save default bank account</button>
-          </form>
-        ) : (
-          <p>Loading default bank account…</p>
-        )}
-      </Card>
       <div className="billing-profile-layout">
         <Card className="billing-provider-list">
           <Field label="Find provider">
