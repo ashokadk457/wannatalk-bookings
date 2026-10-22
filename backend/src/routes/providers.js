@@ -246,7 +246,7 @@ providersRouter.patch('/:id/status', authRequired(['provider', 'admin']), async 
   await query(
     `INSERT INTO audit_logs (user_id, user_name, user_role, action, details)
      VALUES ($1, $2, $3, $4, $5::jsonb)`,
-    [req.user.id, req.user.name || req.user.email || req.user.role, req.user.role, online ? 'Provider went online' : 'Provider went offline', JSON.stringify({ providerId: req.params.id })]
+    [req.user.id, req.user.name || req.user.email || req.user.role, req.user.role, online ? 'Enabled online bookings' : 'Disabled online bookings', JSON.stringify({ providerId: req.params.id })]
   );
   res.json({ provider: result.rows[0] });
 });

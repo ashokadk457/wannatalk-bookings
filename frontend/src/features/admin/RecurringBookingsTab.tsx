@@ -75,7 +75,9 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
     [busy, setBusy] = useState(false);
   const provider = data.providers.find((p) => p.id === form.providerId),
     locations = data.locations.filter(
-      (l) => provider?.locations.includes(l.name) && (l.name !== 'Online' || provider.is_online),
+      (l) =>
+        provider &&
+        (l.name === 'Online' ? provider.is_online : provider.locations.includes(l.name)),
     );
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((x) => ({ ...x, [key]: value }));

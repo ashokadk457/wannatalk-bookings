@@ -35,14 +35,10 @@ export default function BookPage() {
   const bookingLocations = data.locations.filter(
     (item) =>
       item.name !== 'Online' ||
-      data.providers.some(
-        (provider) =>
-          provider.is_active && provider.is_online && provider.locations.includes('Online'),
-      ),
+      data.providers.some((provider) => provider.is_active && provider.is_online),
   );
   const providers = data.providers.filter(
-      (p) =>
-        p.is_active && p.locations.includes(location) && (location !== 'Online' || p.is_online),
+      (p) => p.is_active && (location === 'Online' ? p.is_online : p.locations.includes(location)),
     ),
     selected = providers.find((p) => p.id === providerId);
   async function confirm() {
@@ -204,7 +200,7 @@ export default function BookPage() {
                 disabled={location === 'Online'}
                 onChange={(e) => setMode(e.target.value)}
               >
-                {['In-person', 'Online', 'Telephone'].map((m) => (
+                {['In-person', 'Telephone'].map((m) => (
                   <option key={m}>{m}</option>
                 ))}
               </select>

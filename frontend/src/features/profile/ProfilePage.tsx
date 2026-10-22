@@ -8,11 +8,19 @@ export default function ProfilePage() {
   const { user, data, run, refresh, notify } = useApp();
   const provider = data.providers.find((p) => p.id === user?.entityId);
   const [patientDetails, setPatientDetails] = useState<any>(null);
-  useEffect(() => { if (!provider && user?.role === 'patient') void api<any>('/patients/me').then((r) => setPatientDetails(r.patient)); }, [provider, user?.role]);
+  useEffect(() => {
+    if (!provider && user?.role === 'patient')
+      void api<any>('/patients/me').then((r) => setPatientDetails(r.patient));
+  }, [provider, user?.role]);
   const [name, setName] = useState(user?.fullName || ''),
     [firstName, setFirstName] = useState((user?.fullName || '').trim().split(/\s+/)[0] || ''),
-    [lastName, setLastName] = useState((user?.fullName || '').trim().split(/\s+/).slice(1).join(' ')),
-    [patientTitle, setPatientTitle] = useState(''), [identityDocument, setIdentityDocument] = useState(''), [dateOfBirth, setDateOfBirth] = useState(''), [nationality, setNationality] = useState('ZA'),
+    [lastName, setLastName] = useState(
+      (user?.fullName || '').trim().split(/\s+/).slice(1).join(' '),
+    ),
+    [patientTitle, setPatientTitle] = useState(''),
+    [identityDocument, setIdentityDocument] = useState(''),
+    [dateOfBirth, setDateOfBirth] = useState(''),
+    [nationality, setNationality] = useState('ZA'),
     [mobile, setMobile] = useState(user?.mobile || ''),
     [contact, setContact] = useState(
       (['Email', 'SMS', 'Both'].includes(user?.preferredContact || '')
@@ -23,16 +31,31 @@ export default function ProfilePage() {
     [providerTitle, setProviderTitle] = useState(provider?.title || ''),
     [specialty, setSpecialty] = useState(provider?.specialty || ''),
     [subSpecialties, setSubSpecialties] = useState(provider?.sub_specialties || []),
-    [medicalRegistrationNumber, setMedicalRegistrationNumber] = useState(provider?.medical_registration_number || ''),
+    [medicalRegistrationNumber, setMedicalRegistrationNumber] = useState(
+      provider?.medical_registration_number || '',
+    ),
     [practiceNumber, setPracticeNumber] = useState(provider?.practice_number || ''),
     [practiceSetting, setPracticeSetting] = useState(provider?.practice_setting || ''),
     [privatePracticeName, setPrivatePracticeName] = useState(provider?.private_practice_name || ''),
     [duration, setDuration] = useState(provider?.default_duration_minutes || 60),
     [bio, setBio] = useState(provider?.bio || ''),
     [fullAddress, setFullAddress] = useState(provider?.full_address || ''),
-    [locations, setLocations] = useState(provider?.locations || []),
+    [locations, setLocations] = useState(
+      (provider?.locations || []).filter((location) => location !== 'Online'),
+    ),
     [busy, setBusy] = useState(false);
-  useEffect(() => { if (patientDetails) { setPatientTitle(patientDetails.title || ''); setIdentityDocument(patientDetails.identity_document || ''); setDateOfBirth(patientDetails.date_of_birth?.slice(0,10) || ''); setNationality(countries.some((country) => country.code === patientDetails.nationality) ? patientDetails.nationality : 'ZA'); } }, [patientDetails]);
+  useEffect(() => {
+    if (patientDetails) {
+      setPatientTitle(patientDetails.title || '');
+      setIdentityDocument(patientDetails.identity_document || '');
+      setDateOfBirth(patientDetails.date_of_birth?.slice(0, 10) || '');
+      setNationality(
+        countries.some((country) => country.code === patientDetails.nationality)
+          ? patientDetails.nationality
+          : 'ZA',
+      );
+    }
+  }, [patientDetails]);
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (provider && !locations.length) return notify('Choose at least one practice location');
@@ -68,18 +91,97 @@ export default function ProfilePage() {
         <form onSubmit={submit}>
           <fieldset className="form-reset" disabled={busy}>
             <div className="form-grid">
-              {provider ? <>
-                <Field label="Title" full><select required value={providerTitle} onChange={(e) => setProviderTitle(e.target.value)}><option value="">Select title</option>{['Dr.','Prof.','Mr.','Mrs.','Ms.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
-                <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
-                <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
-              </> : <>
-                <Field label="Title"><select required value={patientTitle} onChange={(e) => setPatientTitle(e.target.value)}><option value="">Select title</option>{['Mr.','Mrs.','Ms.','Miss','Dr.','Prof.','Mx.'].map((v) => <option key={v}>{v}</option>)}</select></Field>
-                <Field label="First Name"><input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
-                <Field label="Last Name"><input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
-                <Field label="South African ID / Passport No."><input required value={identityDocument} onChange={(e) => setIdentityDocument(e.target.value)} /></Field>
-                <Field label="Date of Birth"><input required type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} /></Field>
-                <Field label="Nationality"><select required value={nationality} onChange={(e) => setNationality(e.target.value)}>{countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
-              </>}
+              {provider ? (
+                <>
+                  <Field label="Title" full>
+                    <select
+                      required
+                      value={providerTitle}
+                      onChange={(e) => setProviderTitle(e.target.value)}
+                    >
+                      <option value="">Select title</option>
+                      {['Dr.', 'Prof.', 'Mr.', 'Mrs.', 'Ms.'].map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="First Name">
+                    <input
+                      required
+                      autoComplete="given-name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Last Name">
+                    <input
+                      required
+                      autoComplete="family-name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label="Title">
+                    <select
+                      required
+                      value={patientTitle}
+                      onChange={(e) => setPatientTitle(e.target.value)}
+                    >
+                      <option value="">Select title</option>
+                      {['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Prof.', 'Mx.'].map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="First Name">
+                    <input
+                      required
+                      autoComplete="given-name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Last Name">
+                    <input
+                      required
+                      autoComplete="family-name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="South African ID / Passport No.">
+                    <input
+                      required
+                      value={identityDocument}
+                      onChange={(e) => setIdentityDocument(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Date of Birth">
+                    <input
+                      required
+                      type="date"
+                      value={dateOfBirth}
+                      onChange={(e) => setDateOfBirth(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Nationality">
+                    <select
+                      required
+                      value={nationality}
+                      onChange={(e) => setNationality(e.target.value)}
+                    >
+                      {countries.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </>
+              )}
               <Field label="Email">
                 <input type="email" disabled value={user?.email || ''} />
               </Field>
@@ -88,14 +190,90 @@ export default function ProfilePage() {
               </Field>
               {provider ? (
                 <>
-                  <Field label="Specialty (Optional)"><select value={specialty} onChange={(e) => { setSpecialty(e.target.value); setSubSpecialties([]); }}><option value="">Select specialty</option>{doctorCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-                  <Field label="Sub Specialty (Optional)"><div className="specialty-picker"><div className="specialty-options">{doctorSubCategories.filter((s) => s.categoryId === specialty).map((s) => <label className={`specialty-option ${subSpecialties.includes(s.id) ? 'selected' : ''}`} key={s.id}><input type="checkbox" checked={subSpecialties.includes(s.id)} onChange={() => setSubSpecialties(subSpecialties.includes(s.id) ? subSpecialties.filter((id) => id !== s.id) : [...subSpecialties, s.id])} /><span>{s.name}</span></label>)}</div></div></Field>
-                  <Field label="Medical Registration Number (Optional)"><input value={medicalRegistrationNumber} onChange={(e) => setMedicalRegistrationNumber(e.target.value)} /></Field>
-                  <Field label="Practice No (Optional)"><input value={practiceNumber} onChange={(e) => setPracticeNumber(e.target.value)} /></Field>
-                  <Field label="Practice Setting (Optional)"><select value={practiceSetting} onChange={(e) => setPracticeSetting(e.target.value)}><option value="">Select setting</option>{['Private Practice','Hospital','Clinic','Community Health Centre','Academic / Teaching'].map((v) => <option key={v}>{v}</option>)}</select></Field>
-                  <Field label="Private Practice Name (Optional)"><input value={privatePracticeName} onChange={(e) => setPrivatePracticeName(e.target.value)} /></Field>
+                  <Field label="Specialty (Optional)">
+                    <select
+                      value={specialty}
+                      onChange={(e) => {
+                        setSpecialty(e.target.value);
+                        setSubSpecialties([]);
+                      }}
+                    >
+                      <option value="">Select specialty</option>
+                      {doctorCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Sub Specialty (Optional)">
+                    <div className="specialty-picker">
+                      <div className="specialty-options">
+                        {doctorSubCategories
+                          .filter((s) => s.categoryId === specialty)
+                          .map((s) => (
+                            <label
+                              className={`specialty-option ${subSpecialties.includes(s.id) ? 'selected' : ''}`}
+                              key={s.id}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={subSpecialties.includes(s.id)}
+                                onChange={() =>
+                                  setSubSpecialties(
+                                    subSpecialties.includes(s.id)
+                                      ? subSpecialties.filter((id) => id !== s.id)
+                                      : [...subSpecialties, s.id],
+                                  )
+                                }
+                              />
+                              <span>{s.name}</span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  </Field>
+                  <Field label="Medical Registration Number (Optional)">
+                    <input
+                      value={medicalRegistrationNumber}
+                      onChange={(e) => setMedicalRegistrationNumber(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Practice No (Optional)">
+                    <input
+                      value={practiceNumber}
+                      onChange={(e) => setPracticeNumber(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Practice Setting (Optional)">
+                    <select
+                      value={practiceSetting}
+                      onChange={(e) => setPracticeSetting(e.target.value)}
+                    >
+                      <option value="">Select setting</option>
+                      {[
+                        'Private Practice',
+                        'Hospital',
+                        'Clinic',
+                        'Community Health Centre',
+                        'Academic / Teaching',
+                      ].map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Private Practice Name (Optional)">
+                    <input
+                      value={privatePracticeName}
+                      onChange={(e) => setPrivatePracticeName(e.target.value)}
+                    />
+                  </Field>
                   <Field label="Professional title">
-                    <input maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} />
+                    <input
+                      maxLength={100}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
                   </Field>
                   <Field label="Default session duration">
                     <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
@@ -116,10 +294,16 @@ export default function ProfilePage() {
                   <LocationFields
                     value={locations}
                     onChange={setLocations}
-                    locations={data.locations.map((l) => l.name)}
+                    locations={data.locations.filter((l) => l.name !== 'Online').map((l) => l.name)}
                   />
                   <Field label="Full address" full>
-                    <textarea maxLength={1000} autoComplete="street-address" value={fullAddress} onChange={(e) => setFullAddress(e.target.value)} placeholder="Street address, suburb, city, province and postal code" />
+                    <textarea
+                      maxLength={1000}
+                      autoComplete="street-address"
+                      value={fullAddress}
+                      onChange={(e) => setFullAddress(e.target.value)}
+                      placeholder="Street address, suburb, city, province and postal code"
+                    />
                   </Field>
                 </>
               ) : (
@@ -139,4 +323,3 @@ export default function ProfilePage() {
     </section>
   );
 }
-

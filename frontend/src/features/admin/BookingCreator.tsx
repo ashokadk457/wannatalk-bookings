@@ -23,7 +23,9 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     [busy, setBusy] = useState(false);
   const provider = data.providers.find((p) => p.id === providerId),
     locations = data.locations.filter(
-      (l) => provider?.locations.includes(l.name) && (l.name !== 'Online' || provider.is_online),
+      (l) =>
+        provider &&
+        (l.name === 'Online' ? provider.is_online : provider.locations.includes(l.name)),
     ),
     location = locations.find((l) => l.id === locationId);
   const durationMinutes =
