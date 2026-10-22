@@ -89,7 +89,7 @@ function Event({
         <strong>{a.appointment_time}</strong> {title}
         <br />
         <small>
-          {a.location_name || a.mode} · {a.status}
+          {a.duration_minutes} min · {a.location_name || a.mode} · {a.status}
         </small>
       </button>
     );
@@ -110,7 +110,7 @@ function Event({
       <span className="event-time">{a.appointment_time}</span>
       <span className="event-label">{title}</span>
       <small className="event-meta">
-        {a.appointment_type} · {a.status}
+        {a.appointment_type} · {a.duration_minutes} min · {a.status}
       </small>
       <div className="space-top">
         <AppointmentActions appointment={a} view />

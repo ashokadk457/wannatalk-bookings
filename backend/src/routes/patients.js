@@ -5,6 +5,37 @@ import { authRequired } from '../middleware/authRequired.js';
 
 export const patientsRouter = Router();
 
+patientsRouter.post('/', authRequired(['admin']), async (req, res) => {
+  const fullName = String(req.body.fullName || '').trim().slice(0, 100);
+  const email = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
+  const mobile = String(req.body.mobile || '').trim().slice(0, 30) || null;
+  const password = String(req.body.password || '');
+  const preferredContact = String(req.body.preferredContact || 'Email').trim();
+  if (!fullName || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'A valid patient name and email are required' });
+  if (password.length < 8 || password.length > 128) return res.status(400).json({ error: 'Temporary password must be between 8 and 128 characters' });
+  if (!['Email', 'SMS', 'Both'].includes(preferredContact)) return res.status(400).json({ error: 'Invalid preferred contact method' });
+  const patient = await withTransaction(async (client) => {
+    const duplicate = await client.query(`SELECT id FROM app_users WHERE lower(email)=lower($1)`, [email]);
+    if (duplicate.rows[0]) throw Object.assign(new Error('An account with this email already exists'), { statusCode: 409 });
+    const names = fullName.split(/\s+/), firstName = names.shift() || fullName, lastName = names.join(' ') || null;
+    const user = await client.query(
+      `INSERT INTO app_users(full_name,email,mobile,password_hash,role,preferred_contact,is_active,registration_status,registration_verification_required)
+       VALUES($1,$2,$3,$4,'patient',$5,true,'approved',false) RETURNING id`,
+      [fullName, email, mobile, await bcrypt.hash(password, 12), preferredContact],
+    );
+    const created = await client.query(
+      `INSERT INTO patients(user_id,first_name,last_name) VALUES($1,$2,$3) RETURNING id`,
+      [user.rows[0].id, firstName, lastName],
+    );
+    await client.query(
+      `INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,'Created patient during booking',$4::jsonb)`,
+      [req.user.id, req.user.name || req.user.email || 'Administrator', req.user.role, JSON.stringify({ patientId: created.rows[0].id, email })],
+    );
+    return { id: created.rows[0].id, full_name: fullName, email, mobile, preferred_contact: preferredContact, is_active: true };
+  });
+  res.status(201).json({ patient });
+});
+
 patientsRouter.post('/import', authRequired(['admin']), async (req, res) => {
   const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
   if (!rows.length || rows.length > 1000) return res.status(400).json({ error: 'Provide between 1 and 1000 patient rows' });

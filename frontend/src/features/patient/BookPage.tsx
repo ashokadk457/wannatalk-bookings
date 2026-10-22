@@ -32,7 +32,18 @@ export default function BookPage() {
       window.clearInterval(timer);
     };
   }, [refresh, run]);
-  const providers = data.providers.filter((p) => p.is_active && p.locations.includes(location)),
+  const bookingLocations = data.locations.filter(
+    (item) =>
+      item.name !== 'Online' ||
+      data.providers.some(
+        (provider) =>
+          provider.is_active && provider.is_online && provider.locations.includes('Online'),
+      ),
+  );
+  const providers = data.providers.filter(
+      (p) =>
+        p.is_active && p.locations.includes(location) && (location !== 'Online' || p.is_online),
+    ),
     selected = providers.find((p) => p.id === providerId);
   async function confirm() {
     if (!selected || !location || !time) return notify('Choose location, provider, date and time');
@@ -74,7 +85,7 @@ export default function BookPage() {
             }}
           >
             <option value="">Choose location</option>
-            {data.locations.map((l) => (
+            {bookingLocations.map((l) => (
               <option key={l.id}>{l.name}</option>
             ))}
           </select>
@@ -103,7 +114,11 @@ export default function BookPage() {
                     </div>
                   </div>
                   <p className="sub">{p.bio || 'WannaTalk provider'}</p>
-                  <ProviderStatus active={p.is_active} online={p.is_online} />
+                  {location === 'Online' ? (
+                    <ProviderStatus active={p.is_active} online={p.is_online} />
+                  ) : (
+                    <span className="status confirmed">Available</span>
+                  )}
                 </button>
               ))
             ) : (
@@ -125,11 +140,11 @@ export default function BookPage() {
               }}
             />
           </Field>
-          <div className={`notice space-top ${selected && !selected.is_online ? 'offline-info' : ''}`}>
+          <div className="notice space-top">
             {date < today()
               ? 'Past dates cannot be booked.'
               : selected
-                ? `${selected.full_name} selected. ${selected.is_online ? 'Provider is online and accepting bookings.' : 'Provider is offline, but booking slots remain available.'}`
+                ? `${selected.full_name} selected. ${location === 'Online' ? 'Provider is accepting online bookings.' : `Provider is available at ${location}.`}`
                 : 'Select a green slot to choose a provider and time.'}
           </div>
         </Card>
@@ -244,7 +259,14 @@ export default function BookPage() {
                   {location === 'Online' ? 'Online' : mode}
                 </p>
                 {intake && <span className="intake-badge">Optional intake selected</span>}
-                <a className="intake-link" href={`/patient/cancellation-policy/${selected.id}`} target="_blank" rel="noopener noreferrer">View cancellation policy ↗</a>
+                <a
+                  className="intake-link"
+                  href={`/patient/cancellation-policy/${selected.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View cancellation policy ↗
+                </a>
               </>
             ) : (
               'Choose a location, provider, date and time to preview your booking.'

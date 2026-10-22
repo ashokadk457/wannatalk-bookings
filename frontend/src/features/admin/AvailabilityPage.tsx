@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
-import { Card, Field, Heading, ProviderStatus } from '../../components/ui';
+import { Card, Field, Heading } from '../../components/ui';
 import { days, initials, minutes, shortTime } from '../../lib/dates';
 import Calendar from '../appointments/Calendar';
 import AvailabilityEditor from '../provider/AvailabilityEditor';
@@ -35,7 +35,11 @@ export default function AvailabilityPage() {
                   {p.full_name}
                   {p.professional_title ? ` — ${p.professional_title}` : ''}
                   {' · '}
-                  {!p.is_active ? 'Inactive' : p.is_online ? 'Online' : 'Offline'}
+                  {!p.is_active
+                    ? 'Inactive'
+                    : p.is_online
+                      ? 'Online bookings enabled'
+                      : 'Online bookings disabled'}
                 </option>
               ))}
             </select>
@@ -53,7 +57,15 @@ export default function AvailabilityPage() {
                   </div>
                 </div>
               </div>
-              <ProviderStatus active={provider.is_active} online={provider.is_online} />
+              <span
+                className={`status ${!provider.is_active ? 'cancelled' : provider.is_online ? 'confirmed' : 'completed'}`}
+              >
+                {!provider.is_active
+                  ? 'Inactive'
+                  : provider.is_online
+                    ? 'Online bookings enabled'
+                    : 'Online bookings disabled'}
+              </span>
             </div>
             <span className="pill">
               {provider.availability

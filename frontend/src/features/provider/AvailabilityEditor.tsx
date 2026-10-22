@@ -8,46 +8,309 @@ import type { Provider } from '../../types';
 export default function AvailabilityEditor({ provider }: { provider: Provider }) {
   const { data, run, refresh, notify } = useApp();
   const locations = data.locations.filter((l) => provider.locations.includes(l.name));
-  const initialRows = useMemo(() => days.map((_, day) => {
-    const saved = provider.locationAvailability?.find((a) => a.day_of_week === day && a.is_available);
-    const fallback = provider.availability.find((a) => a.day_of_week === day);
-    return { dayOfWeek: day, locationId: saved?.location_id || locations[0]?.id || '', isAvailable: saved?.is_available ?? fallback?.is_available ?? false, startTime: shortTime(saved?.start_time || fallback?.start_time || '09:00'), endTime: shortTime(saved?.end_time || fallback?.end_time || '17:00') };
-  }), [provider.id]);
-  const [tab, setTab] = useState<'weekly'|'unavailable'>('weekly');
+  const initialRows = useMemo(
+    () =>
+      locations.flatMap((location, locationIndex) =>
+        days.map((_, day) => {
+          const saved = provider.locationAvailability?.find(
+            (entry) => entry.day_of_week === day && entry.location_id === location.id,
+          );
+          const fallback = provider.availability.find((entry) => entry.day_of_week === day);
+          return {
+            dayOfWeek: day,
+            locationId: location.id,
+            locationName: location.name,
+            isAvailable:
+              saved?.is_available ??
+              (locationIndex === 0 ? (fallback?.is_available ?? false) : false),
+            startTime: shortTime(saved?.start_time || fallback?.start_time || '09:00'),
+            endTime: shortTime(saved?.end_time || fallback?.end_time || '17:00'),
+          };
+        }),
+      ),
+    [provider.id],
+  );
+  const [tab, setTab] = useState<'weekly' | 'unavailable'>('weekly');
   const [duration, setDuration] = useState(provider.default_duration_minutes);
-  const [rows, setRows] = useState(initialRows), [busy, setBusy] = useState(false);
-  const [from, setFrom] = useState(''), [to, setTo] = useState(''), [start, setStart] = useState(''), [end, setEnd] = useState(''), [reason, setReason] = useState('');
-  const change = (day: number, patch: Partial<(typeof rows)[number]>) => setRows((v) => v.map((r) => r.dayOfWeek === day ? { ...r, ...patch } : r));
+  const [acceptOnline, setAcceptOnline] = useState(provider.is_online);
+  const [rows, setRows] = useState(initialRows),
+    [busy, setBusy] = useState(false);
+  const [from, setFrom] = useState(''),
+    [to, setTo] = useState(''),
+    [start, setStart] = useState(''),
+    [end, setEnd] = useState(''),
+    [reason, setReason] = useState('');
+  const change = (locationId: string, day: number, patch: Partial<(typeof rows)[number]>) =>
+    setRows((value) =>
+      value.map((row) =>
+        row.locationId === locationId && row.dayOfWeek === day ? { ...row, ...patch } : row,
+      ),
+    );
   async function saveWeekly(e: FormEvent) {
     e.preventDefault();
-    if (rows.some((r) => r.isAvailable && (!r.locationId || minutes(r.startTime) >= minutes(r.endTime)))) return notify('Choose a location and valid start/end time for every available day');
+    if (
+      rows.some(
+        (r) => r.isAvailable && (!r.locationId || minutes(r.startTime) >= minutes(r.endTime)),
+      )
+    )
+      return notify('Choose a location and valid start/end time for every available day');
     setBusy(true);
     await run(async () => {
-      for (const location of locations) await mutate(`/providers/${provider.id}/location-availability`, 'PUT', { locationId: location.id, availability: days.map((_, day) => { const row = rows[day]; return { dayOfWeek: day, isAvailable: row.isAvailable && row.locationId === location.id, startTime: row.startTime, endTime: row.endTime }; }) });
+      for (const location of locations)
+        await mutate(`/providers/${provider.id}/location-availability`, 'PUT', {
+          locationId: location.id,
+          availability: days.map((_, day) => {
+            const row = rows.find(
+              (entry) => entry.locationId === location.id && entry.dayOfWeek === day,
+            )!;
+            return {
+              dayOfWeek: day,
+              isAvailable: row.isAvailable,
+              startTime: row.startTime,
+              endTime: row.endTime,
+            };
+          }),
+        });
       await refresh();
-    }, 'Weekly location schedule saved'); setBusy(false);
+    }, 'Weekly location schedule saved');
+    setBusy(false);
+  }
+  async function toggleOnline(enabled: boolean) {
+    setAcceptOnline(enabled);
+    const ok = await run(
+      async () => {
+        await mutate(`/providers/${provider.id}/status`, 'PATCH', { isOnline: enabled });
+        await refresh();
+      },
+      enabled ? 'Online bookings enabled' : 'Online bookings disabled',
+    );
+    if (!ok) setAcceptOnline(provider.is_online);
   }
   async function saveDuration() {
     await run(async () => {
       await mutate(`/providers/${provider.id}/profile`, 'PATCH', {
-        fullName: provider.full_name, email: provider.email, mobile: provider.mobile || '',
-        title: provider.title || '', professionalTitle: provider.professional_title,
-        specialty: provider.specialty || '', subSpecialties: provider.sub_specialties || [],
-        medicalRegistrationNumber: provider.medical_registration_number || '', practiceNumber: provider.practice_number || '',
-        practiceSetting: provider.practice_setting || '', privatePracticeName: provider.private_practice_name || '',
-        durationMinutes: duration, bio: provider.bio || '', locations: provider.locations,
+        fullName: provider.full_name,
+        email: provider.email,
+        mobile: provider.mobile || '',
+        title: provider.title || '',
+        professionalTitle: provider.professional_title,
+        specialty: provider.specialty || '',
+        subSpecialties: provider.sub_specialties || [],
+        medicalRegistrationNumber: provider.medical_registration_number || '',
+        practiceNumber: provider.practice_number || '',
+        practiceSetting: provider.practice_setting || '',
+        privatePracticeName: provider.private_practice_name || '',
+        durationMinutes: duration,
+        bio: provider.bio || '',
+        locations: provider.locations,
       });
       await refresh();
     }, 'Default slot duration saved');
   }
   async function saveUnavailable(e: FormEvent) {
-    e.preventDefault(); if (!from) return;
-    if ((start && !end) || (!start && end) || (start && end && minutes(start) >= minutes(end))) return notify('Enter both start and end time, with end after start');
-    await run(async () => { const last = to || from; for (let d = new Date(`${from}T00:00:00`); d <= new Date(`${last}T00:00:00`); d.setDate(d.getDate()+1)) { const date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; await mutate(`/providers/${provider.id}/unavailable`, 'POST', { locationId: null, date, startTime: start || null, endTime: end || null, reason }); } await refresh(); setFrom(''); setTo(''); setStart(''); setEnd(''); setReason(''); }, 'Global unavailability saved');
+    e.preventDefault();
+    if (!from) return;
+    if ((start && !end) || (!start && end) || (start && end && minutes(start) >= minutes(end)))
+      return notify('Enter both start and end time, with end after start');
+    await run(async () => {
+      const last = to || from;
+      for (
+        let d = new Date(`${from}T00:00:00`);
+        d <= new Date(`${last}T00:00:00`);
+        d.setDate(d.getDate() + 1)
+      ) {
+        const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        await mutate(`/providers/${provider.id}/unavailable`, 'POST', {
+          locationId: null,
+          date,
+          startTime: start || null,
+          endTime: end || null,
+          reason,
+        });
+      }
+      await refresh();
+      setFrom('');
+      setTo('');
+      setStart('');
+      setEnd('');
+      setReason('');
+    }, 'Global unavailability saved');
   }
-  return <Card>
-    <div className="availability-duration-bar"><div><strong>Default slot duration</strong><span className="sub">Used to generate available booking times.</span></div><select aria-label="Default slot duration" value={duration} onChange={(e)=>setDuration(Number(e.target.value))}>{[30,60,90,120].map((n)=><option value={n} key={n}>{n} minutes</option>)}</select><button type="button" className="btn secondary small" onClick={() => void saveDuration()}>Save duration</button></div>
-    <div className="tabs"><button className={`btn ${tab==='weekly'?'':'secondary'}`} onClick={() => setTab('weekly')}>Weekly schedule</button><button className={`btn ${tab==='unavailable'?'':'secondary'}`} onClick={() => setTab('unavailable')}>Manage unavailability</button></div>
-    {tab === 'weekly' ? <form onSubmit={saveWeekly}><div className="dashboard-table"><table><thead><tr><th>Day</th><th>Location</th><th>Start time</th><th>End time</th><th>Available</th></tr></thead><tbody>{rows.map((row) => <tr key={row.dayOfWeek}><td><strong>{days[row.dayOfWeek]}</strong></td><td><select disabled={!row.isAvailable} value={row.locationId} onChange={(e) => change(row.dayOfWeek,{locationId:e.target.value})}>{locations.map((l)=><option key={l.id} value={l.id}>{l.name}</option>)}</select></td><td><input disabled={!row.isAvailable} type="time" value={row.startTime} onChange={(e)=>change(row.dayOfWeek,{startTime:e.target.value})}/></td><td><input disabled={!row.isAvailable} type="time" value={row.endTime} onChange={(e)=>change(row.dayOfWeek,{endTime:e.target.value})}/></td><td><input type="checkbox" checked={row.isAvailable} onChange={(e)=>change(row.dayOfWeek,{isAvailable:e.target.checked})}/></td></tr>)}</tbody></table></div><button disabled={busy} className="btn space-top">{busy?'Saving…':'Save weekly schedule'}</button></form> : <><div className="notice">Unavailable days and time slots apply to every location for this provider.</div><form onSubmit={saveUnavailable}><div className="form-grid"><Field label="From date"><input required min={today()} type="date" value={from} onChange={(e)=>setFrom(e.target.value)}/></Field><Field label="To date (optional)"><input min={from||today()} type="date" value={to} onChange={(e)=>setTo(e.target.value)}/></Field><Field label="Start time (optional)"><input type="time" value={start} onChange={(e)=>setStart(e.target.value)}/></Field><Field label="End time (optional)"><input type="time" value={end} onChange={(e)=>setEnd(e.target.value)}/></Field><Field label="Reason / holiday name"><input value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="Holiday, leave, unavailable…"/></Field></div><button className="btn space-top">Add unavailability</button></form><div className="space-top">{(provider.unavailableDays || []).map((d)=><div className="detail-row" key={d.id}><span>{d.unavailable_date.slice(0,10)} · Full day</span><strong>{d.reason||'Unavailable'}</strong></div>)}{(provider.unavailableSlots || []).map((s)=><div className="detail-row" key={s.id}><span>{s.unavailable_date.slice(0,10)} · {shortTime(s.start_time)}–{shortTime(s.end_time)}</span><strong>{s.reason||'Unavailable'}</strong></div>)}</div></>}
-  </Card>;
+  return (
+    <Card>
+      <label className="online-booking-control">
+        <span>
+          <strong>Accept online bookings</strong>
+          <small>
+            Enable Online as a bookable option. Practice-location schedules remain available when
+            this is off.
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Accept online bookings"
+          checked={acceptOnline}
+          onChange={(event) => void toggleOnline(event.target.checked)}
+        />
+        <span className="online-booking-switch" aria-hidden="true" />
+      </label>
+      <div className="availability-duration-bar">
+        <div>
+          <strong>Default slot duration</strong>
+          <span className="sub">Used to generate available booking times.</span>
+        </div>
+        <select
+          aria-label="Default slot duration"
+          value={duration}
+          onChange={(e) => setDuration(Number(e.target.value))}
+        >
+          {[30, 60, 90, 120].map((n) => (
+            <option value={n} key={n}>
+              {n} minutes
+            </option>
+          ))}
+        </select>
+        <button type="button" className="btn secondary small" onClick={() => void saveDuration()}>
+          Save duration
+        </button>
+      </div>
+      <div className="tabs">
+        <button
+          className={`btn ${tab === 'weekly' ? '' : 'secondary'}`}
+          onClick={() => setTab('weekly')}
+        >
+          Weekly schedule
+        </button>
+        <button
+          className={`btn ${tab === 'unavailable' ? '' : 'secondary'}`}
+          onClick={() => setTab('unavailable')}
+        >
+          Manage unavailability
+        </button>
+      </div>
+      {tab === 'weekly' ? (
+        <form onSubmit={saveWeekly}>
+          <div className="notice">
+            Each location has its own schedule. Online hours can overlap practice-location hours.
+          </div>
+          <div className="dashboard-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Location</th>
+                  <th>Start time</th>
+                  <th>End time</th>
+                  <th>Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={`${row.locationId}-${row.dayOfWeek}`}>
+                    <td>
+                      <strong>{days[row.dayOfWeek]}</strong>
+                    </td>
+                    <td>{row.locationName}</td>
+                    <td>
+                      <input
+                        disabled={!row.isAvailable}
+                        type="time"
+                        value={row.startTime}
+                        onChange={(e) =>
+                          change(row.locationId, row.dayOfWeek, { startTime: e.target.value })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        disabled={!row.isAvailable}
+                        type="time"
+                        value={row.endTime}
+                        onChange={(e) =>
+                          change(row.locationId, row.dayOfWeek, { endTime: e.target.value })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={row.isAvailable}
+                        onChange={(e) =>
+                          change(row.locationId, row.dayOfWeek, {
+                            isAvailable: e.target.checked,
+                          })
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button disabled={busy} className="btn space-top">
+            {busy ? 'Saving…' : 'Save weekly schedule'}
+          </button>
+        </form>
+      ) : (
+        <>
+          <div className="notice">
+            Unavailable days and time slots apply to every location for this provider.
+          </div>
+          <form onSubmit={saveUnavailable}>
+            <div className="form-grid">
+              <Field label="From date">
+                <input
+                  required
+                  min={today()}
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </Field>
+              <Field label="To date (optional)">
+                <input
+                  min={from || today()}
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </Field>
+              <Field label="Start time (optional)">
+                <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+              </Field>
+              <Field label="End time (optional)">
+                <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+              </Field>
+              <Field label="Reason / holiday name">
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Holiday, leave, unavailable…"
+                />
+              </Field>
+            </div>
+            <button className="btn space-top">Add unavailability</button>
+          </form>
+          <div className="space-top">
+            {(provider.unavailableDays || []).map((d) => (
+              <div className="detail-row" key={d.id}>
+                <span>{d.unavailable_date.slice(0, 10)} · Full day</span>
+                <strong>{d.reason || 'Unavailable'}</strong>
+              </div>
+            ))}
+            {(provider.unavailableSlots || []).map((s) => (
+              <div className="detail-row" key={s.id}>
+                <span>
+                  {s.unavailable_date.slice(0, 10)} · {shortTime(s.start_time)}–
+                  {shortTime(s.end_time)}
+                </span>
+                <strong>{s.reason || 'Unavailable'}</strong>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  );
 }

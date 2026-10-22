@@ -16,14 +16,21 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     [mode, setMode] = useState('In-person'),
     [note, setNote] = useState(''),
     [intake, setIntake] = useState(false),
-    [durationChoice, setDurationChoice] = useState(String(data.providers.find((p) => p.id === user?.entityId)?.default_duration_minutes || 60)),
+    [durationChoice, setDurationChoice] = useState(
+      String(data.providers.find((p) => p.id === user?.entityId)?.default_duration_minutes || 60),
+    ),
     [customHours, setCustomHours] = useState('1'),
     [busy, setBusy] = useState(false);
   const provider = data.providers.find((p) => p.id === providerId),
-    locations = data.locations.filter((l) => provider?.locations.includes(l.name)),
+    locations = data.locations.filter(
+      (l) => provider?.locations.includes(l.name) && (l.name !== 'Online' || provider.is_online),
+    ),
     location = locations.find((l) => l.id === locationId);
-  const durationMinutes = durationChoice === 'custom' ? Math.round(Number(customHours) * 60) : Number(durationChoice);
-  const slotProvider = provider ? { ...provider, default_duration_minutes: durationMinutes } : undefined;
+  const durationMinutes =
+    durationChoice === 'custom' ? Math.round(Number(customHours) * 60) : Number(durationChoice);
+  const slotProvider = provider
+    ? { ...provider, default_duration_minutes: durationMinutes }
+    : undefined;
   const slots = provider
     ? providerTimes(slotProvider!, date, location?.name).filter(
         (t) => !slotProblem(slotProvider!, date, t, data.appointments, undefined, location?.name),
@@ -31,7 +38,14 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     : [];
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (!provider || !location || !Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480 || !slots.includes(time))
+    if (
+      !provider ||
+      !location ||
+      !Number.isInteger(durationMinutes) ||
+      durationMinutes < 15 ||
+      durationMinutes > 480 ||
+      !slots.includes(time)
+    )
       return notify('Choose a provider, location and available time');
     setBusy(true);
     const ok = await run(async () => {
@@ -54,26 +68,68 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
   }
   return (
     <Modal title="Create booking" onClose={onClose}>
-      <div className="booking-creator-intro">Create a booking from live provider availability. The selected duration controls which start times remain available.</div>
+      <div className="booking-creator-intro">
+        Create a booking from live provider availability. The selected duration controls which start
+        times remain available.
+      </div>
       <form className="booking-creator-form" onSubmit={save}>
         <fieldset className="form-reset" disabled={busy}>
           <div className="form-grid">
-            <PatientSelect value={patientId} onChange={setPatient} />
-            {user?.role === 'admin' ? <ProviderSelect
-              value={providerId}
-              onChange={(id) => {
-                setProvider(id);
-                setDurationChoice(String(data.providers.find((p) => p.id === id)?.default_duration_minutes || 60));
-                setLocation('');
-                setTime('');
-              }}
-            /> : <Field label="Provider"><input disabled value={provider?.full_name || user?.fullName || ''} /></Field>}
+            <PatientSelect
+              value={patientId}
+              onChange={setPatient}
+              allowCreate={user?.role === 'admin'}
+            />
+            {user?.role === 'admin' ? (
+              <ProviderSelect
+                value={providerId}
+                onChange={(id) => {
+                  setProvider(id);
+                  setDurationChoice(
+                    String(data.providers.find((p) => p.id === id)?.default_duration_minutes || 60),
+                  );
+                  setLocation('');
+                  setTime('');
+                }}
+              />
+            ) : (
+              <Field label="Provider">
+                <input disabled value={provider?.full_name || user?.fullName || ''} />
+              </Field>
+            )}
             <Field label="Appointment duration">
-              <select value={durationChoice} onChange={(e) => { setDurationChoice(e.target.value); setTime(''); }}>
-                <option value="30">30 minutes</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="150">2.5 hours</option><option value="180">3 hours</option><option value="custom">Custom hours</option>
+              <select
+                value={durationChoice}
+                onChange={(e) => {
+                  setDurationChoice(e.target.value);
+                  setTime('');
+                }}
+              >
+                <option value="30">30 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="90">1.5 hours</option>
+                <option value="120">2 hours</option>
+                <option value="150">2.5 hours</option>
+                <option value="180">3 hours</option>
+                <option value="custom">Custom hours</option>
               </select>
             </Field>
-            {durationChoice === 'custom' && <Field label="Custom duration (hours)"><input required type="number" min="0.25" max="8" step="0.25" value={customHours} onChange={(e) => { setCustomHours(e.target.value); setTime(''); }} /></Field>}
+            {durationChoice === 'custom' && (
+              <Field label="Custom duration (hours)">
+                <input
+                  required
+                  type="number"
+                  min="0.25"
+                  max="8"
+                  step="0.25"
+                  value={customHours}
+                  onChange={(e) => {
+                    setCustomHours(e.target.value);
+                    setTime('');
+                  }}
+                />
+              </Field>
+            )}
             <Field label="Location">
               <select required value={locationId} onChange={(e) => setLocation(e.target.value)}>
                 <option value="">Choose location</option>
@@ -123,7 +179,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                 value={location?.name === 'Online' ? 'Online' : mode}
                 onChange={(e) => setMode(e.target.value)}
               >
-                {['In-person', 'Online', 'Telephone'].map((m) => (
+                {['In-person', ...(provider?.is_online ? ['Online'] : []), 'Telephone'].map((m) => (
                   <option key={m}>{m}</option>
                 ))}
               </select>

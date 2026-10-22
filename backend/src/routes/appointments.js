@@ -47,7 +47,7 @@ async function notifyProvider(appointmentId, event) {
   }
 }
 
-export async function assertProviderAvailable(client, { providerId, locationId = null, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null }) {
+export async function assertProviderAvailable(client, { providerId, locationId = null, appointmentDate, appointmentTime, durationMinutes, excludeAppointmentId = null, mode = null }) {
   const duration = Number(durationMinutes);
   if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
     const error = new Error('Invalid appointment duration');
@@ -66,6 +66,25 @@ export async function assertProviderAvailable(client, { providerId, locationId =
     const error = new Error('Provider not found or inactive');
     error.statusCode = 404;
     throw error;
+  }
+  if (isOnlineMode(mode) && !provider.rows[0].is_online) {
+    const error = new Error('This provider is not accepting online bookings');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (locationId) {
+    const location = await client.query(`SELECT name FROM locations WHERE id = $1`, [locationId]);
+    if (!location.rows[0]) {
+      const error = new Error('Location not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (String(location.rows[0].name).toLowerCase() === 'online' && !provider.rows[0].is_online) {
+      const error = new Error('This provider is not accepting online bookings');
+      error.statusCode = 409;
+      throw error;
+    }
   }
 
   let hasLocationSchedule = false;
@@ -283,7 +302,7 @@ appointmentsRouter.post('/', authRequired(['patient', 'provider', 'admin']), asy
   }
 
   const appointment = await withTransaction(async (client) => {
-    await assertProviderAvailable(client, { providerId, locationId, appointmentDate, appointmentTime, durationMinutes });
+    await assertProviderAvailable(client, { providerId, locationId, appointmentDate, appointmentTime, durationMinutes, mode });
     const meetingUrl = isOnlineMode(mode) ? createMeetingUrl() : null;
 
     const inserted = await client.query(
@@ -328,6 +347,7 @@ appointmentsRouter.patch('/:id/reschedule', authRequired(['admin', 'provider', '
       appointmentTime,
       durationMinutes: current.rows[0].duration_minutes,
       excludeAppointmentId: req.params.id,
+      mode: current.rows[0].mode,
     });
 
     const updated = await client.query(
@@ -378,9 +398,9 @@ appointmentsRouter.patch('/:id/edit', authRequired(['admin']), asyncHandler(asyn
       || String(appointmentDate) !== String(current.rows[0].appointment_date).slice(0, 10)
       || String(appointmentTime).slice(0, 5) !== String(current.rows[0].appointment_time).slice(0, 5)
       || duration !== Number(current.rows[0].duration_minutes);
-    if (slotChanged) await assertProviderAvailable(client, {
+    if (slotChanged || String(mode).toLowerCase() !== String(current.rows[0].mode).toLowerCase()) await assertProviderAvailable(client, {
       providerId, locationId, appointmentDate, appointmentTime,
-      durationMinutes: duration, excludeAppointmentId: req.params.id,
+      durationMinutes: duration, excludeAppointmentId: req.params.id, mode,
     });
     const updated = await client.query(
       `UPDATE appointments SET patient_id = $1, provider_id = $2, location_id = $3,

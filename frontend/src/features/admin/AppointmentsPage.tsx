@@ -14,6 +14,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
   const [search, setSearch] = useState(''),
     [provider, setProvider] = useState(''),
     [status, setStatus] = useState(''),
+    [duration, setDuration] = useState(''),
     [range, setRange] = useState<DateRange | undefined>(undefined),
     [sort, setSort] = useState('soonest'),
     [create, setCreate] = useState(false),
@@ -26,6 +27,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
         (cancellations ? ['Cancelled', 'No-show'].includes(a.status) : a.status !== 'Cancelled') &&
         (!provider || a.provider_id === provider) &&
         (!status || a.status === status) &&
+        (!duration || a.duration_minutes === Number(duration)) &&
         (!range?.from || a.appointment_date >= isoDate(range.from)) &&
         (!range?.to || a.appointment_date <= isoDate(range.to)) &&
         `${a.patient_name} ${a.provider_name} ${a.appointment_type} ${a.mode}`
@@ -39,12 +41,15 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
         ) * (sort === 'latest' ? -1 : 1),
     );
   const pageCount = Math.max(1, Math.ceil(apps.length / pageSize));
+  const durationOptions = [...new Set(data.appointments.map((a) => a.duration_minutes))]
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
   const currentPage = Math.min(page, pageCount);
   const visibleApps = apps.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [search, provider, status, range, sort, cancellations]);
+  }, [search, provider, status, duration, range, sort, cancellations]);
   return (
     <section>
       <div className="section-title">
@@ -85,6 +90,68 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
         <RecurringBookingsTab createSingle={() => setCreate(true)} />
       ) : tab === 'calendar' && !cancellations ? (
         <Card className="appointments-admin-card">
+          <div className="appointments-toolbar">
+            <div>
+              <strong>
+                {apps.length} appointment{apps.length === 1 ? '' : 's'}
+              </strong>
+              <span className="sub"> matching the current filters</span>
+            </div>
+            {(search || provider || status || duration || range) && (
+              <button
+                className="btn secondary small"
+                onClick={() => {
+                  setSearch('');
+                  setProvider('');
+                  setStatus('');
+                  setDuration('');
+                  setRange(undefined);
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+          <div className="admin-filters calendar-filters">
+            <Field label="Search appointments">
+              <input
+                placeholder="Patient, provider or appointment type"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </Field>
+            <Field label="Provider filter">
+              <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+                <option value="">All providers</option>
+                {data.providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Status filter">
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                {statuses
+                  .filter((s) => s !== 'Cancelled')
+                  .map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+              </select>
+            </Field>
+            <Field label="Duration filter">
+              <select value={duration} onChange={(e) => setDuration(e.target.value)}>
+                <option value="">All durations</option>
+                {durationOptions.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {minutes} minutes
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
           <Calendar appointments={apps} title="Appointment calendar" />
         </Card>
       ) : (
@@ -96,13 +163,14 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               </strong>
               <span className="sub"> matching the current filters</span>
             </div>
-            {(search || provider || status || range || sort !== 'soonest') && (
+            {(search || provider || status || duration || range || sort !== 'soonest') && (
               <button
                 className="btn secondary small"
                 onClick={() => {
                   setSearch('');
                   setProvider('');
                   setStatus('');
+                  setDuration('');
                   setRange(undefined);
                   setSort('soonest');
                 }}
@@ -137,6 +205,16 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
                   .map((s) => (
                     <option key={s}>{s}</option>
                   ))}
+              </select>
+            </Field>
+            <Field label="Duration filter">
+              <select value={duration} onChange={(e) => setDuration(e.target.value)}>
+                <option value="">All durations</option>
+                {durationOptions.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {minutes} minutes
+                  </option>
+                ))}
               </select>
             </Field>
             <DateRangeFilter value={range} onChange={setRange} />
