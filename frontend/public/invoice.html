@@ -159,8 +159,8 @@
         setText('invoice-practice-number', issuer.practiceNumber ? 'Practice No. ' + issuer.practiceNumber : '');
         setText('invoice-issuer-address', issuer.address || ''); setText('invoice-issuer-phone', issuer.phone || ''); setText('invoice-issuer-email', issuer.email || '');
         setText('invoice-customer-details', [customer.address, customer.email, customer.phone].filter(Boolean).join('\n'));
-        setText('invoice-bank-holder', issuer.bankAccountHolder || issuer.name || ''); setText('invoice-bank-name', issuer.bankName || ''); setText('invoice-bank-number', issuer.bankAccountNumber || '');
-        setText('invoice-bank-type', issuer.bankAccountType || ''); setText('invoice-bank-branch', issuer.bankBranchCode || ''); setText('invoice-remittance', issuer.remittanceInstructions || 'Use the invoice number as your payment reference.');
+        setText('invoice-bank-holder', issuer.bankAccountHolder || 'Louw Alberts'); setText('invoice-bank-name', issuer.bankName || 'FNB'); setText('invoice-bank-number', issuer.bankAccountNumber || '63191320620');
+        setText('invoice-bank-type', issuer.bankAccountType || 'CHEQUE ACCOUNT'); setText('invoice-bank-branch', issuer.bankBranchCode || ''); setText('invoice-remittance', issuer.remittanceInstructions || 'Use the invoice number as your payment reference.');
         var logo=document.querySelector('.invoice-logo'); if(logo) logo.src=issuer.logoUrl||'';
         if (/^#[0-9a-f]{6}$/i.test(issuer.brandPrimaryColor||'')) document.documentElement.style.setProperty('--invoice-brand',issuer.brandPrimaryColor);
       }

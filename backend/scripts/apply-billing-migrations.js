@@ -9,6 +9,7 @@ const migrations = [
   '018_billing_invoice_upgrade.sql',
   '019_billing_phase2.sql',
   '026_billing_simplified_workflow.sql',
+  '031_default_bank_account.sql',
 ];
 
 try {

@@ -126,10 +126,10 @@ export async function renderStoredInvoiceHtml(invoice) {
   html = fillPlaceholder(html, 'invoice-issuer-phone', issuer.phone||'');
   html = fillPlaceholder(html, 'invoice-issuer-email', issuer.email||'');
   html = fillPlaceholder(html, 'invoice-customer-details', [customer.address,customer.email,customer.phone].filter(Boolean).join('\n'));
-  html = fillPlaceholder(html, 'invoice-bank-holder', issuer.bankAccountHolder||issuer.name||'');
-  html = fillPlaceholder(html, 'invoice-bank-name', issuer.bankName||'');
-  html = fillPlaceholder(html, 'invoice-bank-number', issuer.bankAccountNumber||'');
-  html = fillPlaceholder(html, 'invoice-bank-type', issuer.bankAccountType||'');
+  html = fillPlaceholder(html, 'invoice-bank-holder', issuer.bankAccountHolder||'Louw Alberts');
+  html = fillPlaceholder(html, 'invoice-bank-name', issuer.bankName||'FNB');
+  html = fillPlaceholder(html, 'invoice-bank-number', issuer.bankAccountNumber||'63191320620');
+  html = fillPlaceholder(html, 'invoice-bank-type', issuer.bankAccountType||'CHEQUE ACCOUNT');
   html = fillPlaceholder(html, 'invoice-bank-branch', issuer.bankBranchCode||'');
   html = fillPlaceholder(html, 'invoice-remittance', issuer.remittanceInstructions||'Use the invoice number as your payment reference.');
   html = fillImage(html,'invoice-logo',await embeddedLogo(issuer.logoUrl));
