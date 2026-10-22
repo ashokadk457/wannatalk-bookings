@@ -364,11 +364,9 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
                     }
                     onChange={(e) => update('mode', e.target.value)}
                   >
-                    {['In-person', ...(provider?.is_online ? ['Online'] : []), 'Telephone'].map(
-                      (x) => (
-                        <option key={x}>{x}</option>
-                      ),
-                    )}
+                    {['In-person', 'Telephone'].map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Note" full>

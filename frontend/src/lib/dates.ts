@@ -63,8 +63,15 @@ export function slotProblem(
 ) {
   if (isPast(date, time)) return 'Past dates and times cannot be booked';
   if (!provider.is_active) return 'This provider is inactive';
-  const locationAvailability = locationName ? provider.locationAvailability?.find((a) => a.location_name === locationName && a.day_of_week === dateOf(date).getDay()) : undefined;
-  const availability = locationAvailability || provider.availability.find((a) => a.day_of_week === dateOf(date).getDay());
+  const locationAvailability =
+    locationName && locationName.toLowerCase() !== 'online'
+      ? provider.locationAvailability?.find(
+          (a) => a.location_name === locationName && a.day_of_week === dateOf(date).getDay(),
+        )
+      : undefined;
+  const availability =
+    locationAvailability ||
+    provider.availability.find((a) => a.day_of_week === dateOf(date).getDay());
   const start = minutes(time),
     end = start + provider.default_duration_minutes;
   if (
@@ -74,8 +81,24 @@ export function slotProblem(
   )
     return 'Outside provider availability';
   const locationId = locationAvailability?.location_id;
-  if (provider.unavailableDays?.some((d) => d.unavailable_date.slice(0, 10) === date && (!d.location_id || d.location_id === locationId))) return 'Provider unavailable on this date';
-  if (provider.unavailableSlots?.some((b) => b.unavailable_date.slice(0, 10) === date && (!b.location_id || b.location_id === locationId) && start < minutes(b.end_time) && end > minutes(b.start_time))) return 'Provider unavailable during that time';
+  if (
+    provider.unavailableDays?.some(
+      (d) =>
+        d.unavailable_date.slice(0, 10) === date &&
+        (!d.location_id || d.location_id === locationId),
+    )
+  )
+    return 'Provider unavailable on this date';
+  if (
+    provider.unavailableSlots?.some(
+      (b) =>
+        b.unavailable_date.slice(0, 10) === date &&
+        (!b.location_id || b.location_id === locationId) &&
+        start < minutes(b.end_time) &&
+        end > minutes(b.start_time),
+    )
+  )
+    return 'Provider unavailable during that time';
   if (
     provider.blocks.some(
       (b) =>
@@ -90,7 +113,14 @@ export function slotProblem(
       const busyDate = String(b.appointment_date).slice(0, 10);
       const busyStart = minutes(String(b.appointment_time).slice(0, 5));
       const busyEnd = minutes(String(b.end_time).slice(0, 5));
-      return (!excludeId || b.id !== excludeId) && busyDate === date && Number.isFinite(busyStart) && Number.isFinite(busyEnd) && start < busyEnd && end > busyStart;
+      return (
+        (!excludeId || b.id !== excludeId) &&
+        busyDate === date &&
+        Number.isFinite(busyStart) &&
+        Number.isFinite(busyEnd) &&
+        start < busyEnd &&
+        end > busyStart
+      );
     })
   )
     return 'That booking slot is already taken';
@@ -109,7 +139,15 @@ export function slotProblem(
   return null;
 }
 export function providerTimes(provider: Provider, date: string, locationName?: string) {
-  const av = (locationName ? provider.locationAvailability?.find((a) => a.location_name === locationName && a.day_of_week === dateOf(date).getDay()) : undefined) || provider.availability.find((a) => a.day_of_week === dateOf(date).getDay());
+  const locationAvailability =
+    locationName && locationName.toLowerCase() !== 'online'
+      ? provider.locationAvailability?.find(
+          (a) => a.location_name === locationName && a.day_of_week === dateOf(date).getDay(),
+        )
+      : undefined;
+  const av =
+    locationAvailability ||
+    provider.availability.find((a) => a.day_of_week === dateOf(date).getDay());
   const duration = provider.default_duration_minutes;
   if (!av?.is_available || duration <= 0) return [];
   const result: string[] = [];

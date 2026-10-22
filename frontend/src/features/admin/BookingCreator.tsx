@@ -181,7 +181,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                 value={location?.name === 'Online' ? 'Online' : mode}
                 onChange={(e) => setMode(e.target.value)}
               >
-                {['In-person', ...(provider?.is_online ? ['Online'] : []), 'Telephone'].map((m) => (
+                {['In-person', 'Telephone'].map((m) => (
                   <option key={m}>{m}</option>
                 ))}
               </select>

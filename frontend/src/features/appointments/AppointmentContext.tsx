@@ -9,7 +9,16 @@ import {
 } from 'react';
 import { useApp } from '../../app/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { active, formatDate, joinAllowed, minutes, rescheduleAllowed, slotProblem, timeString, today } from '../../lib/dates';
+import {
+  active,
+  formatDate,
+  joinAllowed,
+  minutes,
+  rescheduleAllowed,
+  slotProblem,
+  timeString,
+  today,
+} from '../../lib/dates';
 import { mutate } from '../../services/api';
 import { MeetingLink } from '../../components/MeetingLink';
 import { Field, StatusPill } from '../../components/ui';
@@ -113,20 +122,47 @@ const LOCAL_STYLES = `
    ================================================================= */
 const Icon = {
   Patient: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
     </svg>
   ),
   Provider: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M12 2v6M9 5h6" />
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="13" r="4" />
     </svg>
   ),
   Calendar: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="4" width="18" height="18" rx="2" />
       <line x1="16" y1="2" x2="16" y2="6" />
       <line x1="8" y1="2" x2="8" y2="6" />
@@ -134,38 +170,92 @@ const Icon = {
     </svg>
   ),
   Clock: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
     </svg>
   ),
   Type: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="4 7 4 4 20 4 20 7" />
       <line x1="9" y1="20" x2="15" y2="20" />
       <line x1="12" y1="4" x2="12" y2="20" />
     </svg>
   ),
   Location: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
       <circle cx="12" cy="10" r="3" />
     </svg>
   ),
   Payment: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1" y="4" width="22" height="16" rx="2" />
       <line x1="1" y1="10" x2="23" y2="10" />
     </svg>
   ),
   Status: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
     </svg>
   ),
   Intake: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
       <line x1="16" y1="13" x2="8" y2="13" />
@@ -173,26 +263,62 @@ const Icon = {
     </svg>
   ),
   Online: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polygon points="23 7 16 12 23 17 23 7" />
       <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
     </svg>
   ),
   Note: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
       <line x1="16" y1="13" x2="8" y2="13" />
     </svg>
   ),
   Close: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   ),
   Repeat: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="17 1 21 5 17 9" />
       <path d="M3 11V9a4 4 0 0 1 4-4h14" />
       <polyline points="7 23 3 19 7 15" />
@@ -200,32 +326,77 @@ const Icon = {
     </svg>
   ),
   Message: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   ),
   FollowUp: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M9 11l3 3L22 4" />
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
     </svg>
   ),
   Save: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
       <polyline points="17 21 17 13 7 13 7 21" />
       <polyline points="7 3 7 8 15 8" />
     </svg>
   ),
   ArrowLeft: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="19" y1="12" x2="5" y2="12" />
       <polyline points="12 19 5 12 12 5" />
     </svg>
   ),
   /* 👇 NAYA DELETE ICON */
   Delete: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
       <path d="M10 11v6M14 11v6" />
@@ -233,7 +404,16 @@ const Icon = {
     </svg>
   ),
   View: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
@@ -243,18 +423,12 @@ const Icon = {
 /* =================================================================
    REUSABLE ROW — icon + label + value aligned
    ================================================================= */
-function DetailRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: ReactNode;
-}) {
+function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
   return (
     <div className="detail-row">
-      <span className="detail-icon" aria-hidden="true">{icon}</span>
+      <span className="detail-icon" aria-hidden="true">
+        {icon}
+      </span>
       <span className="detail-label">{label}</span>
       <strong className="detail-value">{value}</strong>
     </div>
@@ -264,15 +438,22 @@ function DetailRow({
 function invoicePaymentDetails(appointment: Appointment): ReactNode {
   if (!appointment.invoice_id) return appointment.payment_status;
   const balance = Number(appointment.outstanding_balance || 0);
-  const status = balance <= 0
-    ? 'Payment done'
-    : appointment.invoice_status === 'Overdue'
-      ? 'Payment overdue'
-      : 'Payment due';
+  const status =
+    balance <= 0
+      ? 'Payment done'
+      : appointment.invoice_status === 'Overdue'
+        ? 'Payment overdue'
+        : 'Payment due';
   return (
     <>
       {status}
-      {balance > 0 && <div className="sub">R {balance.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} outstanding</div>}
+      {balance > 0 && (
+        <div className="sub">
+          R{' '}
+          {balance.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+          outstanding
+        </div>
+      )}
       {appointment.invoice_number && <div className="sub">{appointment.invoice_number}</div>}
     </>
   );
@@ -428,17 +609,35 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     const provider = data.providers.find((p) => p.id === providerId);
     const location = data.locations.find((l) => l.id === locationId);
     if (!provider || !location) return notify('Choose a provider and location');
+    const appointmentMode = location.name === 'Online' ? 'Online' : mode;
     if (date !== appointment.appointment_date || time !== appointment.appointment_time) {
       const problem = slotProblem(
-        { ...provider, default_duration_minutes: duration }, date, time,
-        data.appointments, appointment.id, location.name,
+        { ...provider, default_duration_minutes: duration },
+        date,
+        time,
+        data.appointments,
+        appointment.id,
+        location.name,
       );
       if (problem) return notify(problem);
     }
-    await update(appointment, '/edit', {
-      patientId, providerId, locationId, appointmentDate: date, appointmentTime: time,
-      durationMinutes: duration, appointmentType: type, mode, note, intakeRequested: intake,
-    }, 'Booking updated');
+    await update(
+      appointment,
+      '/edit',
+      {
+        patientId,
+        providerId,
+        locationId,
+        appointmentDate: date,
+        appointmentTime: time,
+        durationMinutes: duration,
+        appointmentType: type,
+        mode: appointmentMode,
+        note,
+        intakeRequested: intake,
+      },
+      'Booking updated',
+    );
   }
 
   return (
@@ -468,7 +667,9 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
           }}
         >
           <div className="card-head">
-            <h3 id="booking-modal-title">{editing ? (fullEdit ? 'Edit booking' : 'Reschedule booking') : 'Booking details'}</h3>
+            <h3 id="booking-modal-title">
+              {editing ? (fullEdit ? 'Edit booking' : 'Reschedule booking') : 'Booking details'}
+            </h3>
             <button className="btn secondary btn-with-icon" onClick={close}>
               <Icon.Close />
               <span>Close</span>
@@ -476,38 +677,64 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
           </div>
 
           <div className="booking-detail-grid">
-            <DetailRow icon={<Icon.Patient />}  label="Patient"          value={appointment.patient_name} />
-            <DetailRow icon={<Icon.Provider />} label="Provider"         value={appointment.provider_name} />
-            <DetailRow icon={<Icon.Calendar />} label="Date"             value={formatDate(appointment.appointment_date)} />
+            <DetailRow icon={<Icon.Patient />} label="Patient" value={appointment.patient_name} />
+            <DetailRow
+              icon={<Icon.Provider />}
+              label="Provider"
+              value={appointment.provider_name}
+            />
+            <DetailRow
+              icon={<Icon.Calendar />}
+              label="Date"
+              value={formatDate(appointment.appointment_date)}
+            />
             <DetailRow
               icon={<Icon.Clock />}
               label="Time"
               value={`${appointment.appointment_time} – ${timeString(minutes(appointment.appointment_time) + appointment.duration_minutes)}`}
             />
-            <DetailRow icon={<Icon.Type />}     label="Type"             value={appointment.appointment_type} />
-            <DetailRow icon={<Icon.Location />} label="Location / mode"  value={appointment.location_name || appointment.mode} />
-            <DetailRow icon={<Icon.Payment />}  label="Payment"          value={invoicePaymentDetails(appointment)} />
+            <DetailRow icon={<Icon.Type />} label="Type" value={appointment.appointment_type} />
+            <DetailRow
+              icon={<Icon.Location />}
+              label="Location / mode"
+              value={appointment.location_name || appointment.mode}
+            />
+            <DetailRow
+              icon={<Icon.Payment />}
+              label="Payment"
+              value={invoicePaymentDetails(appointment)}
+            />
 
             <div className="detail-row">
-              <span className="detail-icon" aria-hidden="true"><Icon.Status /></span>
+              <span className="detail-icon" aria-hidden="true">
+                <Icon.Status />
+              </span>
               <span className="detail-label">Status</span>
-              <span className="detail-value"><StatusPill status={appointment.status} /></span>
+              <span className="detail-value">
+                <StatusPill status={appointment.status} />
+              </span>
             </div>
 
             <DetailRow
               icon={<Icon.Intake />}
               label="Intake"
-              value={appointment.intake_requested ? 'Optional intake selected' : 'No intake selected'}
+              value={
+                appointment.intake_requested ? 'Optional intake selected' : 'No intake selected'
+              }
             />
             <DetailRow
               icon={<Icon.Online />}
               label="Online status"
-              value={appointment.mode.toLowerCase() === 'online' ? 'Online session' : 'In-person session'}
+              value={
+                appointment.mode.toLowerCase() === 'online' ? 'Online session' : 'In-person session'
+              }
             />
 
             {appointment.note && (
               <div className="detail-row full">
-                <span className="detail-icon" aria-hidden="true"><Icon.Note /></span>
+                <span className="detail-icon" aria-hidden="true">
+                  <Icon.Note />
+                </span>
                 <span className="detail-label">Note</span>
                 <strong className="detail-value preserve-lines">{appointment.note}</strong>
               </div>
@@ -523,42 +750,140 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
               {fullEdit ? (
                 <div className="form-grid space-top">
                   <Field label="Patient">
-                    <select required value={patientId} onChange={(e) => setPatientId(e.target.value)}>{data.patients.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+                    <select
+                      required
+                      value={patientId}
+                      onChange={(e) => setPatientId(e.target.value)}
+                    >
+                      {data.patients.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
                   <Field label="Provider">
-                    <select required value={providerId} onChange={(e) => { setProviderId(e.target.value); setLocationId(''); }}>{data.providers.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+                    <select
+                      required
+                      value={providerId}
+                      onChange={(e) => {
+                        setProviderId(e.target.value);
+                        setLocationId('');
+                      }}
+                    >
+                      {data.providers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
                   <Field label="Location">
-                    <select required value={locationId} onChange={(e) => setLocationId(e.target.value)}><option value="">Choose location</option>{data.locations.filter((l) => data.providers.find((p) => p.id === providerId)?.locations.includes(l.name)).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+                    <select
+                      required
+                      value={locationId}
+                      onChange={(e) => setLocationId(e.target.value)}
+                    >
+                      <option value="">Choose location</option>
+                      {data.locations
+                        .filter((l) => {
+                          const p = data.providers.find((provider) => provider.id === providerId);
+                          return (
+                            p && (l.name === 'Online' ? p.is_online : p.locations.includes(l.name))
+                          );
+                        })
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name}
+                          </option>
+                        ))}
+                    </select>
                   </Field>
-                  <Field label="Appointment date"><input type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-                  <Field label="Appointment time"><input type="time" required value={time} onChange={(e) => setTime(e.target.value)} /></Field>
-                  <Field label="Duration"><select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>{[30, 60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} minutes</option>)}</select></Field>
-                  <Field label="Appointment type"><select value={type} onChange={(e) => setType(e.target.value)}>{['Individual counselling', 'Couples counselling', 'Family counselling', 'Assessment', 'Follow-up'].map((t) => <option key={t}>{t}</option>)}</select></Field>
-                  <Field label="Mode"><select value={mode} onChange={(e) => setMode(e.target.value)}>{['In-person', 'Online', 'Telephone'].map((m) => <option key={m}>{m}</option>)}</select></Field>
-                  <Field label="Note" full><textarea value={note} onChange={(e) => setNote(e.target.value)} /></Field>
-                  <label className="check-row"><input type="checkbox" checked={intake} onChange={(e) => setIntake(e.target.checked)} /> Optional private intake</label>
+                  <Field label="Appointment date">
+                    <input
+                      type="date"
+                      required
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Appointment time">
+                    <input
+                      type="time"
+                      required
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Duration">
+                    <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+                      {[30, 60, 90, 120, 150, 180].map((n) => (
+                        <option key={n} value={n}>
+                          {n} minutes
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Appointment type">
+                    <select value={type} onChange={(e) => setType(e.target.value)}>
+                      {[
+                        'Individual counselling',
+                        'Couples counselling',
+                        'Family counselling',
+                        'Assessment',
+                        'Follow-up',
+                      ].map((t) => (
+                        <option key={t}>{t}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Mode">
+                    <select
+                      disabled={data.locations.find((l) => l.id === locationId)?.name === 'Online'}
+                      value={
+                        data.locations.find((l) => l.id === locationId)?.name === 'Online'
+                          ? 'Online'
+                          : mode
+                      }
+                      onChange={(e) => setMode(e.target.value)}
+                    >
+                      {['In-person', 'Telephone'].map((m) => (
+                        <option key={m}>{m}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Note" full>
+                    <textarea value={note} onChange={(e) => setNote(e.target.value)} />
+                  </Field>
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={intake}
+                      onChange={(e) => setIntake(e.target.checked)}
+                    />{' '}
+                    Optional private intake
+                  </label>
                 </div>
               ) : (
-              <div className="form-grid space-top">
-                <Field label="New appointment date">
-                  <input
-                    type="date"
-                    required
-                    min={today()}
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
-                </Field>
-                <Field label="New appointment time">
-                  <input
-                    type="time"
-                    required
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                  />
-                </Field>
-              </div>
+                <div className="form-grid space-top">
+                  <Field label="New appointment date">
+                    <input
+                      type="date"
+                      required
+                      min={today()}
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="New appointment time">
+                    <input
+                      type="time"
+                      required
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                    />
+                  </Field>
+                </div>
               )}
               <div className="modal-actions">
                 <button className="btn btn-with-icon" disabled={busy}>
@@ -568,7 +893,10 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   className="btn secondary btn-with-icon"
-                  onClick={() => { setEditing(false); setFullEdit(false); }}
+                  onClick={() => {
+                    setEditing(false);
+                    setFullEdit(false);
+                  }}
                 >
                   <Icon.ArrowLeft />
                   <span>Back</span>
@@ -591,13 +919,16 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
                     className="btn secondary btn-with-icon"
                     onClick={() => {
                       close();
-                      navigate(`/${user?.role}/followups?appointmentId=${encodeURIComponent(appointment.id)}`, {
-                        state: {
-                          patientId: appointment.patient_id,
-                          providerId: appointment.provider_id,
-                          appointmentId: appointment.id,
+                      navigate(
+                        `/${user?.role}/followups?appointmentId=${encodeURIComponent(appointment.id)}`,
+                        {
+                          state: {
+                            patientId: appointment.patient_id,
+                            providerId: appointment.provider_id,
+                            appointmentId: appointment.id,
+                          },
                         },
-                      });
+                      );
                     }}
                   >
                     <Icon.FollowUp />
@@ -652,7 +983,12 @@ export function AppointmentActions({
         </button>
       )}
       {!destructiveOnly && view && (
-        <button className="btn secondary small appointment-icon-action" data-tooltip="View appointment" aria-label="View appointment" onClick={() => actions.open(a)}>
+        <button
+          className="btn secondary small appointment-icon-action"
+          data-tooltip="View appointment"
+          aria-label="View appointment"
+          onClick={() => actions.open(a)}
+        >
           <Icon.View />
         </button>
       )}

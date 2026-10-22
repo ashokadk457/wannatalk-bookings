@@ -73,6 +73,7 @@ export async function assertProviderAvailable(client, { providerId, locationId =
     throw error;
   }
 
+  let isOnlineLocation = false;
   if (locationId) {
     const location = await client.query(`SELECT name FROM locations WHERE id = $1`, [locationId]);
     if (!location.rows[0]) {
@@ -80,20 +81,24 @@ export async function assertProviderAvailable(client, { providerId, locationId =
       error.statusCode = 404;
       throw error;
     }
-    if (String(location.rows[0].name).toLowerCase() === 'online' && !provider.rows[0].is_online) {
+    isOnlineLocation = String(location.rows[0].name).toLowerCase() === 'online';
+    if (isOnlineLocation && !provider.rows[0].is_online) {
       const error = new Error('This provider is not accepting online bookings');
       error.statusCode = 409;
       throw error;
     }
   }
 
+  const onlineBooking = isOnlineMode(mode) || isOnlineLocation;
   let hasLocationSchedule = false;
   if (locationId) {
-    const locationSchedule = await client.query(`SELECT is_available, start_time, end_time,
-      (is_available = true AND start_time <= $4::time AND end_time >= ($4::time + ($5 * interval '1 minute'))::time) AS slot_allowed
-      FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
-    hasLocationSchedule = Boolean(locationSchedule.rows[0]);
-    if (locationSchedule.rows[0] && !locationSchedule.rows[0].slot_allowed) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
+    if (!onlineBooking) {
+      const locationSchedule = await client.query(`SELECT is_available, start_time, end_time,
+        (is_available = true AND start_time <= $4::time AND end_time >= ($4::time + ($5 * interval '1 minute'))::time) AS slot_allowed
+        FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
+      hasLocationSchedule = Boolean(locationSchedule.rows[0]);
+      if (locationSchedule.rows[0] && !locationSchedule.rows[0].slot_allowed) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
+    }
     const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, locationId, appointmentDate]);
     if (unavailableDay.rows[0]) { const error = new Error('The provider is unavailable at this location on that day'); error.statusCode = 409; throw error; }
     const unavailableSlot = await client.query(`SELECT 1 FROM provider_unavailable_slots WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3 AND start_time < ($4::time + ($5 * interval '1 minute'))::time AND end_time > $4::time LIMIT 1`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
@@ -166,7 +171,7 @@ async function audit(client, user, action, appointmentId, details = {}) {
 const recurrenceUnits=new Set(['days','weeks','months']);
 function recurrenceDates(startDate,interval,unit,count){const result=[],start=new Date(`${startDate}T12:00:00Z`),day=start.getUTCDate();for(let i=0;i<count;i++){let date;if(unit==='months'){const month=start.getUTCMonth()+i*interval,year=start.getUTCFullYear()+Math.floor(month/12),normalized=((month%12)+12)%12,last=new Date(Date.UTC(year,normalized+1,0)).getUTCDate();date=new Date(Date.UTC(year,normalized,Math.min(day,last),12));}else{date=new Date(start);date.setUTCDate(date.getUTCDate()+i*interval*(unit==='weeks'?7:1));}result.push(date.toISOString().slice(0,10));}return result;}
 function recurringInput(body){const input={patientId:String(body.patientId||''),providerId:String(body.providerId||''),locationId:String(body.locationId||''),startDate:String(body.startDate||''),appointmentTime:String(body.appointmentTime||''),durationMinutes:Number(body.durationMinutes),recurrenceInterval:Number(body.recurrenceInterval),recurrenceUnit:String(body.recurrenceUnit||''),occurrenceCount:Number(body.occurrenceCount),appointmentType:String(body.appointmentType||'').trim(),mode:String(body.mode||'').trim(),note:String(body.note||'').trim().slice(0,2000),intakeRequested:body.intakeRequested===true};if(!input.patientId||!input.providerId||!input.locationId||!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.appointmentTime)||!Number.isInteger(input.durationMinutes)||input.durationMinutes<15||input.durationMinutes>480||!Number.isInteger(input.recurrenceInterval)||input.recurrenceInterval<1||input.recurrenceInterval>52||!recurrenceUnits.has(input.recurrenceUnit)||!Number.isInteger(input.occurrenceCount)||input.occurrenceCount<2||input.occurrenceCount>104||!input.appointmentType||!input.mode)throw Object.assign(new Error('Complete all recurring booking fields with valid values'),{statusCode:400});if(input.startDate<new Date().toISOString().slice(0,10))throw Object.assign(new Error('Recurring bookings must start today or later'),{statusCode:400});return input;}
-async function materializeRecurring(client,series,input){const occurrences=[];for(const [index,date] of recurrenceDates(input.startDate,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount).entries()){let appointmentId=null,status='booked',reason=null;try{await assertProviderAvailable(client,{providerId:input.providerId,locationId:input.locationId,appointmentDate:date,appointmentTime:input.appointmentTime,durationMinutes:input.durationMinutes});const meetingUrl=isOnlineMode(input.mode)?createMeetingUrl():null;const saved=await client.query(`INSERT INTO appointments(provider_id,patient_id,location_id,appointment_date,appointment_time,duration_minutes,appointment_type,mode,note,intake_requested,meeting_url,recurring_series_id,recurring_occurrence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,[input.providerId,input.patientId,input.locationId,date,input.appointmentTime,input.durationMinutes,input.appointmentType,input.mode,input.note||null,input.intakeRequested,meetingUrl,series.id,index+1]);appointmentId=saved.rows[0].id;}catch(error){if(error.statusCode!==409)throw error;status='conflict';reason=error.message;}const occurrence=(await client.query(`INSERT INTO recurring_booking_occurrences(series_id,occurrence_number,appointment_date,appointment_id,status,conflict_reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[series.id,index+1,date,appointmentId,status,reason])).rows[0];occurrences.push(occurrence);}return occurrences;}
+async function materializeRecurring(client,series,input){const occurrences=[];for(const [index,date] of recurrenceDates(input.startDate,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount).entries()){let appointmentId=null,status='booked',reason=null;try{await assertProviderAvailable(client,{providerId:input.providerId,locationId:input.locationId,appointmentDate:date,appointmentTime:input.appointmentTime,durationMinutes:input.durationMinutes,mode:input.mode});const meetingUrl=isOnlineMode(input.mode)?createMeetingUrl():null;const saved=await client.query(`INSERT INTO appointments(provider_id,patient_id,location_id,appointment_date,appointment_time,duration_minutes,appointment_type,mode,note,intake_requested,meeting_url,recurring_series_id,recurring_occurrence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,[input.providerId,input.patientId,input.locationId,date,input.appointmentTime,input.durationMinutes,input.appointmentType,input.mode,input.note||null,input.intakeRequested,meetingUrl,series.id,index+1]);appointmentId=saved.rows[0].id;}catch(error){if(error.statusCode!==409)throw error;status='conflict';reason=error.message;}const occurrence=(await client.query(`INSERT INTO recurring_booking_occurrences(series_id,occurrence_number,appointment_date,appointment_id,status,conflict_reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[series.id,index+1,date,appointmentId,status,reason])).rows[0];occurrences.push(occurrence);}return occurrences;}
 
 appointmentsRouter.get('/recurring',authRequired(['admin']),asyncHandler(async(req,res)=>{const result=await query(`SELECT s.*,pu.full_name patient_name,pru.full_name provider_name,l.name location_name,COALESCE(json_agg(json_build_object('id',o.id,'occurrenceNumber',o.occurrence_number,'appointmentDate',o.appointment_date::text,'appointmentId',o.appointment_id,'status',o.status,'conflictReason',o.conflict_reason) ORDER BY o.occurrence_number) FILTER(WHERE o.id IS NOT NULL),'[]') occurrences FROM recurring_booking_series s JOIN patients p ON p.id=s.patient_id JOIN app_users pu ON pu.id=p.user_id JOIN providers pr ON pr.id=s.provider_id JOIN app_users pru ON pru.id=pr.user_id JOIN locations l ON l.id=s.location_id LEFT JOIN recurring_booking_occurrences o ON o.series_id=s.id GROUP BY s.id,pu.full_name,pru.full_name,l.name ORDER BY s.created_at DESC`);res.json({series:result.rows});}));
 

@@ -8,36 +8,29 @@ import type { Provider } from '../../types';
 export default function AvailabilityEditor({ provider }: { provider: Provider }) {
   const { data, run, refresh, notify } = useApp();
   const locations = data.locations.filter(
-    (location) => location.name === 'Online' || provider.locations.includes(location.name),
+    (location) => location.name !== 'Online' && provider.locations.includes(location.name),
   );
   const initialRows = useMemo(
     () =>
-      locations.flatMap((location, locationIndex) =>
-        days.map((_, day) => {
-          const saved = provider.locationAvailability?.find(
-            (entry) => entry.day_of_week === day && entry.location_id === location.id,
-          );
-          const fallback = provider.availability.find((entry) => entry.day_of_week === day);
-          return {
-            dayOfWeek: day,
-            locationId: location.id,
-            locationName: location.name,
-            isAvailable:
-              saved?.is_available ??
-              (locationIndex === 0 ? (fallback?.is_available ?? false) : false),
-            startTime: shortTime(saved?.start_time || fallback?.start_time || '09:00'),
-            endTime: shortTime(saved?.end_time || fallback?.end_time || '17:00'),
-          };
-        }),
-      ),
-    [provider.id],
+      days.map((_, day) => {
+        const saved = provider.locationAvailability?.find(
+          (entry) =>
+            entry.day_of_week === day && entry.is_available && entry.location_name !== 'Online',
+        );
+        const fallback = provider.availability.find((entry) => entry.day_of_week === day);
+        return {
+          dayOfWeek: day,
+          locationId: saved?.location_id || locations[0]?.id || '',
+          isAvailable: saved?.is_available ?? fallback?.is_available ?? false,
+          startTime: shortTime(saved?.start_time || fallback?.start_time || '09:00'),
+          endTime: shortTime(saved?.end_time || fallback?.end_time || '17:00'),
+        };
+      }),
+    [locations, provider.availability, provider.locationAvailability],
   );
   const [tab, setTab] = useState<'weekly' | 'unavailable'>('weekly');
   const [duration, setDuration] = useState(provider.default_duration_minutes);
   const [acceptOnline, setAcceptOnline] = useState(provider.is_online);
-  const [scheduleLocationId, setScheduleLocationId] = useState(
-    locations.find((location) => location.name !== 'Online')?.id || locations[0]?.id || '',
-  );
   const [rows, setRows] = useState(initialRows),
     [busy, setBusy] = useState(false);
   const [from, setFrom] = useState(''),
@@ -45,41 +38,42 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
     [start, setStart] = useState(''),
     [end, setEnd] = useState(''),
     [reason, setReason] = useState('');
-  const change = (locationId: string, day: number, patch: Partial<(typeof rows)[number]>) =>
-    setRows((value) =>
-      value.map((row) =>
-        row.locationId === locationId && row.dayOfWeek === day ? { ...row, ...patch } : row,
-      ),
-    );
+  const change = (day: number, patch: Partial<(typeof rows)[number]>) =>
+    setRows((value) => value.map((row) => (row.dayOfWeek === day ? { ...row, ...patch } : row)));
   async function saveWeekly(e: FormEvent) {
     e.preventDefault();
-    const scheduleRows = rows.filter((row) => row.locationId === scheduleLocationId);
     if (
-      !scheduleRows.length ||
-      scheduleRows.some(
+      !rows.length ||
+      rows.some(
         (r) => r.isAvailable && (!r.locationId || minutes(r.startTime) >= minutes(r.endTime)),
       )
     )
       return notify('Choose a location and valid start/end time for every available day');
     setBusy(true);
-    await run(
-      async () => {
-        await mutate(`/providers/${provider.id}/location-availability`, 'PUT', {
-          locationId: scheduleLocationId,
-          availability: days.map((_, day) => {
-            const row = scheduleRows.find((entry) => entry.dayOfWeek === day)!;
-            return {
-              dayOfWeek: day,
-              isAvailable: row.isAvailable,
+    await run(async () => {
+      await mutate(`/providers/${provider.id}/availability`, 'PUT', {
+        availability: rows.map((row) => ({
+          dayOfWeek: row.dayOfWeek,
+          isAvailable: row.isAvailable,
+          startTime: row.startTime,
+          endTime: row.endTime,
+        })),
+      });
+      await Promise.all(
+        locations.map((location) =>
+          mutate(`/providers/${provider.id}/location-availability`, 'PUT', {
+            locationId: location.id,
+            availability: rows.map((row) => ({
+              dayOfWeek: row.dayOfWeek,
+              isAvailable: row.isAvailable && row.locationId === location.id,
               startTime: row.startTime,
               endTime: row.endTime,
-            };
+            })),
           }),
-        });
-        await refresh();
-      },
-      `${locations.find((location) => location.id === scheduleLocationId)?.name || 'Location'} schedule saved`,
-    );
+        ),
+      );
+      await refresh();
+    }, 'Weekly schedule saved');
     setBusy(false);
   }
   async function toggleOnline(enabled: boolean) {
@@ -199,25 +193,8 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
       {tab === 'weekly' ? (
         <form onSubmit={saveWeekly}>
           <div className="notice">
-            Choose a location and save its weekly hours independently. Enabling Online does not
-            disable or replace any practice location.
-          </div>
-          <div className="availability-location-picker">
-            <Field label="Schedule location">
-              <select
-                value={scheduleLocationId}
-                onChange={(event) => setScheduleLocationId(event.target.value)}
-              >
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <span className="sub">
-              Configure each location separately; previously saved locations are preserved.
-            </span>
+            Select the physical location where this provider works on each weekday. Online booking
+            is controlled separately above and uses these same weekly hours.
           </div>
           <div className="dashboard-table">
             <table>
@@ -231,54 +208,60 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
                 </tr>
               </thead>
               <tbody>
-                {rows
-                  .filter((row) => row.locationId === scheduleLocationId)
-                  .map((row) => (
-                    <tr key={`${row.locationId}-${row.dayOfWeek}`}>
-                      <td>
-                        <strong>{days[row.dayOfWeek]}</strong>
-                      </td>
-                      <td>{row.locationName}</td>
-                      <td>
-                        <input
-                          disabled={!row.isAvailable}
-                          type="time"
-                          value={row.startTime}
-                          onChange={(e) =>
-                            change(row.locationId, row.dayOfWeek, { startTime: e.target.value })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          disabled={!row.isAvailable}
-                          type="time"
-                          value={row.endTime}
-                          onChange={(e) =>
-                            change(row.locationId, row.dayOfWeek, { endTime: e.target.value })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={row.isAvailable}
-                          onChange={(e) =>
-                            change(row.locationId, row.dayOfWeek, {
-                              isAvailable: e.target.checked,
-                            })
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                {rows.map((row) => (
+                  <tr key={row.dayOfWeek}>
+                    <td>
+                      <strong>{days[row.dayOfWeek]}</strong>
+                    </td>
+                    <td>
+                      <select
+                        aria-label={`${days[row.dayOfWeek]} location`}
+                        disabled={!row.isAvailable || !locations.length}
+                        value={row.locationId}
+                        onChange={(e) => change(row.dayOfWeek, { locationId: e.target.value })}
+                      >
+                        {!locations.length && <option value="">No physical location</option>}
+                        {locations.map((location) => (
+                          <option key={location.id} value={location.id}>
+                            {location.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        disabled={!row.isAvailable}
+                        type="time"
+                        value={row.startTime}
+                        onChange={(e) => change(row.dayOfWeek, { startTime: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        disabled={!row.isAvailable}
+                        type="time"
+                        value={row.endTime}
+                        onChange={(e) => change(row.dayOfWeek, { endTime: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={row.isAvailable}
+                        onChange={(e) =>
+                          change(row.dayOfWeek, {
+                            isAvailable: e.target.checked,
+                          })
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
           <button disabled={busy} className="btn space-top">
-            {busy
-              ? 'Saving…'
-              : `Save ${locations.find((location) => location.id === scheduleLocationId)?.name || 'location'} schedule`}
+            {busy ? 'Saving…' : 'Save weekly schedule'}
           </button>
         </form>
       ) : (

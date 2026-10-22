@@ -27,6 +27,23 @@ describe('Booking rules', () => {
   it('generates duration-aligned times from provider hours', () => {
     expect(providerTimes(provider, '2027-01-04')).toEqual(['09:00', '10:00', '11:00']);
   });
+  it('uses shared weekly hours for Online instead of location-specific hours', () => {
+    const p = {
+      ...provider,
+      is_online: true,
+      locationAvailability: [
+        {
+          location_id: 'online-location',
+          location_name: 'Online',
+          day_of_week: 1,
+          is_available: true,
+          start_time: '14:00',
+          end_time: '16:00',
+        },
+      ],
+    };
+    expect(providerTimes(p, '2027-01-04', 'Online')).toEqual(['09:00', '10:00', '11:00']);
+  });
   it('does not make an offline provider unavailable', () => {
     vi.setSystemTime(new Date('2027-01-01T10:00:00'));
     expect(slotProblem(provider, '2027-01-04', '10:00', [])).toBeNull();
