@@ -90,6 +90,7 @@ export async function assertProviderAvailable(client, { providerId, locationId =
   }
 
   const onlineBooking = isOnlineMode(mode) || isOnlineLocation;
+  const availabilityLocationId = onlineBooking ? null : locationId;
   let hasLocationSchedule = false;
   if (locationId) {
     if (!onlineBooking) {
@@ -99,9 +100,9 @@ export async function assertProviderAvailable(client, { providerId, locationId =
       hasLocationSchedule = Boolean(locationSchedule.rows[0]);
       if (locationSchedule.rows[0] && !locationSchedule.rows[0].slot_allowed) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
     }
-    const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, locationId, appointmentDate]);
+    const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, availabilityLocationId, appointmentDate]);
     if (unavailableDay.rows[0]) { const error = new Error('The provider is unavailable at this location on that day'); error.statusCode = 409; throw error; }
-    const unavailableSlot = await client.query(`SELECT 1 FROM provider_unavailable_slots WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3 AND start_time < ($4::time + ($5 * interval '1 minute'))::time AND end_time > $4::time LIMIT 1`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
+    const unavailableSlot = await client.query(`SELECT 1 FROM provider_unavailable_slots WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3 AND start_time < ($4::time + ($5 * interval '1 minute'))::time AND end_time > $4::time LIMIT 1`, [providerId, availabilityLocationId, appointmentDate, appointmentTime, duration]);
     if (unavailableSlot.rows[0]) { const error = new Error('The provider is unavailable during that slot'); error.statusCode = 409; throw error; }
   }
 

@@ -15,7 +15,7 @@ export default function BookPage() {
     [time, setTime] = useState(''),
     [calendarMode, setCalendarMode] = useState<CalendarMode>('week');
   const [type, setType] = useState('Individual counselling'),
-    [mode, setMode] = useState('In-person'),
+    [mode, setMode] = useState(''),
     [note, setNote] = useState(''),
     [intake, setIntake] = useState(false),
     [saving, setSaving] = useState(false);
@@ -32,18 +32,26 @@ export default function BookPage() {
       window.clearInterval(timer);
     };
   }, [refresh, run]);
-  const bookingLocations = data.locations.filter(
-    (item) =>
-      item.name !== 'Online' ||
-      data.providers.some((provider) => provider.is_active && provider.is_online),
-  );
+  const bookingLocations = data.locations.filter((item) => item.name !== 'Online');
   const providers = data.providers.filter(
-      (p) => p.is_active && (location === 'Online' ? p.is_online : p.locations.includes(location)),
+      (p) =>
+        p.is_active &&
+        Boolean(location) &&
+        (mode === 'Online' ? p.is_online : mode === 'In-person' && p.locations.includes(location)),
     ),
     selected = providers.find((p) => p.id === providerId);
   async function confirm() {
-    if (!selected || !location || !time) return notify('Choose location, provider, date and time');
-    const problem = slotProblem(selected, date, time, data.appointments, undefined, location);
+    if (!selected || !location || !mode || !time)
+      return notify('Choose location, booking format, provider, date and time');
+    const availabilityLocation = mode === 'Online' ? 'Online' : location;
+    const problem = slotProblem(
+      selected,
+      date,
+      time,
+      data.appointments,
+      undefined,
+      availabilityLocation,
+    );
     if (problem) return notify(problem);
     setSaving(true);
     const ok = await run(async () => {
@@ -55,7 +63,7 @@ export default function BookPage() {
         appointmentTime: time,
         durationMinutes: selected.default_duration_minutes,
         appointmentType: type,
-        mode: location === 'Online' ? 'Online' : mode,
+        mode,
         note,
         intakeRequested: intake,
       });
@@ -70,12 +78,13 @@ export default function BookPage() {
   }
   return (
     <section>
-      <Card title="Choose a location">
+      <Card title="Choose location and booking format">
         <Field label="Practice location">
           <select
             value={location}
             onChange={(e) => {
               setLocation(e.target.value);
+              setMode('');
               setProviderId('');
               setTime('');
             }}
@@ -86,12 +95,27 @@ export default function BookPage() {
             ))}
           </select>
         </Field>
+        <Field label="Booking format">
+          <select
+            disabled={!location}
+            value={mode}
+            onChange={(e) => {
+              setMode(e.target.value);
+              setProviderId('');
+              setTime('');
+            }}
+          >
+            <option value="">Choose Online or Physical</option>
+            <option value="In-person">Physical</option>
+            <option value="Online">Online</option>
+          </select>
+        </Field>
       </Card>
       <div className="grid two space-top">
         <Card title="1. Choose provider">
           <div className="provider-choice">
-            {!location ? (
-              <div className="notice">Choose a location first to see available providers.</div>
+            {!location || !mode ? (
+              <div className="notice">Choose a location first, then choose Online or Physical.</div>
             ) : providers.length ? (
               providers.map((p) => (
                 <button
@@ -110,7 +134,7 @@ export default function BookPage() {
                     </div>
                   </div>
                   <p className="sub">{p.bio || 'WannaTalk provider'}</p>
-                  {location === 'Online' ? (
+                  {mode === 'Online' ? (
                     <ProviderStatus active={p.is_active} online={p.is_online} />
                   ) : (
                     <span className="status confirmed">Available</span>
@@ -118,7 +142,9 @@ export default function BookPage() {
                 </button>
               ))
             ) : (
-              <div className="notice">No providers currently offer {location}.</div>
+              <div className="notice">
+                No providers are available for this location and booking format.
+              </div>
             )}
           </div>
         </Card>
@@ -140,7 +166,7 @@ export default function BookPage() {
             {date < today()
               ? 'Past dates cannot be booked.'
               : selected
-                ? `${selected.full_name} selected. ${location === 'Online' ? 'Provider is accepting online bookings.' : `Provider is available at ${location}.`}`
+                ? `${selected.full_name} selected. ${mode === 'Online' ? 'Provider is accepting online bookings.' : `Provider is available at ${location}.`}`
                 : 'Select a green slot to choose a provider and time.'}
           </div>
         </Card>
@@ -153,9 +179,9 @@ export default function BookPage() {
             Refresh availability
           </button>
         </div>
-        {!location ? (
+        {!location || !mode ? (
           <div className="notice">
-            Choose Centurion, Emalahleni or Online before selecting a time slot.
+            Choose a location and booking format before selecting a slot.
           </div>
         ) : (
           <SlotCalendar
@@ -164,7 +190,7 @@ export default function BookPage() {
             mode={calendarMode}
             selectedTime={time}
             selectedProvider={providerId}
-            location={location}
+            location={mode === 'Online' ? 'Online' : location}
             onNavigate={(d, m) => {
               setDate(d);
               setCalendarMode(m);
@@ -191,17 +217,6 @@ export default function BookPage() {
                   'Follow-up',
                 ].map((t) => (
                   <option key={t}>{t}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Mode">
-              <select
-                value={location === 'Online' ? 'Online' : mode}
-                disabled={location === 'Online'}
-                onChange={(e) => setMode(e.target.value)}
-              >
-                {['In-person', 'Telephone'].map((m) => (
-                  <option key={m}>{m}</option>
                 ))}
               </select>
             </Field>
@@ -252,7 +267,7 @@ export default function BookPage() {
                   <br />
                   {selected.default_duration_minutes} minutes · {location}
                   <br />
-                  {location === 'Online' ? 'Online' : mode}
+                  {mode === 'Online' ? 'Online' : 'Physical'}
                 </p>
                 {intake && <span className="intake-badge">Optional intake selected</span>}
                 <a
@@ -265,7 +280,7 @@ export default function BookPage() {
                 </a>
               </>
             ) : (
-              'Choose a location, provider, date and time to preview your booking.'
+              'Choose a location, booking format, provider, date and time to preview your booking.'
             )}
           </div>
           <button

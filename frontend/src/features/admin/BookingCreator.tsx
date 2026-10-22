@@ -4,7 +4,7 @@ import { Field } from '../../components/ui';
 import Modal from '../../components/Modal';
 import { providerTimes, slotProblem, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
-import { PatientSelect, ProviderSelect } from '../workflows/shared';
+import { PatientSelect } from '../workflows/shared';
 export default function BookingCreator({ onClose }: { onClose: () => void }) {
   const { user, data, run, refresh, notify } = useApp();
   const [patientId, setPatient] = useState(''),
@@ -13,7 +13,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     [date, setDate] = useState(today()),
     [time, setTime] = useState(''),
     [type, setType] = useState('Individual counselling'),
-    [mode, setMode] = useState('In-person'),
+    [mode, setMode] = useState(''),
     [note, setNote] = useState(''),
     [intake, setIntake] = useState(false),
     [durationChoice, setDurationChoice] = useState(
@@ -21,21 +21,33 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     ),
     [customHours, setCustomHours] = useState('1'),
     [busy, setBusy] = useState(false);
-  const provider = data.providers.find((p) => p.id === providerId),
-    locations = data.locations.filter(
-      (l) =>
-        provider &&
-        (l.name === 'Online' ? provider.is_online : provider.locations.includes(l.name)),
+  const locations = data.locations.filter((l) => l.name !== 'Online'),
+    location = locations.find((l) => l.id === locationId),
+    eligibleProviders = data.providers.filter(
+      (p) =>
+        p.is_active &&
+        Boolean(location) &&
+        (mode === 'Online'
+          ? p.is_online
+          : mode === 'In-person' && p.locations.includes(location!.name)),
     ),
-    location = locations.find((l) => l.id === locationId);
+    provider = eligibleProviders.find((p) => p.id === providerId);
   const durationMinutes =
     durationChoice === 'custom' ? Math.round(Number(customHours) * 60) : Number(durationChoice);
   const slotProvider = provider
     ? { ...provider, default_duration_minutes: durationMinutes }
     : undefined;
   const slots = provider
-    ? providerTimes(slotProvider!, date, location?.name).filter(
-        (t) => !slotProblem(slotProvider!, date, t, data.appointments, undefined, location?.name),
+    ? providerTimes(slotProvider!, date, mode === 'Online' ? 'Online' : location?.name).filter(
+        (t) =>
+          !slotProblem(
+            slotProvider!,
+            date,
+            t,
+            data.appointments,
+            undefined,
+            mode === 'Online' ? 'Online' : location?.name,
+          ),
       )
     : [];
   async function save(e: FormEvent) {
@@ -59,7 +71,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
         appointmentTime: time,
         durationMinutes,
         appointmentType: type,
-        mode: location.name === 'Online' ? 'Online' : mode,
+        mode,
         note,
         intakeRequested: intake,
       });
@@ -77,23 +89,71 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
       <form className="booking-creator-form" onSubmit={save}>
         <fieldset className="form-reset" disabled={busy}>
           <div className="form-grid">
+            <Field label="Location">
+              <select
+                required
+                value={locationId}
+                onChange={(e) => {
+                  setLocation(e.target.value);
+                  setMode('');
+                  if (user?.role === 'admin') setProvider('');
+                  setTime('');
+                }}
+              >
+                <option value="">Choose physical location first</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Booking format">
+              <select
+                required
+                disabled={!locationId}
+                value={mode}
+                onChange={(e) => {
+                  setMode(e.target.value);
+                  if (user?.role === 'admin') setProvider('');
+                  setTime('');
+                }}
+              >
+                <option value="">Choose Online or Physical</option>
+                <option value="In-person">Physical</option>
+                <option value="Online">Online</option>
+              </select>
+            </Field>
             <PatientSelect
               value={patientId}
               onChange={setPatient}
               allowCreate={user?.role === 'admin'}
             />
             {user?.role === 'admin' ? (
-              <ProviderSelect
-                value={providerId}
-                onChange={(id) => {
-                  setProvider(id);
-                  setDurationChoice(
-                    String(data.providers.find((p) => p.id === id)?.default_duration_minutes || 60),
-                  );
-                  setLocation('');
-                  setTime('');
-                }}
-              />
+              <Field label="Provider">
+                <select
+                  required
+                  disabled={!locationId || !mode}
+                  value={providerId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setProvider(id);
+                    setDurationChoice(
+                      String(
+                        data.providers.find((p) => p.id === id)?.default_duration_minutes || 60,
+                      ),
+                    );
+                    setTime('');
+                  }}
+                >
+                  <option value="">Choose available provider</option>
+                  {eligibleProviders.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             ) : (
               <Field label="Provider">
                 <input disabled value={provider?.full_name || user?.fullName || ''} />
@@ -132,16 +192,6 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                 />
               </Field>
             )}
-            <Field label="Location">
-              <select required value={locationId} onChange={(e) => setLocation(e.target.value)}>
-                <option value="">Choose location</option>
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="Appointment date">
               <input
                 required
@@ -172,17 +222,6 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                   'Follow-up',
                 ].map((t) => (
                   <option key={t}>{t}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Mode">
-              <select
-                disabled={location?.name === 'Online'}
-                value={location?.name === 'Online' ? 'Online' : mode}
-                onChange={(e) => setMode(e.target.value)}
-              >
-                {['In-person', 'Telephone'].map((m) => (
-                  <option key={m}>{m}</option>
                 ))}
               </select>
             </Field>
