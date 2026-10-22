@@ -7,9 +7,7 @@ import type { Provider } from '../../types';
 
 export default function AvailabilityEditor({ provider }: { provider: Provider }) {
   const { data, run, refresh, notify } = useApp();
-  const locations = data.locations.filter(
-    (location) => location.name !== 'Online' && provider.locations.includes(location.name),
-  );
+  const locations = data.locations.filter((location) => location.name !== 'Online');
   const initialRows = useMemo(
     () =>
       days.map((_, day) => {
