@@ -3,19 +3,32 @@ import type { DateRange } from '@daypicker/react';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, Heading } from '../../components/ui';
 import DateRangeFilter from '../../components/DateRangeFilter';
-import { isoDate } from '../../lib/dates';
+import { dateOf, isoDate, today } from '../../lib/dates';
 import { statuses } from '../../types';
 import AppointmentTable from '../appointments/AppointmentTable';
 import Calendar from '../appointments/Calendar';
 import BookingCreator from './BookingCreator';
 import RecurringBookingsTab from './RecurringBookingsTab';
+const providerFilterStorageKey = 'wannatalkAdminAppointmentProviders';
+
+function savedProviderFilters() {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(providerFilterStorageKey) || '[]');
+    return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function AppointmentsPage({ cancellations = false }: { cancellations?: boolean }) {
   const { data } = useApp();
   const [search, setSearch] = useState(''),
-    [provider, setProvider] = useState(''),
+    [providers, setProviders] = useState<string[]>(savedProviderFilters),
     [status, setStatus] = useState(''),
     [duration, setDuration] = useState(''),
-    [range, setRange] = useState<DateRange | undefined>(undefined),
+    [range, setRange] = useState<DateRange | undefined>(
+      cancellations ? undefined : { from: dateOf(today()) },
+    ),
     [sort, setSort] = useState('soonest'),
     [create, setCreate] = useState(false),
     [page, setPage] = useState(1),
@@ -25,7 +38,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
     .filter(
       (a) =>
         (cancellations ? ['Cancelled', 'No-show'].includes(a.status) : a.status !== 'Cancelled') &&
-        (!provider || a.provider_id === provider) &&
+        (!providers.length || providers.includes(a.provider_id)) &&
         (!status || a.status === status) &&
         (!duration || a.duration_minutes === Number(duration)) &&
         (!range?.from || a.appointment_date >= isoDate(range.from)) &&
@@ -46,10 +59,23 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
     .sort((a, b) => a - b);
   const currentPage = Math.min(page, pageCount);
   const visibleApps = apps.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const customRange = Boolean(
+    range?.to || (range?.from && isoDate(range.from) !== today()) || (cancellations && range?.from),
+  );
 
   useEffect(() => {
     setPage(1);
-  }, [search, provider, status, duration, range, sort, cancellations]);
+  }, [search, providers, status, duration, range, sort, cancellations]);
+  useEffect(() => {
+    localStorage.setItem(providerFilterStorageKey, JSON.stringify(providers));
+  }, [providers]);
+  useEffect(() => {
+    const valid = new Set(data.providers.map((provider) => provider.id));
+    setProviders((current) => {
+      const next = current.filter((id) => valid.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [data.providers]);
   return (
     <section>
       <div className="section-title">
@@ -97,15 +123,15 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               </strong>
               <span className="sub"> matching the current filters</span>
             </div>
-            {(search || provider || status || duration || range) && (
+            {(search || providers.length || status || duration || customRange) && (
               <button
                 className="btn secondary small"
                 onClick={() => {
                   setSearch('');
-                  setProvider('');
+                  setProviders([]);
                   setStatus('');
                   setDuration('');
-                  setRange(undefined);
+                  setRange({ from: dateOf(today()) });
                 }}
               >
                 Clear filters
@@ -121,8 +147,15 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               />
             </Field>
             <Field label="Provider filter">
-              <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-                <option value="">All providers</option>
+              <select
+                multiple
+                size={Math.min(Math.max(data.providers.length, 2), 5)}
+                value={providers}
+                aria-label="Provider filters"
+                onChange={(e) =>
+                  setProviders(Array.from(e.target.selectedOptions, (option) => option.value))
+                }
+              >
                 {data.providers.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name}
@@ -150,7 +183,10 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
                 ))}
               </select>
             </Field>
-            <DateRangeFilter value={range} onChange={setRange} />
+            <DateRangeFilter
+              value={range}
+              onChange={(next) => setRange(next || { from: dateOf(today()) })}
+            />
           </div>
           <Calendar appointments={apps} title="Appointment calendar" />
         </Card>
@@ -163,15 +199,20 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               </strong>
               <span className="sub"> matching the current filters</span>
             </div>
-            {(search || provider || status || duration || range || sort !== 'soonest') && (
+            {(search ||
+              providers.length ||
+              status ||
+              duration ||
+              customRange ||
+              sort !== 'soonest') && (
               <button
                 className="btn secondary small"
                 onClick={() => {
                   setSearch('');
-                  setProvider('');
+                  setProviders([]);
                   setStatus('');
                   setDuration('');
-                  setRange(undefined);
+                  setRange(cancellations ? undefined : { from: dateOf(today()) });
                   setSort('soonest');
                 }}
               >
@@ -188,8 +229,15 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               />
             </Field>
             <Field label="Provider filter">
-              <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-                <option value="">All providers</option>
+              <select
+                multiple
+                size={Math.min(Math.max(data.providers.length, 2), 5)}
+                value={providers}
+                aria-label="Provider filters"
+                onChange={(e) =>
+                  setProviders(Array.from(e.target.selectedOptions, (option) => option.value))
+                }
+              >
                 {data.providers.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name}
@@ -217,7 +265,12 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
                 ))}
               </select>
             </Field>
-            <DateRangeFilter value={range} onChange={setRange} />
+            <DateRangeFilter
+              value={range}
+              onChange={(next) =>
+                setRange(next || (cancellations ? undefined : { from: dateOf(today()) }))
+              }
+            />
             {/* <Field label="Sort appointments">
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="soonest">Soonest first</option>

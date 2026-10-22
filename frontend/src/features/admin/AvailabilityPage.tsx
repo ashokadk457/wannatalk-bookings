@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, Heading } from '../../components/ui';
 import { days, initials, minutes, shortTime } from '../../lib/dates';
-import Calendar from '../appointments/Calendar';
 import AvailabilityEditor from '../provider/AvailabilityEditor';
 export default function AvailabilityPage() {
   const { data } = useApp(),
@@ -76,10 +75,6 @@ export default function AvailabilityPage() {
                 ) / 60}{' '}
               hrs/week
             </span>
-            <Calendar
-              key={provider.id}
-              appointments={data.appointments.filter((a) => a.provider_id === provider.id)}
-            />
             {days.map((d, i) => {
               const a = provider.availability.find((a) => a.day_of_week === i);
               return (
