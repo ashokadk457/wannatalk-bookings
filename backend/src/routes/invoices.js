@@ -79,6 +79,17 @@ invoicesRouter.get('/settings/default-bank',authRequired(['admin']),asyncHandler
   res.json({bankAccount:await loadDefaultBank({query})});
 }));
 
+invoicesRouter.get('/edit-history',authRequired(['admin']),asyncHandler(async(req,res)=>{
+  const result=await query(`SELECT h.id,h.invoice_id,h.version_number,h.edited_by_name,h.reason,h.changes,h.created_at,i.invoice_number,u.full_name patient_name,pu.full_name provider_name FROM invoice_edit_history h JOIN invoices i ON i.id=h.invoice_id JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id ORDER BY h.created_at DESC`);
+  res.json({history:result.rows});
+}));
+
+invoicesRouter.get('/edit-history/:historyId',authRequired(['admin']),asyncHandler(async(req,res)=>{
+  const result=await query(`SELECT h.*,i.invoice_number FROM invoice_edit_history h JOIN invoices i ON i.id=h.invoice_id WHERE h.id=$1`,[req.params.historyId]);
+  if(!result.rows[0])return res.status(404).json({error:'Invoice history version not found'});
+  res.json({version:result.rows[0]});
+}));
+
 invoicesRouter.put('/settings/default-bank',authRequired(['admin']),asyncHandler(async(req,res)=>{
   const accountHolder=String(req.body.accountHolder||'').trim().slice(0,200);
   const bankName=String(req.body.bankName||'').trim().slice(0,150);
@@ -127,6 +138,47 @@ invoicesRouter.post('/',authRequired(['admin']),asyncHandler(async(req,res)=>{
 invoicesRouter.get('/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x)return res.status(404).json({error:'Invoice not found'});res.json({invoice:x});}));
 invoicesRouter.get('/:id/pdf',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x)return res.status(404).json({error:'Invoice not found'});const pdf=await generateStoredInvoicePdf(x);res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${x.invoice_number}.pdf"`);res.send(pdf);}));
 invoicesRouter.post('/:id/email',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x||x.deleted_at)return res.status(404).json({error:'Active invoice not found'});const email=x.customer_snapshot?.email||x.patient_email;if(!email)return res.status(400).json({error:'The billing customer does not have an email address'});const pdf=await generateStoredInvoicePdf(x);await sendInvoiceEmail({email,fullName:x.customer_snapshot?.contactName||x.customer_snapshot?.name||x.patient_name,subject:`Invoice ${x.invoice_number} from ${x.issuer_snapshot?.name||'WannaTalk'}`,message:`Please find invoice ${x.invoice_number}, due ${formatDate(x.due_date)}. Amount due: ${x.issuer_snapshot?.currency||'ZAR'} ${x.outstanding_balance.toFixed(2)}.`,pdfBuffer:pdf,filename:`${x.invoice_number}.pdf`});res.json({success:true,message:`Invoice ${x.invoice_number} emailed to ${email}.`});}));
+
+invoicesRouter.patch('/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{
+  const reason=String(req.body.reason||'').trim().slice(0,500);
+  const requested=Array.isArray(req.body.items)?req.body.items:[];
+  if(!reason)throw fail('Enter a reason for editing this invoice');
+  if(!requested.length)throw fail('An invoice must contain at least one line');
+  const invoice=await withTransaction(async client=>{
+    const found=await client.query(`SELECT * FROM invoices WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`,[req.params.id]);
+    const current=found.rows[0];
+    if(!current)throw Object.assign(new Error('Active invoice not found'),{statusCode:404});
+    const oldItems=(await client.query(`SELECT * FROM invoice_items WHERE invoice_id=$1 ORDER BY created_at,id`,[current.id])).rows;
+    const issueDate=isoDate(req.body.issueDate);const dueDate=isoDate(req.body.dueDate);
+    if(!issueDate||!dueDate||dueDate<issueDate)throw fail('Enter valid issue and due dates');
+    const lines=requested.map((item,index)=>{const rate=parseInvoiceAmount(item.rate??item.amount),quantity=Number(item.quantity??1),discount=cash(item.discountAmount||0),tax=cash(item.taxAmount||0),serviceDate=isoDate(item.serviceDate);if(!rate||!Number.isFinite(quantity)||quantity<=0||discount<0||tax<0||!serviceDate)throw fail(`Enter valid values for line ${index+1}`);const amount=cash(rate*quantity-discount+tax);if(amount<=0)throw fail(`Line ${index+1} total must be greater than zero`);return{appointmentId:item.appointmentId?String(item.appointmentId):null,serviceDate,description:String(item.description||'Professional consultation').trim().slice(0,500),tariffCode:String(item.tariffCode||'').trim().slice(0,40),icd10Code:String(item.icd10Code||'').trim().slice(0,40),documentNumber:String(item.documentNumber||'').trim().slice(0,40),quantity:cash(quantity),rate,discount,tax,amount};});
+    const appointmentIds=[...new Set(lines.map(x=>x.appointmentId).filter(Boolean))];
+    if(appointmentIds.length!==lines.filter(x=>x.appointmentId).length)throw fail('The same appointment cannot appear on more than one invoice line');
+    if(appointmentIds.length){const valid=await client.query(`SELECT id FROM appointments WHERE id=ANY($1::uuid[])`,[appointmentIds]);if(valid.rows.length!==appointmentIds.length)throw fail('One or more linked appointments no longer exist');}
+    const subtotal=cash(lines.reduce((sum,x)=>sum+x.rate*x.quantity,0)),discount=cash(lines.reduce((sum,x)=>sum+x.discount,0)),tax=cash(lines.reduce((sum,x)=>sum+x.tax,0)),total=cash(lines.reduce((sum,x)=>sum+x.amount,0));
+    const credits=await client.query(`SELECT COALESCE(SUM(amount),0) total FROM billing_credit_notes WHERE invoice_id=$1 AND status='Issued'`,[current.id]);
+    const paid=Number(current.payments_received||0),credited=Number(credits.rows[0].total||0),outstanding=Math.max(0,cash(total-paid-credited));
+    const status=credited>=total?'Credited':outstanding===0?'Paid':paid>0||credited>0?'Part Paid':new Date(`${dueDate}T23:59:59+02:00`)<new Date()?'Overdue':'Issued';
+    const notes=String(req.body.notes||'').trim().slice(0,2000)||null;
+    const summary=[];
+    if(String(current.issue_date).slice(0,10)!==issueDate)summary.push(`Issue date: ${String(current.issue_date).slice(0,10)} → ${issueDate}`);
+    if(String(current.due_date||'').slice(0,10)!==dueDate)summary.push(`Due date: ${String(current.due_date||'').slice(0,10)||'None'} → ${dueDate}`);
+    if(Number(current.total_amount)!==total)summary.push(`Total: ${Number(current.total_amount).toFixed(2)} → ${total.toFixed(2)}`);
+    if((current.notes||'')!==(notes||''))summary.push('Invoice notes changed');
+    const oldLineValues=oldItems.map(x=>({appointmentId:x.appointment_id||null,serviceDate:String(x.service_date||'').slice(0,10),description:x.description,tariffCode:x.tariff_code||'',icd10Code:x.icd10_code||'',documentNumber:x.document_number||'',quantity:Number(x.quantity),rate:Number(x.rate),discount:Number(x.discount_amount),tax:Number(x.tax_amount),amount:Number(x.amount)}));
+    if(oldItems.length!==lines.length)summary.push(`Lines: ${oldItems.length} → ${lines.length}`);
+    if(JSON.stringify(oldLineValues)!==JSON.stringify(lines))summary.push('Invoice line details changed');
+    if(!summary.length)summary.push('No invoice values changed');
+    const version=(await client.query(`SELECT COALESCE(MAX(version_number),0)+1 version FROM invoice_edit_history WHERE invoice_id=$1`,[current.id])).rows[0].version;
+    await client.query(`INSERT INTO invoice_edit_history(invoice_id,version_number,edited_by_user_id,edited_by_name,reason,invoice_snapshot,changes) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)`,[current.id,version,req.user.id,req.user.name||req.user.email||'Administrator',reason,JSON.stringify({invoice:current,items:oldItems}),JSON.stringify({summary,beforeTotal:Number(current.total_amount),afterTotal:total,newItems:lines})]);
+    await client.query(`UPDATE invoices SET issue_date=$2,due_date=$3,due_at=$4,total_amount=$5,subtotal=$6,discount_total=$7,tax_total=$8,outstanding_balance=$9,status=$10,notes=$11,updated_at=now() WHERE id=$1`,[current.id,issueDate,dueDate,`${dueDate}T23:59:59+02:00`,total,subtotal,discount,tax,outstanding,status,notes]);
+    await client.query(`DELETE FROM invoice_items WHERE invoice_id=$1`,[current.id]);
+    for(const x of lines)await client.query(`INSERT INTO invoice_items(invoice_id,appointment_id,description,amount,service_date,tariff_code,icd10_code,document_number,quantity,rate,discount_amount,tax_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[current.id,x.appointmentId,x.description,x.amount,x.serviceDate,x.tariffCode,x.icd10Code,x.documentNumber,x.quantity,x.rate,x.discount,x.tax]);
+    await client.query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,'Edited invoice',$4::jsonb)`,[req.user.id,req.user.name||req.user.email||'Administrator',req.user.role,JSON.stringify({invoiceId:current.id,invoiceNumber:current.invoice_number,version,reason,changes:summary})]);
+    return loadInvoice(client,current.id);
+  });
+  res.json({invoice});
+}));
 
 invoicesRouter.delete('/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{
   const reason=String(req.body?.reason||'').trim().slice(0,500);

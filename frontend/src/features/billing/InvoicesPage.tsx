@@ -5,6 +5,7 @@ import { api, mutate } from '../../services/api';
 import BillingNav from './BillingNav';
 import { InvoiceEditor, type Invoice as EditorInvoice } from './InvoiceEditor';
 import Modal from '../../components/Modal';
+import InvoiceEditModal from './InvoiceEditModal';
 
 interface Invoice extends EditorInvoice {
   payments_received: number;
@@ -30,6 +31,40 @@ interface DeletedInvoice {
   patient_name: string;
   provider_name: string;
   company_name: string | null;
+}
+interface InvoiceEditHistory {
+  id: string;
+  invoice_id: string;
+  invoice_number: string;
+  version_number: number;
+  edited_by_name: string;
+  reason: string;
+  changes: { summary?: string[] };
+  created_at: string;
+  patient_name: string;
+  provider_name: string | null;
+}
+interface InvoiceHistoryVersion extends InvoiceEditHistory {
+  invoice_snapshot: {
+    invoice: {
+      issue_date: string;
+      due_date: string | null;
+      total_amount: number;
+      outstanding_balance: number;
+      status: string;
+      notes: string | null;
+    };
+    items: {
+      id: string;
+      service_date: string | null;
+      description: string;
+      quantity: number;
+      rate: number;
+      amount: number;
+      tariff_code: string | null;
+      icd10_code: string | null;
+    }[];
+  };
 }
 interface Summary {
   invoice_count: number;
@@ -229,14 +264,105 @@ function OverviewModal({
   );
 }
 
+function HistoryVersionModal({ historyId, onClose }: { historyId: string; onClose: () => void }) {
+  const [version, setVersion] = useState<InvoiceHistoryVersion | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api<{ version: InvoiceHistoryVersion }>(`/invoices/edit-history/${historyId}`)
+      .then((result) => setVersion(result.version))
+      .catch((loadError) =>
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load invoice version'),
+      );
+  }, [historyId]);
+  return (
+    <Modal
+      title={
+        version
+          ? `${version.invoice_number} · Original v${version.version_number}`
+          : 'Invoice history'
+      }
+      onClose={onClose}
+    >
+      {!version ? (
+        <p>{error || 'Loading saved invoice version…'}</p>
+      ) : (
+        <>
+          <div className="notice">
+            <strong>Read-only historical copy</strong>
+            <br />
+            Saved before the edit on {new Date(version.created_at).toLocaleString('en-ZA')} by{' '}
+            {version.edited_by_name}. Reason: {version.reason}
+          </div>
+          <div className="detail-row">
+            <span>Issue date</span>
+            <strong>{String(version.invoice_snapshot.invoice.issue_date).slice(0, 10)}</strong>
+          </div>
+          <div className="detail-row">
+            <span>Due date</span>
+            <strong>
+              {String(version.invoice_snapshot.invoice.due_date || '').slice(0, 10) || '—'}
+            </strong>
+          </div>
+          <div className="detail-row">
+            <span>Status</span>
+            <strong>{version.invoice_snapshot.invoice.status}</strong>
+          </div>
+          <div className="detail-row">
+            <span>Total</span>
+            <strong>{money(version.invoice_snapshot.invoice.total_amount)}</strong>
+          </div>
+          <div className="detail-row">
+            <span>Outstanding</span>
+            <strong>{money(version.invoice_snapshot.invoice.outstanding_balance)}</strong>
+          </div>
+          {version.invoice_snapshot.invoice.notes && (
+            <p className="preserve-lines">{version.invoice_snapshot.invoice.notes}</p>
+          )}
+          <div className="dashboard-table space-top">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Tariff</th>
+                  <th>ICD-10</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {version.invoice_snapshot.items.map((item) => (
+                  <tr key={item.id}>
+                    <td>{String(item.service_date || '').slice(0, 10)}</td>
+                    <td>{item.description}</td>
+                    <td>{item.tariff_code || '—'}</td>
+                    <td>{item.icd10_code || '—'}</td>
+                    <td>{Number(item.quantity)}</td>
+                    <td>{money(item.rate)}</td>
+                    <td>{money(item.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 export default function InvoicesPage() {
   const { notify } = useApp();
   const [invoices, setInvoices] = useState<Invoice[]>([]),
     [deletedInvoices, setDeletedInvoices] = useState<DeletedInvoice[]>([]),
+    [editHistory, setEditHistory] = useState<InvoiceEditHistory[]>([]),
     [overview, setOverview] = useState<Overview | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [creating, setCreating] = useState(false),
+    [editingId, setEditingId] = useState<string | null>(null),
+    [historyId, setHistoryId] = useState<string | null>(null),
     [search, setSearch] = useState(''),
     [status, setStatus] = useState('All'),
     [provider, setProvider] = useState('All'),
@@ -246,19 +372,21 @@ export default function InvoicesPage() {
     [to, setTo] = useState(''),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25),
-    [invoiceView, setInvoiceView] = useState<'active' | 'deleted'>('active'),
+    [invoiceView, setInvoiceView] = useState<'active' | 'deleted' | 'history'>('active'),
     [openPanel, setOpenPanel] = useState<OverviewPanel | null>(null);
   const load = async () => {
     setLoading(true);
     setError('');
     try {
-      const [invoiceResult, deletedResult, overviewResult] = await Promise.all([
+      const [invoiceResult, deletedResult, historyResult, overviewResult] = await Promise.all([
         api<{ invoices: Invoice[] }>('/invoices'),
         api<{ invoices: DeletedInvoice[] }>('/invoices/deleted'),
+        api<{ history: InvoiceEditHistory[] }>('/invoices/edit-history'),
         api<Overview>('/billing/overview'),
       ]);
-      setInvoices(invoiceResult.invoices.filter((x) => !x.appointments_cancelled));
+      setInvoices(invoiceResult.invoices);
       setDeletedInvoices(deletedResult.invoices);
+      setEditHistory(historyResult.history);
       setOverview(overviewResult);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unable to load billing data';
@@ -390,6 +518,12 @@ export default function InvoicesPage() {
           onClick={() => setInvoiceView('active')}
         >
           Active invoices
+        </button>
+        <button
+          className={invoiceView === 'history' ? 'active' : ''}
+          onClick={() => setInvoiceView('history')}
+        >
+          Edit history <span>({editHistory.length})</span>
         </button>
         <button
           className={invoiceView === 'deleted' ? 'active' : ''}
@@ -549,6 +683,12 @@ export default function InvoicesPage() {
                                   View
                                 </button>
                                 <button
+                                  className="btn secondary small"
+                                  onClick={() => setEditingId(x.id)}
+                                >
+                                  Edit
+                                </button>
+                                <button
                                   className="btn danger small"
                                   onClick={() => void removeInvoice(x)}
                                 >
@@ -672,6 +812,70 @@ export default function InvoicesPage() {
                 </div>
               ) : (
                 <Empty>No invoices have been deleted.</Empty>
+              )}
+            </Card>
+          )}
+          {invoiceView === 'history' && (
+            <Card className="billing-invoice-card">
+              <div className="card-head">
+                <div>
+                  <h3>Invoice edit history</h3>
+                  <p className="sub">
+                    Every entry preserves the complete invoice as it existed before the edit.
+                  </p>
+                </div>
+                <span className="pill">{editHistory.length}</span>
+              </div>
+              {editHistory.length ? (
+                <div className="dashboard-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Invoice</th>
+                        <th>Version</th>
+                        <th>Patient</th>
+                        <th>Provider</th>
+                        <th>Changed</th>
+                        <th>Changed by</th>
+                        <th>Reason</th>
+                        <th>Changes</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {editHistory.map((entry) => (
+                        <tr key={entry.id}>
+                          <td>{entry.invoice_number}</td>
+                          <td>Original v{entry.version_number}</td>
+                          <td>{entry.patient_name}</td>
+                          <td>{entry.provider_name || '—'}</td>
+                          <td>{new Date(entry.created_at).toLocaleString('en-ZA')}</td>
+                          <td>{entry.edited_by_name}</td>
+                          <td>{entry.reason}</td>
+                          <td>{entry.changes?.summary?.join('; ') || 'Invoice details changed'}</td>
+                          <td>
+                            <div className="actions">
+                              <button
+                                className="btn secondary small"
+                                onClick={() => setHistoryId(entry.id)}
+                              >
+                                View original
+                              </button>
+                              <button
+                                className="btn secondary small"
+                                onClick={() => openInvoice(entry.invoice_id)}
+                              >
+                                Current
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <Empty>No invoices have been edited.</Empty>
               )}
             </Card>
           )}
@@ -821,6 +1025,18 @@ export default function InvoicesPage() {
             void load();
           }}
         />
+      )}
+      {editingId && !error && (
+        <InvoiceEditModal
+          invoiceId={editingId}
+          onClose={() => setEditingId(null)}
+          onSaved={async () => {
+            await load();
+          }}
+        />
+      )}
+      {historyId && (
+        <HistoryVersionModal historyId={historyId} onClose={() => setHistoryId(null)} />
       )}
       {openPanel && overview && (
         <OverviewModal panel={openPanel} overview={overview} onClose={() => setOpenPanel(null)} />

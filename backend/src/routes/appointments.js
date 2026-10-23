@@ -465,12 +465,82 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
     if (!result.rows[0]) return null;
     await audit(client, req.user, status === 'Cancelled' ? 'Cancelled booking' : 'Changed booking status', req.params.id, { status });
     if (status === 'Cancelled') {
-      await client.query(
-        `UPDATE invoices i SET billing_review=true, billing_review_reason='Appointment cancelled - credit, refund, or cancellation fee decision required', updated_at=now()
-         FROM invoice_items ii WHERE ii.invoice_id=i.id AND ii.appointment_id=$1 AND i.status NOT IN ('Void','Credited')`,
+      // A cancellation automatically moves a wholly appointment-based, financially
+      // untouched invoice to Deleted Invoices. Mixed invoices and invoices with any
+      // financial activity remain active for an administrator to review.
+      const deletedInvoices = await client.query(
+        `UPDATE invoices i
+         SET status_before_delete=i.status,
+             status='Void',
+             deleted_at=now(),
+             deleted_by_user_id=$2,
+             deleted_by_name=$3,
+             deletion_reason='Automatically deleted because all linked appointments were cancelled',
+             billing_review=false,
+             billing_review_reason=NULL,
+             updated_at=now()
+         WHERE i.deleted_at IS NULL
+           AND i.status NOT IN ('Void','Credited')
+           AND EXISTS (
+             SELECT 1 FROM invoice_items linked
+             WHERE linked.invoice_id=i.id AND linked.appointment_id=$1
+           )
+           AND EXISTS (SELECT 1 FROM invoice_items item WHERE item.invoice_id=i.id)
+           AND NOT EXISTS (
+             SELECT 1 FROM invoice_items manual
+             WHERE manual.invoice_id=i.id AND manual.appointment_id IS NULL
+           )
+           AND NOT EXISTS (
+             SELECT 1
+             FROM invoice_items item
+             JOIN appointments linked_appointment ON linked_appointment.id=item.appointment_id
+             WHERE item.invoice_id=i.id AND linked_appointment.status<>'Cancelled'
+           )
+           AND COALESCE(i.payments_received,0)=0
+           AND NOT EXISTS (
+             SELECT 1 FROM billing_payment_allocations allocation
+             JOIN billing_payments payment ON payment.id=allocation.payment_id
+             WHERE allocation.invoice_id=i.id AND payment.status='Active'
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM billing_credit_notes credit
+             WHERE credit.invoice_id=i.id AND credit.status='Issued'
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM billing_refunds refund
+             WHERE refund.invoice_id=i.id AND refund.status='Paid'
+           )
+         RETURNING i.id,i.invoice_number,i.status_before_delete`,
+        [req.params.id, req.user.id, req.user.name || req.user.email || 'System']
+      );
+      for (const invoice of deletedInvoices.rows) {
+        await client.query(
+          `INSERT INTO audit_logs(user_id,user_name,user_role,action,appointment_id,details)
+           VALUES($1,$2,$3,'Automatically deleted invoice after appointment cancellation',$4,$5::jsonb)`,
+          [req.user.id, req.user.name || req.user.email || 'System', req.user.role, req.params.id,
+            JSON.stringify({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, previousStatus: invoice.status_before_delete })]
+        );
+      }
+      const reviewInvoices = await client.query(
+        `UPDATE invoices i
+         SET billing_review=true,
+             billing_review_reason='Appointment cancelled - invoice retained because it contains other charges or financial activity',
+             updated_at=now()
+         WHERE i.deleted_at IS NULL
+           AND i.status NOT IN ('Void','Credited')
+           AND EXISTS (
+             SELECT 1 FROM invoice_items ii
+             WHERE ii.invoice_id=i.id AND ii.appointment_id=$1
+           )
+         RETURNING i.id,i.invoice_number`,
         [req.params.id]
       );
-      await audit(client, req.user, 'Flagged invoice for billing review', req.params.id, { reason: 'Appointment cancelled' });
+      if (reviewInvoices.rows.length) {
+        await audit(client, req.user, 'Flagged invoice for billing review', req.params.id, {
+          reason: 'Appointment cancelled; invoice contains other charges or financial activity',
+          invoices: reviewInvoices.rows,
+        });
+      }
     }
     return result.rows[0];
   });
