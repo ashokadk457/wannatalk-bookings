@@ -8,7 +8,10 @@ export const navigation: Record<Role, { path: string; label: string; icon: strin
   ],
   provider: [
     { path: 'dashboard', label: 'Dashboard', icon: '▣' },
+    { path: 'appointments', label: 'Appointments', icon: '▦' },
+    { path: 'cancellations', label: 'Cancellations', icon: '!' },
     { path: 'calendar', label: 'Calendar', icon: '▦' },
+    { path: 'billing/overview', label: 'Billing', icon: '▤' },
     { path: 'availability', label: 'Availability', icon: '◷' },
     { path: 'patients', label: 'Patients', icon: '◉' },
     { path: 'followups', label: 'Follow-ups', icon: '✓' },

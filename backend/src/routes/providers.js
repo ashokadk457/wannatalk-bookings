@@ -157,6 +157,7 @@ providersRouter.patch('/:id/cancellation-policy', authRequired(['provider']), as
 });
 
 providersRouter.get('/', authRequired(), async (req, res) => {
+  const ownUserId = req.user.role === 'provider' ? req.user.id : null;
   const result = await query(
     `SELECT p.id, u.full_name, u.email, u.mobile, u.is_active, p.title, p.professional_title, p.specialty,
             p.sub_specialties, p.medical_registration_number, p.practice_number, p.practice_setting,
@@ -166,9 +167,10 @@ providersRouter.get('/', authRequired(), async (req, res) => {
      JOIN app_users u ON u.id = p.user_id
      LEFT JOIN provider_locations pl ON pl.provider_id = p.id
      LEFT JOIN locations l ON l.id = pl.location_id
-     WHERE u.registration_status = 'approved'
+     WHERE u.registration_status = 'approved' AND ($1::uuid IS NULL OR u.id = $1)
      GROUP BY p.id, u.full_name, u.email, u.mobile, u.is_active
-     ORDER BY u.full_name`
+     ORDER BY u.full_name`,
+    [ownUserId]
   );
   res.json({ providers: result.rows });
 });

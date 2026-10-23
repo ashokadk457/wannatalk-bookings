@@ -198,7 +198,7 @@ export default function FollowUpsPage() {
                             ))}
                           </div>
                         )}
-                        {user?.role === 'admin' && (
+                        {user?.role !== 'patient' && (
                           <button
                             type="button"
                             disabled={busy}

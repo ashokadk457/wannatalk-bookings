@@ -279,7 +279,7 @@ export default function AppointmentTable({
                 ) : (
                   <StatusPill status={a.status} />
                 )}
-                {user?.role === 'admin' && a.invoice_id && (
+                {user?.role !== 'patient' && a.invoice_id && (
                   <div
                     className="appointment-invoice-status"
                     aria-label={`Invoice ${a.invoice_number}`}
@@ -305,7 +305,7 @@ export default function AppointmentTable({
                     </div>
                   </div>
                 )}
-                {user?.role === 'admin' && !a.invoice_id && (
+                {user?.role !== 'patient' && !a.invoice_id && (
                   <div className="appointment-invoice-status">
                     <span className="invoice-status-badge">No invoice</span>
                   </div>
@@ -324,7 +324,7 @@ export default function AppointmentTable({
                       <ActionIcon type="message" done={Boolean(a.message_sent)} />
                     </button>
                   )}
-                  {user?.role === 'admin' && !a.invoice_id && (
+                  {user?.role !== 'patient' && !a.invoice_id && (
                     <button
                       className="btn secondary small appointment-icon-action"
                       data-tooltip="Generate invoice"
@@ -334,7 +334,7 @@ export default function AppointmentTable({
                       <ActionIcon type="invoice" done={Boolean(a.invoice_id)} />
                     </button>
                   )}
-                  {user?.role === 'admin' && a.invoice_id && (
+                  {user?.role !== 'patient' && a.invoice_id && (
                     <>
                       <button
                         className="btn secondary small appointment-icon-action"
@@ -349,15 +349,15 @@ export default function AppointmentTable({
                       >
                         <ActionIcon type="invoice" done />
                       </button>
-                      <button
+                      {user?.role === 'admin' && <button
                         className="btn secondary small appointment-icon-action"
                         data-tooltip="View payment details"
                         aria-label="View payment details"
                         onClick={() => void showPaymentDetails(a)}
                       >
                         <ActionIcon type="payment" done={Number(a.outstanding_balance || 0) <= 0} />
-                      </button>
-                      {Number(a.outstanding_balance || 0) > 0 && (
+                      </button>}
+                      {user?.role === 'admin' && Number(a.outstanding_balance || 0) > 0 && (
                         <button
                           className="btn secondary small appointment-icon-action"
                           data-tooltip="Record payment"

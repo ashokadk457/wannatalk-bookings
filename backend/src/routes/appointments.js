@@ -10,6 +10,7 @@ export const appointmentsRouter = Router();
 
 const activeStatuses = ['Booked', 'Confirmed', 'Arrived', 'Completed'];
 const validStatuses = new Set(['Booked', 'Confirmed', 'Arrived', 'Completed', 'Cancelled', 'No-show']);
+const ownsProviderRecord = (user, providerId) => user.role === 'admin' || String(providerId) === String(user.entityId || '');
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -174,9 +175,9 @@ function recurrenceDates(startDate,interval,unit,count){const result=[],start=ne
 function recurringInput(body){const input={patientId:String(body.patientId||''),providerId:String(body.providerId||''),locationId:String(body.locationId||''),startDate:String(body.startDate||''),appointmentTime:String(body.appointmentTime||''),durationMinutes:Number(body.durationMinutes),recurrenceInterval:Number(body.recurrenceInterval),recurrenceUnit:String(body.recurrenceUnit||''),occurrenceCount:Number(body.occurrenceCount),appointmentType:String(body.appointmentType||'').trim(),mode:String(body.mode||'').trim(),note:String(body.note||'').trim().slice(0,2000),intakeRequested:body.intakeRequested===true};if(!input.patientId||!input.providerId||!input.locationId||!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.appointmentTime)||!Number.isInteger(input.durationMinutes)||input.durationMinutes<15||input.durationMinutes>480||!Number.isInteger(input.recurrenceInterval)||input.recurrenceInterval<1||input.recurrenceInterval>52||!recurrenceUnits.has(input.recurrenceUnit)||!Number.isInteger(input.occurrenceCount)||input.occurrenceCount<2||input.occurrenceCount>104||!input.appointmentType||!input.mode)throw Object.assign(new Error('Complete all recurring booking fields with valid values'),{statusCode:400});if(input.startDate<new Date().toISOString().slice(0,10))throw Object.assign(new Error('Recurring bookings must start today or later'),{statusCode:400});return input;}
 async function materializeRecurring(client,series,input){const occurrences=[];for(const [index,date] of recurrenceDates(input.startDate,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount).entries()){let appointmentId=null,status='booked',reason=null;try{await assertProviderAvailable(client,{providerId:input.providerId,locationId:input.locationId,appointmentDate:date,appointmentTime:input.appointmentTime,durationMinutes:input.durationMinutes,mode:input.mode});const meetingUrl=isOnlineMode(input.mode)?createMeetingUrl():null;const saved=await client.query(`INSERT INTO appointments(provider_id,patient_id,location_id,appointment_date,appointment_time,duration_minutes,appointment_type,mode,note,intake_requested,meeting_url,recurring_series_id,recurring_occurrence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,[input.providerId,input.patientId,input.locationId,date,input.appointmentTime,input.durationMinutes,input.appointmentType,input.mode,input.note||null,input.intakeRequested,meetingUrl,series.id,index+1]);appointmentId=saved.rows[0].id;}catch(error){if(error.statusCode!==409)throw error;status='conflict';reason=error.message;}const occurrence=(await client.query(`INSERT INTO recurring_booking_occurrences(series_id,occurrence_number,appointment_date,appointment_id,status,conflict_reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[series.id,index+1,date,appointmentId,status,reason])).rows[0];occurrences.push(occurrence);}return occurrences;}
 
-appointmentsRouter.get('/recurring',authRequired(['admin']),asyncHandler(async(req,res)=>{const result=await query(`SELECT s.*,pu.full_name patient_name,pru.full_name provider_name,l.name location_name,COALESCE(json_agg(json_build_object('id',o.id,'occurrenceNumber',o.occurrence_number,'appointmentDate',o.appointment_date::text,'appointmentId',o.appointment_id,'status',o.status,'conflictReason',o.conflict_reason) ORDER BY o.occurrence_number) FILTER(WHERE o.id IS NOT NULL),'[]') occurrences FROM recurring_booking_series s JOIN patients p ON p.id=s.patient_id JOIN app_users pu ON pu.id=p.user_id JOIN providers pr ON pr.id=s.provider_id JOIN app_users pru ON pru.id=pr.user_id JOIN locations l ON l.id=s.location_id LEFT JOIN recurring_booking_occurrences o ON o.series_id=s.id GROUP BY s.id,pu.full_name,pru.full_name,l.name ORDER BY s.created_at DESC`);res.json({series:result.rows});}));
+appointmentsRouter.get('/recurring',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const result=await query(`SELECT s.*,pu.full_name patient_name,pru.full_name provider_name,l.name location_name,COALESCE(json_agg(json_build_object('id',o.id,'occurrenceNumber',o.occurrence_number,'appointmentDate',o.appointment_date::text,'appointmentId',o.appointment_id,'status',o.status,'conflictReason',o.conflict_reason) ORDER BY o.occurrence_number) FILTER(WHERE o.id IS NOT NULL),'[]') occurrences FROM recurring_booking_series s JOIN patients p ON p.id=s.patient_id JOIN app_users pu ON pu.id=p.user_id JOIN providers pr ON pr.id=s.provider_id JOIN app_users pru ON pru.id=pr.user_id JOIN locations l ON l.id=s.location_id LEFT JOIN recurring_booking_occurrences o ON o.series_id=s.id WHERE ($1::uuid IS NULL OR s.provider_id=$1) GROUP BY s.id,pu.full_name,pru.full_name,l.name ORDER BY s.created_at DESC`,[req.user.role==='provider'?req.user.entityId:null]);res.json({series:result.rows});}));
 
-appointmentsRouter.post('/recurring',authRequired(['admin']),asyncHandler(async(req,res)=>{const input=recurringInput(req.body);const result=await withTransaction(async client=>{const series=(await client.query(`INSERT INTO recurring_booking_series(patient_id,provider_id,location_id,created_by_user_id,start_date,appointment_time,duration_minutes,recurrence_interval,recurrence_unit,occurrence_count,appointment_type,mode,note,intake_requested) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,[input.patientId,input.providerId,input.locationId,req.user.id,input.startDate,input.appointmentTime,input.durationMinutes,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.appointmentType,input.mode,input.note||null,input.intakeRequested])).rows[0];const occurrences=await materializeRecurring(client,series,input);await audit(client,req.user,'Created recurring booking series',null,{seriesId:series.id,booked:occurrences.filter(x=>x.status==='booked').length,conflicts:occurrences.filter(x=>x.status==='conflict').length});return {series,occurrences};});res.status(201).json(result);}));
+appointmentsRouter.post('/recurring',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const input=recurringInput(req.body);if(!ownsProviderRecord(req.user,input.providerId))return res.status(403).json({error:'Providers can only create recurring bookings for themselves'});const result=await withTransaction(async client=>{if(req.user.role==='provider'&&!(await client.query(`SELECT 1 FROM appointments WHERE provider_id=$1 AND patient_id=$2 LIMIT 1`,[input.providerId,input.patientId])).rows[0])throw Object.assign(new Error('You may only create bookings for your own patients'),{statusCode:403});const series=(await client.query(`INSERT INTO recurring_booking_series(patient_id,provider_id,location_id,created_by_user_id,start_date,appointment_time,duration_minutes,recurrence_interval,recurrence_unit,occurrence_count,appointment_type,mode,note,intake_requested) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,[input.patientId,input.providerId,input.locationId,req.user.id,input.startDate,input.appointmentTime,input.durationMinutes,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.appointmentType,input.mode,input.note||null,input.intakeRequested])).rows[0];const occurrences=await materializeRecurring(client,series,input);await audit(client,req.user,'Created recurring booking series',null,{seriesId:series.id,booked:occurrences.filter(x=>x.status==='booked').length,conflicts:occurrences.filter(x=>x.status==='conflict').length});return {series,occurrences};});res.status(201).json(result);}));
 
 appointmentsRouter.patch('/recurring/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{const input=recurringInput(req.body);const result=await withTransaction(async client=>{const current=(await client.query(`SELECT * FROM recurring_booking_series WHERE id=$1 FOR UPDATE`,[req.params.id])).rows[0];if(!current)throw Object.assign(new Error('Recurring booking series not found'),{statusCode:404});await client.query(`UPDATE appointments SET status='Cancelled',updated_at=now() WHERE recurring_series_id=$1 AND appointment_date>=CURRENT_DATE AND status IN('Booked','Confirmed')`,[current.id]);await client.query(`DELETE FROM recurring_booking_occurrences WHERE series_id=$1`,[current.id]);const series=(await client.query(`UPDATE recurring_booking_series SET patient_id=$2,provider_id=$3,location_id=$4,start_date=$5,appointment_time=$6,duration_minutes=$7,recurrence_interval=$8,recurrence_unit=$9,occurrence_count=$10,appointment_type=$11,mode=$12,note=$13,intake_requested=$14,updated_at=now() WHERE id=$1 RETURNING *`,[current.id,input.patientId,input.providerId,input.locationId,input.startDate,input.appointmentTime,input.durationMinutes,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.appointmentType,input.mode,input.note||null,input.intakeRequested])).rows[0];const occurrences=await materializeRecurring(client,series,input);await audit(client,req.user,'Edited recurring booking series',null,{seriesId:series.id,booked:occurrences.filter(x=>x.status==='booked').length,conflicts:occurrences.filter(x=>x.status==='conflict').length});return {series,occurrences};});res.json(result);}));
 
@@ -375,7 +376,7 @@ appointmentsRouter.patch('/:id/reschedule', authRequired(['admin', 'provider', '
   void notifyProvider(appointment.id, 'rescheduled');
 }));
 
-appointmentsRouter.patch('/:id/edit', authRequired(['admin']), asyncHandler(async (req, res) => {
+appointmentsRouter.patch('/:id/edit', authRequired(['admin', 'provider']), asyncHandler(async (req, res) => {
   const { patientId, providerId, locationId, appointmentDate, appointmentTime, durationMinutes, appointmentType, mode, note, intakeRequested } = req.body;
   if (!patientId || !providerId || !locationId || !appointmentDate || !appointmentTime || !appointmentType || !mode) {
     return res.status(400).json({ error: 'Complete all required booking details' });
@@ -388,6 +389,11 @@ appointmentsRouter.patch('/:id/edit', authRequired(['admin']), asyncHandler(asyn
   const appointment = await withTransaction(async (client) => {
     const current = await client.query(`SELECT * FROM appointments WHERE id = $1 FOR UPDATE`, [req.params.id]);
     if (!current.rows[0]) {
+      const error = new Error('Appointment not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (!ownsProviderRecord(req.user, current.rows[0].provider_id) || !ownsProviderRecord(req.user, providerId)) {
       const error = new Error('Appointment not found');
       error.statusCode = 404;
       throw error;
@@ -549,10 +555,15 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
   if (status === 'Cancelled') void notifyProvider(appointment.id, 'cancelled');
 }));
 
-appointmentsRouter.delete('/:id', authRequired(['admin']), asyncHandler(async (req, res) => {
+appointmentsRouter.delete('/:id', authRequired(['admin', 'provider']), asyncHandler(async (req, res) => {
   await withTransaction(async (client) => {
-    const appointment = await client.query(`SELECT id FROM appointments WHERE id = $1 FOR UPDATE`, [req.params.id]);
+    const appointment = await client.query(`SELECT id,provider_id FROM appointments WHERE id = $1 FOR UPDATE`, [req.params.id]);
     if (!appointment.rows[0]) {
+      const error = new Error('Appointment not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (!ownsProviderRecord(req.user, appointment.rows[0].provider_id)) {
       const error = new Error('Appointment not found');
       error.statusCode = 404;
       throw error;
@@ -611,9 +622,10 @@ function formatInvoiceTime(value) {
   return match ? match[1] : String(value || '');
 }
 
-appointmentsRouter.get('/:id/invoice', authRequired(['admin']), asyncHandler(async (req, res) => {
+appointmentsRouter.get('/:id/invoice', authRequired(['admin', 'provider']), asyncHandler(async (req, res) => {
   const appointment = await loadInvoiceData(req.params.id);
   if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+  if (!ownsProviderRecord(req.user, appointment.provider_id)) return res.status(404).json({ error: 'Appointment not found' });
   res.json({
     appointmentId: appointment.id,
     appointment: {
@@ -634,12 +646,13 @@ appointmentsRouter.get('/:id/invoice', authRequired(['admin']), asyncHandler(asy
   });
 }));
 
-appointmentsRouter.get('/:id/invoice/pdf', authRequired(['admin']), asyncHandler(async (req, res) => {
+appointmentsRouter.get('/:id/invoice/pdf', authRequired(['admin', 'provider']), asyncHandler(async (req, res) => {
   const amount = parseInvoiceAmount(req.query.amount);
   if (!amount) return res.status(400).json({ error: 'A valid invoice amount is required' });
 
   const appointment = await loadInvoiceData(req.params.id);
   if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+  if (!ownsProviderRecord(req.user, appointment.provider_id)) return res.status(404).json({ error: 'Appointment not found' });
 
   let pdf;
   try {
@@ -654,12 +667,13 @@ appointmentsRouter.get('/:id/invoice/pdf', authRequired(['admin']), asyncHandler
   res.send(pdf);
 }));
 
-appointmentsRouter.post('/:id/invoice/email', authRequired(['admin']), asyncHandler(async (req, res) => {
+appointmentsRouter.post('/:id/invoice/email', authRequired(['admin', 'provider']), asyncHandler(async (req, res) => {
   const amount = parseInvoiceAmount(req.body.amount);
   if (!amount) return res.status(400).json({ error: 'A valid invoice amount is required' });
 
   const appointment = await loadInvoiceData(req.params.id);
   if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+  if (!ownsProviderRecord(req.user, appointment.provider_id)) return res.status(404).json({ error: 'Appointment not found' });
 
   const patientEmail = String(appointment.patient_email || '').trim();
   if (!patientEmailPattern.test(patientEmail)) {

@@ -93,7 +93,8 @@ function ProviderFilter({
 }
 
 export default function AppointmentsPage({ cancellations = false }: { cancellations?: boolean }) {
-  const { data } = useApp();
+  const { user, data } = useApp();
+  const admin = user?.role === 'admin';
   const [search, setSearch] = useState(''),
     [providers, setProviders] = useState<string[]>(savedProviderFilters),
     [status, setStatus] = useState(''),
@@ -176,12 +177,12 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
           <button className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>
             Calendar
           </button>
-          <button
-            className={tab === 'recurring' ? 'active' : ''}
-            onClick={() => setTab('recurring')}
-          >
-            Recurring bookings
-          </button>
+          {admin && <button
+              className={tab === 'recurring' ? 'active' : ''}
+              onClick={() => setTab('recurring')}
+            >
+              Recurring bookings
+            </button>}
         </nav>
       )}
       {tab === 'recurring' && !cancellations ? (
@@ -218,9 +219,9 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
                 onChange={(e) => setSearch(e.target.value)}
               />
             </Field>
-            <Field label="Provider filter">
+            {admin && <Field label="Provider filter">
               <ProviderFilter options={data.providers} value={providers} onChange={setProviders} />
-            </Field>
+            </Field>}
             <Field label="Status filter">
               <select value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
@@ -286,9 +287,9 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
                 onChange={(e) => setSearch(e.target.value)}
               />
             </Field>
-            <Field label="Provider filter">
+            {admin && <Field label="Provider filter">
               <ProviderFilter options={data.providers} value={providers} onChange={setProviders} />
-            </Field>
+            </Field>}
             <Field label="Status filter">
               <select value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>

@@ -70,28 +70,35 @@ function accountWhere(providerId, type, customerId, startIndex = 1) {
 
 billingLedgerRouter.get(
   "/overview",
-  authRequired(["admin"]),
+  authRequired(["admin", "provider"]),
   asyncHandler(async (req, res) => {
+    const providerId = req.user.role === "provider" ? req.user.entityId : null;
     await query(
       `UPDATE invoices SET status='Overdue',updated_at=now() WHERE status='Issued' AND outstanding_balance>0 AND due_at<now()`,
     );
     const result = await query(
-      `SELECT COALESCE(SUM(total_amount),0) invoiced,COALESCE(SUM(payments_received),0) paid,COALESCE(SUM(outstanding_balance),0) outstanding,COUNT(*)::int invoice_count,COUNT(*) FILTER(WHERE status='Paid')::int paid_count,COUNT(*) FILTER(WHERE status='Issued')::int due_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Issued'),0) due_amount,COUNT(*) FILTER(WHERE status='Overdue')::int overdue_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Overdue'),0) overdue_amount,COUNT(*) FILTER(WHERE status='Part Paid')::int partially_paid_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Part Paid'),0) partially_paid_amount,COUNT(*) FILTER(WHERE status='Credited')::int credited_count,COALESCE(SUM(total_amount) FILTER(WHERE status='Credited'),0) credited_amount,COUNT(*) FILTER(WHERE billing_review)::int billing_review_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE billing_review),0) billing_review_amount FROM invoices WHERE status NOT IN('Void')`,
+      `SELECT COALESCE(SUM(total_amount),0) invoiced,COALESCE(SUM(payments_received),0) paid,COALESCE(SUM(outstanding_balance),0) outstanding,COUNT(*)::int invoice_count,COUNT(*) FILTER(WHERE status='Paid')::int paid_count,COUNT(*) FILTER(WHERE status='Issued')::int due_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Issued'),0) due_amount,COUNT(*) FILTER(WHERE status='Overdue')::int overdue_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Overdue'),0) overdue_amount,COUNT(*) FILTER(WHERE status='Part Paid')::int partially_paid_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE status='Part Paid'),0) partially_paid_amount,COUNT(*) FILTER(WHERE status='Credited')::int credited_count,COALESCE(SUM(total_amount) FILTER(WHERE status='Credited'),0) credited_amount,COUNT(*) FILTER(WHERE billing_review)::int billing_review_count,COALESCE(SUM(outstanding_balance) FILTER(WHERE billing_review),0) billing_review_amount FROM invoices WHERE status NOT IN('Void') AND ($1::uuid IS NULL OR provider_id=$1)`,
+      [providerId],
     );
     const payments = await query(
-      `SELECT COALESCE(SUM(amount),0) received,COALESCE(SUM(unallocated_amount),0) unallocated FROM billing_payments WHERE status='Active'`,
+      `SELECT COALESCE(SUM(amount),0) received,COALESCE(SUM(unallocated_amount),0) unallocated FROM billing_payments WHERE status='Active' AND ($1::uuid IS NULL OR provider_id=$1)`,
+      [providerId],
     );
     const creditTotals = await query(
-      `SELECT COUNT(*)::int credited_count,COALESCE(SUM(amount),0) credited_amount FROM billing_credit_notes WHERE status='Issued'`,
+      `SELECT COUNT(*)::int credited_count,COALESCE(SUM(amount),0) credited_amount FROM billing_credit_notes WHERE status='Issued' AND ($1::uuid IS NULL OR provider_id=$1)`,
+      [providerId],
     );
     const overdue = await query(
-      `SELECT i.id,i.invoice_number,u.full_name patient_name,a.appointment_date::text,i.outstanding_balance,GREATEST(0,FLOOR(EXTRACT(EPOCH FROM (now()-i.due_at))/86400))::int days_overdue FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN LATERAL(SELECT COALESCE(ap.appointment_date,ii.service_date) appointment_date FROM invoice_items ii LEFT JOIN appointments ap ON ap.id=ii.appointment_id WHERE ii.invoice_id=i.id ORDER BY ii.created_at LIMIT 1)a ON true WHERE i.status='Overdue' ORDER BY i.due_at`,
+      `SELECT i.id,i.invoice_number,u.full_name patient_name,a.appointment_date::text,i.outstanding_balance,GREATEST(0,FLOOR(EXTRACT(EPOCH FROM (now()-i.due_at))/86400))::int days_overdue FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN LATERAL(SELECT COALESCE(ap.appointment_date,ii.service_date) appointment_date FROM invoice_items ii LEFT JOIN appointments ap ON ap.id=ii.appointment_id WHERE ii.invoice_id=i.id ORDER BY ii.created_at LIMIT 1)a ON true WHERE i.status='Overdue' AND ($1::uuid IS NULL OR i.provider_id=$1) ORDER BY i.due_at`,
+      [providerId],
     );
     const upcoming = await query(
-      `SELECT a.id appointment_id,a.appointment_date::text,a.appointment_time::time::text appointment_time,a.payment_status,u.full_name patient_name,pu.full_name provider_name,i.id invoice_id,i.invoice_number,i.total_amount,i.outstanding_balance,i.status,i.billing_review FROM appointments a JOIN patients p ON p.id=a.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=a.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN LATERAL(SELECT iv.* FROM invoice_items ii JOIN invoices iv ON iv.id=ii.invoice_id WHERE ii.appointment_id=a.id AND iv.status NOT IN('Void','Credited') ORDER BY iv.created_at DESC LIMIT 1)i ON true WHERE (a.appointment_date+a.appointment_time)>=now() AND a.status NOT IN('Cancelled','No-show') AND i.id IS NULL ORDER BY a.appointment_date,a.appointment_time`,
+      `SELECT a.id appointment_id,a.appointment_date::text,a.appointment_time::time::text appointment_time,a.payment_status,u.full_name patient_name,pu.full_name provider_name,i.id invoice_id,i.invoice_number,i.total_amount,i.outstanding_balance,i.status,i.billing_review FROM appointments a JOIN patients p ON p.id=a.patient_id JOIN app_users u ON u.id=p.user_id JOIN providers pr ON pr.id=a.provider_id JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN LATERAL(SELECT iv.* FROM invoice_items ii JOIN invoices iv ON iv.id=ii.invoice_id WHERE ii.appointment_id=a.id AND iv.status NOT IN('Void','Credited') ORDER BY iv.created_at DESC LIMIT 1)i ON true WHERE (a.appointment_date+a.appointment_time)>=now() AND a.status NOT IN('Cancelled','No-show') AND i.id IS NULL AND ($1::uuid IS NULL OR a.provider_id=$1) ORDER BY a.appointment_date,a.appointment_time`,
+      [providerId],
     );
     const credits = await query(
-      `SELECT c.id,c.credit_note_number,i.id invoice_id,i.invoice_number,u.full_name patient_name,c.amount,c.reason,c.credit_date::text FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id JOIN patients p ON p.id=c.patient_id JOIN app_users u ON u.id=p.user_id WHERE c.status='Issued' ORDER BY c.credit_date DESC,c.created_at DESC`,
+      `SELECT c.id,c.credit_note_number,i.id invoice_id,i.invoice_number,u.full_name patient_name,c.amount,c.reason,c.credit_date::text FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id JOIN patients p ON p.id=c.patient_id JOIN app_users u ON u.id=p.user_id WHERE c.status='Issued' AND ($1::uuid IS NULL OR c.provider_id=$1) ORDER BY c.credit_date DESC,c.created_at DESC`,
+      [providerId],
     );
     res.json({
       summary: {

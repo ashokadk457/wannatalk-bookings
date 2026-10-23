@@ -129,12 +129,12 @@ followUpsRouter.patch('/:id/status', authRequired(['admin', 'provider']), async 
   res.json({ followUp: result.rows[0] });
 });
 
-followUpsRouter.delete('/:id', authRequired(['admin']), async (req, res, next) => {
+followUpsRouter.delete('/:id', authRequired(['admin', 'provider']), async (req, res, next) => {
   try {
     const deleted = await withTransaction(async (client) => {
       const result = await client.query(
-        `DELETE FROM follow_ups WHERE id = $1 RETURNING id, patient_id, provider_id`,
-        [req.params.id]
+        `DELETE FROM follow_ups WHERE id = $1 AND ($2::uuid IS NULL OR provider_id=$2) RETURNING id, patient_id, provider_id`,
+        [req.params.id, req.user.role === 'provider' ? req.user.entityId : null]
       );
       const followUp = result.rows[0];
       if (!followUp) return false;

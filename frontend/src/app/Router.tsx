@@ -77,7 +77,14 @@ export default function Router() {
           <Route path="cancellation-policy" element={<CancellationPolicy />} />
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="appointments" element={<Appointments />} />
+          <Route path="cancellations" element={<Appointments cancellations />} />
           <Route path="calendar" element={<Calendar />} />
+          <Route path="billing" element={<Navigate to="overview" replace />} />
+          <Route path="billing/overview" element={<BillingOverview />} />
+          <Route path="billing/profile" element={<ProviderBillingProfiles />} />
+          <Route path="billing/invoices" element={<BillingInvoices />} />
+          <Route path="billing/outstanding" element={<BillingOutstanding />} />
           <Route path="automatic-reminders" element={<AutomaticReminders />} />
           <Route path="availability" element={<Availability />} />
           <Route path="patients" element={<Directory />} />

@@ -11,6 +11,7 @@ const isoDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value||''))?String(va
 const fail = message => Object.assign(new Error(message),{statusCode:400});
 const plusDays=(value,days)=>{const date=new Date(`${value}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+Number(days));return date.toISOString().slice(0,10);};
 const seededDefaultBank={bankAccountHolder:'Louw Alberts',bankName:'FNB',bankAccountNumber:'63191320620',bankAccountType:'CHEQUE ACCOUNT',bankBranchCode:''};
+const ownsInvoice=(user,invoice)=>user.role==='admin'||String(invoice?.provider_id||'')===String(user.entityId||'');
 
 async function loadDefaultBank(db){
   const result=await db.query(`SELECT account_holder,bank_name,account_number,account_type,branch_code FROM billing_default_bank_account WHERE singleton=true`);
@@ -64,14 +65,14 @@ async function loadInvoice(client,id){
   return mapped(h.rows[0],lines.rows);
 }
 
-invoicesRouter.get('/',authRequired(['admin']),asyncHandler(async(req,res)=>{
+invoicesRouter.get('/',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
   await query(`UPDATE invoices SET status='Overdue',updated_at=now() WHERE status='Issued' AND outstanding_balance>0 AND due_at<now()`);
-  const result=await query(`SELECT i.id,i.invoice_number,i.provider_id,i.patient_id,i.company_id,i.issue_date::text,i.due_date::text,i.due_at,i.total_amount,i.payments_received,i.outstanding_balance,i.status,i.billing_review,i.billing_review_reason,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name,a.appointment_date::text,a.appointment_time::time::text appointment_time,a.appointment_type service,(SELECT COUNT(*)>0 AND BOOL_AND(ap.status='Cancelled') FROM invoice_items iic JOIN appointments ap ON ap.id=iic.appointment_id WHERE iic.invoice_id=i.id) appointments_cancelled FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id LEFT JOIN LATERAL (SELECT ap.appointment_date,ap.appointment_time,ap.appointment_type FROM invoice_items ii JOIN appointments ap ON ap.id=ii.appointment_id WHERE ii.invoice_id=i.id ORDER BY ii.created_at LIMIT 1) a ON true WHERE i.deleted_at IS NULL ORDER BY i.issue_date DESC,i.created_at DESC`);
+  const result=await query(`SELECT i.id,i.invoice_number,i.provider_id,i.patient_id,i.company_id,i.issue_date::text,i.due_date::text,i.due_at,i.total_amount,i.payments_received,i.outstanding_balance,i.status,i.billing_review,i.billing_review_reason,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name,a.appointment_date::text,a.appointment_time::time::text appointment_time,a.appointment_type service,(SELECT COUNT(*)>0 AND BOOL_AND(ap.status='Cancelled') FROM invoice_items iic JOIN appointments ap ON ap.id=iic.appointment_id WHERE iic.invoice_id=i.id) appointments_cancelled FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id LEFT JOIN LATERAL (SELECT ap.appointment_date,ap.appointment_time,ap.appointment_type FROM invoice_items ii JOIN appointments ap ON ap.id=ii.appointment_id WHERE ii.invoice_id=i.id ORDER BY ii.created_at LIMIT 1) a ON true WHERE i.deleted_at IS NULL AND ($1::uuid IS NULL OR i.provider_id=$1) ORDER BY i.issue_date DESC,i.created_at DESC`,[req.user.role==='provider'?req.user.entityId:null]);
   res.json({invoices:result.rows.map(x=>({...x,total_amount:Number(x.total_amount),payments_received:Number(x.payments_received),outstanding_balance:Number(x.outstanding_balance)}))});
 }));
 
-invoicesRouter.get('/deleted',authRequired(['admin']),asyncHandler(async(req,res)=>{
-  const result=await query(`SELECT i.id,i.invoice_number,i.issue_date::text,i.total_amount,i.payments_received,i.outstanding_balance,i.status_before_delete,i.deleted_at,i.deleted_by_name,i.deletion_reason,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id WHERE i.deleted_at IS NOT NULL ORDER BY i.deleted_at DESC`);
+invoicesRouter.get('/deleted',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
+  const result=await query(`SELECT i.id,i.invoice_number,i.issue_date::text,i.total_amount,i.payments_received,i.outstanding_balance,i.status_before_delete,i.deleted_at,i.deleted_by_name,i.deletion_reason,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id WHERE i.deleted_at IS NOT NULL AND ($1::uuid IS NULL OR i.provider_id=$1) ORDER BY i.deleted_at DESC`,[req.user.role==='provider'?req.user.entityId:null]);
   res.json({invoices:result.rows.map(x=>({...x,total_amount:Number(x.total_amount),payments_received:Number(x.payments_received),outstanding_balance:Number(x.outstanding_balance)}))});
 }));
 
@@ -79,13 +80,13 @@ invoicesRouter.get('/settings/default-bank',authRequired(['admin']),asyncHandler
   res.json({bankAccount:await loadDefaultBank({query})});
 }));
 
-invoicesRouter.get('/edit-history',authRequired(['admin']),asyncHandler(async(req,res)=>{
-  const result=await query(`SELECT h.id,h.invoice_id,h.version_number,h.edited_by_name,h.reason,h.changes,h.created_at,i.invoice_number,u.full_name patient_name,pu.full_name provider_name FROM invoice_edit_history h JOIN invoices i ON i.id=h.invoice_id JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id ORDER BY h.created_at DESC`);
+invoicesRouter.get('/edit-history',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
+  const result=await query(`SELECT h.id,h.invoice_id,h.version_number,h.edited_by_name,h.reason,h.changes,h.created_at,i.invoice_number,u.full_name patient_name,pu.full_name provider_name FROM invoice_edit_history h JOIN invoices i ON i.id=h.invoice_id JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id WHERE ($1::uuid IS NULL OR i.provider_id=$1) ORDER BY h.created_at DESC`,[req.user.role==='provider'?req.user.entityId:null]);
   res.json({history:result.rows});
 }));
 
-invoicesRouter.get('/edit-history/:historyId',authRequired(['admin']),asyncHandler(async(req,res)=>{
-  const result=await query(`SELECT h.*,i.invoice_number FROM invoice_edit_history h JOIN invoices i ON i.id=h.invoice_id WHERE h.id=$1`,[req.params.historyId]);
+invoicesRouter.get('/edit-history/:historyId',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
+  const result=await query(`SELECT h.*,i.invoice_number FROM invoice_edit_history h JOIN invoices i ON i.id=h.invoice_id WHERE h.id=$1 AND ($2::uuid IS NULL OR i.provider_id=$2)`,[req.params.historyId,req.user.role==='provider'?req.user.entityId:null]);
   if(!result.rows[0])return res.status(404).json({error:'Invoice history version not found'});
   res.json({version:result.rows[0]});
 }));
@@ -106,13 +107,15 @@ invoicesRouter.put('/settings/default-bank',authRequired(['admin']),asyncHandler
   res.json({bankAccount});
 }));
 
-invoicesRouter.post('/',authRequired(['admin']),asyncHandler(async(req,res)=>{
+invoicesRouter.post('/',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
   const requested=Array.isArray(req.body.items)?req.body.items:[]; if(!requested.length)return res.status(400).json({error:'Add at least one invoice line'});
   const invoice=await withTransaction(async client=>{
     const appointmentIds=[...new Set(requested.map(x=>String(x.appointmentId||'')).filter(Boolean))]; let appointments=[];
     if(appointmentIds.length){const found=await client.query(`SELECT a.*,a.appointment_date::text,pt.title,pt.date_of_birth::text,u.full_name patient_name,u.email patient_email,u.mobile patient_mobile,pu.full_name provider_name FROM appointments a JOIN patients pt ON pt.id=a.patient_id JOIN app_users u ON u.id=pt.user_id JOIN providers pr ON pr.id=a.provider_id JOIN app_users pu ON pu.id=pr.user_id WHERE a.id=ANY($1::uuid[]) FOR UPDATE OF a`,[appointmentIds]);if(found.rows.length!==appointmentIds.length)throw fail('One or more appointments no longer exist');appointments=found.rows;}
     const providerId=String(req.body.providerId||appointments[0]?.provider_id||''),patientId=String(req.body.patientId||appointments[0]?.patient_id||'');
     if(!providerId||!patientId)throw fail('Select a provider and patient');
+    if(req.user.role==='provider'&&providerId!==String(req.user.entityId||''))throw Object.assign(new Error('Not allowed'),{statusCode:403});
+    if(req.user.role==='provider'&&!(await client.query(`SELECT 1 FROM appointments WHERE provider_id=$1 AND patient_id=$2 LIMIT 1`,[providerId,patientId])).rows[0])throw Object.assign(new Error('You may only invoice your own patients'),{statusCode:403});
     if(appointments.some(a=>a.provider_id!==providerId||a.patient_id!==patientId))throw fail('All appointments must belong to the selected provider and patient');
     if(appointments.some(a=>['Cancelled','No-show'].includes(a.status)))throw fail('Cancelled or missed appointments must be reviewed before invoicing');
     if(appointmentIds.length){const d=await client.query(`SELECT i.id FROM invoice_items ii JOIN invoices i ON i.id=ii.invoice_id WHERE ii.appointment_id=ANY($1::uuid[]) AND i.status NOT IN('Void','Credited') LIMIT 1`,[appointmentIds]);if(d.rows[0])return {...await loadInvoice(client,d.rows[0].id),existing:true};}
@@ -135,11 +138,11 @@ invoicesRouter.post('/',authRequired(['admin']),asyncHandler(async(req,res)=>{
   });res.status(invoice.existing?200:201).json({invoice});
 }));
 
-invoicesRouter.get('/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x)return res.status(404).json({error:'Invoice not found'});res.json({invoice:x});}));
-invoicesRouter.get('/:id/pdf',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x)return res.status(404).json({error:'Invoice not found'});const pdf=await generateStoredInvoicePdf(x);res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${x.invoice_number}.pdf"`);res.send(pdf);}));
-invoicesRouter.post('/:id/email',authRequired(['admin']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x||x.deleted_at)return res.status(404).json({error:'Active invoice not found'});const email=x.customer_snapshot?.email||x.patient_email;if(!email)return res.status(400).json({error:'The billing customer does not have an email address'});const pdf=await generateStoredInvoicePdf(x);await sendInvoiceEmail({email,fullName:x.customer_snapshot?.contactName||x.customer_snapshot?.name||x.patient_name,subject:`Invoice ${x.invoice_number} from ${x.issuer_snapshot?.name||'WannaTalk'}`,message:`Please find invoice ${x.invoice_number}, due ${formatDate(x.due_date)}. Amount due: ${x.issuer_snapshot?.currency||'ZAR'} ${x.outstanding_balance.toFixed(2)}.`,pdfBuffer:pdf,filename:`${x.invoice_number}.pdf`});res.json({success:true,message:`Invoice ${x.invoice_number} emailed to ${email}.`});}));
+invoicesRouter.get('/:id',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x||!ownsInvoice(req.user,x))return res.status(404).json({error:'Invoice not found'});res.json({invoice:x});}));
+invoicesRouter.get('/:id/pdf',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x||!ownsInvoice(req.user,x))return res.status(404).json({error:'Invoice not found'});const pdf=await generateStoredInvoicePdf(x);res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${x.invoice_number}.pdf"`);res.send(pdf);}));
+invoicesRouter.post('/:id/email',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const x=await withTransaction(c=>loadInvoice(c,req.params.id));if(!x||!ownsInvoice(req.user,x)||x.deleted_at)return res.status(404).json({error:'Active invoice not found'});const email=x.customer_snapshot?.email||x.patient_email;if(!email)return res.status(400).json({error:'The billing customer does not have an email address'});const pdf=await generateStoredInvoicePdf(x);await sendInvoiceEmail({email,fullName:x.customer_snapshot?.contactName||x.customer_snapshot?.name||x.patient_name,subject:`Invoice ${x.invoice_number} from ${x.issuer_snapshot?.name||'WannaTalk'}`,message:`Please find invoice ${x.invoice_number}, due ${formatDate(x.due_date)}. Amount due: ${x.issuer_snapshot?.currency||'ZAR'} ${x.outstanding_balance.toFixed(2)}.`,pdfBuffer:pdf,filename:`${x.invoice_number}.pdf`});res.json({success:true,message:`Invoice ${x.invoice_number} emailed to ${email}.`});}));
 
-invoicesRouter.patch('/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{
+invoicesRouter.patch('/:id',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
   const reason=String(req.body.reason||'').trim().slice(0,500);
   const requested=Array.isArray(req.body.items)?req.body.items:[];
   if(!reason)throw fail('Enter a reason for editing this invoice');
@@ -148,13 +151,14 @@ invoicesRouter.patch('/:id',authRequired(['admin']),asyncHandler(async(req,res)=
     const found=await client.query(`SELECT * FROM invoices WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`,[req.params.id]);
     const current=found.rows[0];
     if(!current)throw Object.assign(new Error('Active invoice not found'),{statusCode:404});
+    if(!ownsInvoice(req.user,current))throw Object.assign(new Error('Active invoice not found'),{statusCode:404});
     const oldItems=(await client.query(`SELECT * FROM invoice_items WHERE invoice_id=$1 ORDER BY created_at,id`,[current.id])).rows;
     const issueDate=isoDate(req.body.issueDate);const dueDate=isoDate(req.body.dueDate);
     if(!issueDate||!dueDate||dueDate<issueDate)throw fail('Enter valid issue and due dates');
     const lines=requested.map((item,index)=>{const rate=parseInvoiceAmount(item.rate??item.amount),quantity=Number(item.quantity??1),discount=cash(item.discountAmount||0),tax=cash(item.taxAmount||0),serviceDate=isoDate(item.serviceDate);if(!rate||!Number.isFinite(quantity)||quantity<=0||discount<0||tax<0||!serviceDate)throw fail(`Enter valid values for line ${index+1}`);const amount=cash(rate*quantity-discount+tax);if(amount<=0)throw fail(`Line ${index+1} total must be greater than zero`);return{appointmentId:item.appointmentId?String(item.appointmentId):null,serviceDate,description:String(item.description||'Professional consultation').trim().slice(0,500),tariffCode:String(item.tariffCode||'').trim().slice(0,40),icd10Code:String(item.icd10Code||'').trim().slice(0,40),documentNumber:String(item.documentNumber||'').trim().slice(0,40),quantity:cash(quantity),rate,discount,tax,amount};});
     const appointmentIds=[...new Set(lines.map(x=>x.appointmentId).filter(Boolean))];
     if(appointmentIds.length!==lines.filter(x=>x.appointmentId).length)throw fail('The same appointment cannot appear on more than one invoice line');
-    if(appointmentIds.length){const valid=await client.query(`SELECT id FROM appointments WHERE id=ANY($1::uuid[])`,[appointmentIds]);if(valid.rows.length!==appointmentIds.length)throw fail('One or more linked appointments no longer exist');}
+    if(appointmentIds.length){const valid=await client.query(`SELECT id,provider_id,patient_id FROM appointments WHERE id=ANY($1::uuid[])`,[appointmentIds]);if(valid.rows.length!==appointmentIds.length)throw fail('One or more linked appointments no longer exist');if(req.user.role==='provider'&&valid.rows.some(a=>String(a.provider_id)!==String(req.user.entityId)||String(a.patient_id)!==String(current.patient_id)))throw Object.assign(new Error('Not allowed'),{statusCode:403});}
     const subtotal=cash(lines.reduce((sum,x)=>sum+x.rate*x.quantity,0)),discount=cash(lines.reduce((sum,x)=>sum+x.discount,0)),tax=cash(lines.reduce((sum,x)=>sum+x.tax,0)),total=cash(lines.reduce((sum,x)=>sum+x.amount,0));
     const credits=await client.query(`SELECT COALESCE(SUM(amount),0) total FROM billing_credit_notes WHERE invoice_id=$1 AND status='Issued'`,[current.id]);
     const paid=Number(current.payments_received||0),credited=Number(credits.rows[0].total||0),outstanding=Math.max(0,cash(total-paid-credited));
@@ -180,13 +184,14 @@ invoicesRouter.patch('/:id',authRequired(['admin']),asyncHandler(async(req,res)=
   res.json({invoice});
 }));
 
-invoicesRouter.delete('/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{
+invoicesRouter.delete('/:id',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
   const reason=String(req.body?.reason||'').trim().slice(0,500);
   if(!reason)throw fail('Enter a reason for deleting this invoice');
   await withTransaction(async client=>{
-    const found=await client.query(`SELECT id,invoice_number,status,payments_received,deleted_at FROM invoices WHERE id=$1 FOR UPDATE`,[req.params.id]);
+    const found=await client.query(`SELECT id,invoice_number,provider_id,status,payments_received,deleted_at FROM invoices WHERE id=$1 FOR UPDATE`,[req.params.id]);
     const invoice=found.rows[0];
     if(!invoice||invoice.deleted_at)throw Object.assign(new Error('Invoice not found'),{statusCode:404});
+    if(!ownsInvoice(req.user,invoice))throw Object.assign(new Error('Invoice not found'),{statusCode:404});
     const activity=await client.query(`SELECT EXISTS(SELECT 1 FROM billing_payment_allocations a JOIN billing_payments p ON p.id=a.payment_id WHERE a.invoice_id=$1 AND p.status='Active') has_payment,EXISTS(SELECT 1 FROM billing_credit_notes c WHERE c.invoice_id=$1 AND c.status='Issued') has_credit,EXISTS(SELECT 1 FROM billing_refunds r WHERE r.invoice_id=$1 AND r.status='Paid') has_refund`,[invoice.id]);
     const linked=activity.rows[0];
     if(Number(invoice.payments_received)>0||linked.has_payment||linked.has_credit||linked.has_refund)throw fail('Invoices with payments, credits, or refunds cannot be deleted. Reverse the financial activity first.');

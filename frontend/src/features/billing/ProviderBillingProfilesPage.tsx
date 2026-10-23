@@ -89,8 +89,9 @@ function formFromProfile(p: BillingProfile): FormState {
 }
 
 export default function ProviderBillingProfilesPage() {
-  const { data, run, notify } = useApp();
-  const [selectedId, setSelectedId] = useState(data.providers[0]?.id || ''),
+  const { user, data, run, notify } = useApp();
+  const ownProviderId = user?.role === 'provider' ? user.entityId || '' : '';
+  const [selectedId, setSelectedId] = useState(ownProviderId || data.providers[0]?.id || ''),
     [profile, setProfile] = useState<BillingProfile | null>(null),
     [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(false),
@@ -168,12 +169,12 @@ export default function ProviderBillingProfilesPage() {
   return (
     <section>
       <Heading
-        title="Provider billing profiles"
-        subtitle="Maintain the legal issuer, banking, branding and invoice settings used for each provider or practice."
+        title={user?.role === 'provider' ? 'Billing and bank details' : 'Provider billing profiles'}
+        subtitle={user?.role === 'provider' ? 'Maintain the issuer, banking, branding and invoice settings for your practice.' : 'Maintain the legal issuer, banking, branding and invoice settings used for each provider or practice.'}
       />
       <BillingNav />
       <div className="billing-profile-layout">
-        <Card className="billing-provider-list">
+        {user?.role === 'admin' && <Card className="billing-provider-list">
           <Field label="Find provider">
             <input
               type="search"
@@ -196,7 +197,7 @@ export default function ProviderBillingProfilesPage() {
               </button>
             ))}
           </div>
-        </Card>
+        </Card>}
         {!selectedId ? (
           <Card>
             <Empty>No providers are available.</Empty>
