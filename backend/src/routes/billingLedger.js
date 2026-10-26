@@ -475,14 +475,20 @@ async function buildStatement(input) {
     to = date(input.to);
   if (!providerId || !customerId || !from || !to)
     throw fail("Provider, account and statement period are required");
-  const aw = accountWhere(providerId, type, 1);
+  if (from > to) throw fail("Statement start date cannot be after the end date");
+  const invoiceAccount = type === "company"
+    ? "provider_id=$1 AND billing_customer_type='company' AND company_id=$2"
+    : "provider_id=$1 AND billing_customer_type='patient' AND patient_id=$2";
+  const paymentAccount = type === "company"
+    ? "p.provider_id=$1 AND p.customer_type='company' AND p.company_id=$2"
+    : "p.provider_id=$1 AND p.customer_type='patient' AND p.patient_id=$2";
   const invoices = await query(
-    `SELECT id,invoice_number,issue_date::text transaction_date,total_amount amount,outstanding_balance,status FROM invoices WHERE ${aw.sql} AND issue_date<=$3 AND status<>'Void' ORDER BY issue_date,invoice_number`,
-    [...aw.params, to],
+    `SELECT id,invoice_number,issue_date::text transaction_date,total_amount amount,outstanding_balance,status FROM invoices WHERE ${invoiceAccount} AND issue_date<=$3 AND status<>'Void' ORDER BY issue_date,invoice_number`,
+    [providerId, customerId, to],
   );
   const payments = await query(
-    `SELECT p.id,p.payment_date::text transaction_date,p.reference,p.amount,p.status FROM billing_payments p WHERE ${aw.sql} AND p.payment_date<=$3 ORDER BY p.payment_date,p.created_at`,
-    [...aw.params, to],
+    `SELECT p.id,p.payment_date::text transaction_date,p.reference,p.amount,p.status FROM billing_payments p WHERE ${paymentAccount} AND p.payment_date<=$3 ORDER BY p.payment_date,p.created_at`,
+    [providerId, customerId, to],
   );
   const credits = await query(
     `SELECT c.id,c.credit_note_number,c.credit_date::text transaction_date,c.amount,c.reason,c.status,i.invoice_number FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id WHERE c.provider_id=$1 AND ${type === "company" ? "c.company_id" : "c.patient_id"}=$2 AND c.credit_date<=$3 ORDER BY c.credit_date,c.created_at`,

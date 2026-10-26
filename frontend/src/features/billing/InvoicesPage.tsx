@@ -211,7 +211,7 @@ function OverviewModal({
                   <td>{x.provider_name}</td>
                   <td>—</td>
                   <td>
-                    <StatusPill status={x.payment_status || 'Unpaid'} />
+                    <StatusPill status="Not invoiced" />
                   </td>
                 </tr>
               ))}
@@ -955,7 +955,7 @@ export default function InvoicesPage() {
                             <td>{x.provider_name}</td>
                             <td>—</td>
                             <td>
-                              <StatusPill status={x.payment_status || 'Unpaid'} />
+                              <StatusPill status="Not invoiced" />
                             </td>
                           </tr>
                         ))}
