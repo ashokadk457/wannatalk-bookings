@@ -65,6 +65,7 @@ const initial = (): FormState => ({
   note: '',
   intakeRequested: false,
 });
+const standardDurations = [30, 60, 90, 120, 150, 180];
 
 export default function RecurringBookingsTab({ createSingle }: { createSingle: () => void }) {
   const { data, notify, refresh } = useApp(),
@@ -297,14 +298,13 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
                 </Field>
                 <Field label="Duration">
                   <select
-                    value={form.durationMinutes}
-                    onChange={(e) => update('durationMinutes', e.target.value)}
+                    value={standardDurations.includes(Number(form.durationMinutes)) ? form.durationMinutes : 'custom'}
+                    onChange={(e) => update('durationMinutes', e.target.value === 'custom' ? '' : e.target.value)}
                   >
-                    <option value="30">30 minutes</option>
-                    <option value="60">1 hour</option>
-                    <option value="90">1.5 hours</option>
-                    <option value="120">2 hours</option>
+                    {standardDurations.map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+                    <option value="custom">Custom duration</option>
                   </select>
+                  {!standardDurations.includes(Number(form.durationMinutes)) && <input required type="number" min="15" max="480" step="1" placeholder="Minutes (15–480)" value={form.durationMinutes} onChange={(e) => update('durationMinutes', e.target.value)} />}
                 </Field>
                 <Field label="Repeat">
                   <div className="recurrence-value">
