@@ -5,9 +5,7 @@ import {
   addMonths,
   dateOf,
   formatDate,
-  minutes,
   statusClass,
-  times,
   today,
   weekStart,
 } from '../../lib/dates';
@@ -155,8 +153,9 @@ export default function Calendar({
     addDays(start, i),
   );
   const visible = appointments.filter((a) => dates.includes(a.appointment_date));
-  // Include nonstandard start times so an appointment never disappears from the grid.
-  const rowTimes = [...new Set([...times, ...visible.map((a) => a.appointment_time)])].sort();
+  // Only render occupied start times. This keeps the calendar compact and avoids
+  // misleading empty half-hour rows between bookings.
+  const rowTimes = [...new Set(visible.map((a) => a.appointment_time.slice(0, 5)))].sort();
   return (
     <div className="calendar-content">
       <CalendarControls
@@ -207,7 +206,7 @@ export default function Calendar({
                 })}
               </div>
             ))}
-            {rowTimes.map((t, index) => (
+            {rowTimes.map((t) => (
               <Fragment key={t}>
                 <div className="week-cell week-time">{t}</div>
                 {dates.map((d) => (
@@ -215,10 +214,7 @@ export default function Calendar({
                     {visible
                       .filter(
                         (a) =>
-                          a.appointment_date === d &&
-                          minutes(a.appointment_time) >= minutes(t) &&
-                          minutes(a.appointment_time) <
-                            (rowTimes[index + 1] ? minutes(rowTimes[index + 1]) : 1440),
+                          a.appointment_date === d && a.appointment_time.slice(0, 5) === t,
                       )
                       .map((a) => (
                         <Event key={a.id} appointment={a} />

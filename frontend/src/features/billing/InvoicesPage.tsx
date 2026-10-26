@@ -353,7 +353,7 @@ function HistoryVersionModal({ historyId, onClose }: { historyId: string; onClos
 }
 
 export default function InvoicesPage() {
-  const { notify } = useApp();
+  const { notify, user } = useApp();
   const [invoices, setInvoices] = useState<Invoice[]>([]),
     [deletedInvoices, setDeletedInvoices] = useState<DeletedInvoice[]>([]),
     [editHistory, setEditHistory] = useState<InvoiceEditHistory[]>([]),
@@ -587,14 +587,14 @@ export default function InvoicesPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Provider">
+                {user?.role === 'admin' && <Field label="Provider">
                   <select value={provider} onChange={(e) => setProvider(e.target.value)}>
                     <option>All</option>
                     {providers.map((x) => (
                       <option key={x}>{x}</option>
                     ))}
                   </select>
-                </Field>
+                </Field>}
                 <Field label="Patient">
                   <select value={patient} onChange={(e) => setPatient(e.target.value)}>
                     <option>All</option>
@@ -625,14 +625,14 @@ export default function InvoicesPage() {
                 <p>Loading invoices…</p>
               ) : rows.length ? (
                 <>
-                  <div className="dashboard-table">
-                    <table>
+                  <div className="dashboard-table invoice-list-scroll">
+                    <table className="invoice-list-table">
                       <thead>
                         <tr>
                           <th>Invoice no</th>
                           <th>Date issued</th>
                           <th>Patient / party</th>
-                          <th>Provider</th>
+                          {user?.role === 'admin' && <th>Provider</th>}
                           <th>Appointment</th>
                           <th>Service</th>
                           <th>Amount</th>
@@ -657,18 +657,18 @@ export default function InvoicesPage() {
                                 <div className="sub">Patient: {x.patient_name}</div>
                               )}
                             </td>
-                            <td>{x.provider_name}</td>
+                            {user?.role === 'admin' && <td>{x.provider_name}</td>}
                             <td>
                               {x.appointment_date || '—'}
                               {x.appointment_time && (
                                 <div className="sub">{x.appointment_time.slice(0, 5)}</div>
                               )}
                             </td>
-                            <td>{x.service || 'Professional service'}</td>
+                            <td className="invoice-service-cell">{x.service || 'Professional service'}</td>
                             <td>{money(x.total_amount)}</td>
                             <td>{money(x.payments_received)}</td>
                             <td>{money(x.outstanding_balance)}</td>
-                            <td>
+                            <td className="invoice-actions-cell">
                               <StatusPill status={displayStatus(x)} />
                               {x.billing_review_reason && (
                                 <div className="sub">{x.billing_review_reason}</div>

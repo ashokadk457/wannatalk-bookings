@@ -135,6 +135,13 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
       setReason('');
     }, 'Global unavailability saved');
   }
+  async function removeUnavailable(kind: 'day' | 'slot', id: string, label: string) {
+    if (!window.confirm(`Remove unavailability for ${label}?`)) return;
+    await run(async () => {
+      await mutate(`/providers/${provider.id}/unavailable/${kind}/${id}`, 'DELETE');
+      await refresh();
+    }, 'Unavailability removed');
+  }
   return (
     <Card>
       <label className="online-booking-control">
@@ -307,6 +314,14 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
               <div className="detail-row" key={d.id}>
                 <span>{d.unavailable_date.slice(0, 10)} · Full day</span>
                 <strong>{d.reason || 'Unavailable'}</strong>
+                <button
+                  type="button"
+                  className="btn danger small"
+                  aria-label={`Remove unavailable day ${d.unavailable_date.slice(0, 10)}`}
+                  onClick={() => void removeUnavailable('day', d.id, d.unavailable_date.slice(0, 10))}
+                >
+                  Remove
+                </button>
               </div>
             ))}
             {(provider.unavailableSlots || []).map((s) => (
@@ -316,6 +331,14 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
                   {shortTime(s.end_time)}
                 </span>
                 <strong>{s.reason || 'Unavailable'}</strong>
+                <button
+                  type="button"
+                  className="btn danger small"
+                  aria-label={`Remove unavailable time slot ${s.unavailable_date.slice(0, 10)}`}
+                  onClick={() => void removeUnavailable('slot', s.id, `${s.unavailable_date.slice(0, 10)} ${shortTime(s.start_time)}–${shortTime(s.end_time)}`)}
+                >
+                  Remove
+                </button>
               </div>
             ))}
           </div>

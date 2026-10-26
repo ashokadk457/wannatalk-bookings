@@ -289,6 +289,10 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
 
 appointmentsRouter.post('/', authRequired(['patient', 'provider', 'admin']), asyncHandler(async (req, res) => {
   const { providerId, patientId, locationId, appointmentDate, appointmentTime, durationMinutes = 60, appointmentType, mode, note, intakeRequested = false } = req.body;
+  const bookingDuration = Number(durationMinutes);
+  if (![60, 120].includes(bookingDuration)) {
+    return res.status(400).json({ error: 'Appointment duration must be 60 or 120 minutes' });
+  }
 
   let effectivePatientId = patientId;
   if (req.user.role === 'patient') {
@@ -309,14 +313,14 @@ appointmentsRouter.post('/', authRequired(['patient', 'provider', 'admin']), asy
   }
 
   const appointment = await withTransaction(async (client) => {
-    await assertProviderAvailable(client, { providerId, locationId, appointmentDate, appointmentTime, durationMinutes, mode });
+    await assertProviderAvailable(client, { providerId, locationId, appointmentDate, appointmentTime, durationMinutes: bookingDuration, mode });
     const meetingUrl = isOnlineMode(mode) ? createMeetingUrl() : null;
 
     const inserted = await client.query(
       `INSERT INTO appointments (provider_id, patient_id, location_id, appointment_date, appointment_time, duration_minutes, appointment_type, mode, note, intake_requested, meeting_url)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
-      [providerId, effectivePatientId, locationId || null, appointmentDate, appointmentTime, durationMinutes, appointmentType, mode, note || null, Boolean(intakeRequested), meetingUrl]
+      [providerId, effectivePatientId, locationId || null, appointmentDate, appointmentTime, bookingDuration, appointmentType, mode, note || null, Boolean(intakeRequested), meetingUrl]
     );
     await audit(client, req.user, 'Created booking', inserted.rows[0].id, { appointmentDate, appointmentTime, mode, meetingUrl: Boolean(meetingUrl) });
     return inserted.rows[0];

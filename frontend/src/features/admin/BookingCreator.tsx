@@ -16,10 +16,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     [mode, setMode] = useState(''),
     [note, setNote] = useState(''),
     [intake, setIntake] = useState(false),
-    [durationChoice, setDurationChoice] = useState(
-      String(data.providers.find((p) => p.id === user?.entityId)?.default_duration_minutes || 60),
-    ),
-    [customHours, setCustomHours] = useState('1'),
+    [durationChoice, setDurationChoice] = useState('60'),
     [busy, setBusy] = useState(false);
   const locations = data.locations.filter((l) => l.name !== 'Online'),
     location = locations.find((l) => l.id === locationId),
@@ -32,8 +29,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
           : mode === 'In-person' && p.locations.includes(location!.name)),
     ),
     provider = eligibleProviders.find((p) => p.id === providerId);
-  const durationMinutes =
-    durationChoice === 'custom' ? Math.round(Number(customHours) * 60) : Number(durationChoice);
+  const durationMinutes = Number(durationChoice);
   const slotProvider = provider
     ? { ...provider, default_duration_minutes: durationMinutes }
     : undefined;
@@ -138,11 +134,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                   onChange={(e) => {
                     const id = e.target.value;
                     setProvider(id);
-                    setDurationChoice(
-                      String(
-                        data.providers.find((p) => p.id === id)?.default_duration_minutes || 60,
-                      ),
-                    );
+                    setDurationChoice('60');
                     setTime('');
                   }}
                 >
@@ -167,31 +159,10 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                   setTime('');
                 }}
               >
-                <option value="30">30 minutes</option>
                 <option value="60">1 hour</option>
-                <option value="90">1.5 hours</option>
                 <option value="120">2 hours</option>
-                <option value="150">2.5 hours</option>
-                <option value="180">3 hours</option>
-                <option value="custom">Custom hours</option>
               </select>
             </Field>
-            {durationChoice === 'custom' && (
-              <Field label="Custom duration (hours)">
-                <input
-                  required
-                  type="number"
-                  min="0.25"
-                  max="8"
-                  step="0.25"
-                  value={customHours}
-                  onChange={(e) => {
-                    setCustomHours(e.target.value);
-                    setTime('');
-                  }}
-                />
-              </Field>
-            )}
             <Field label="Appointment date">
               <input
                 required

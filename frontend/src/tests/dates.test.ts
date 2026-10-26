@@ -27,6 +27,30 @@ describe('Booking rules', () => {
   it('generates duration-aligned times from provider hours', () => {
     expect(providerTimes(provider, '2027-01-04')).toEqual(['09:00', '10:00', '11:00']);
   });
+  it('offers hourly starts for two-hour sessions only when the full gap fits', () => {
+    vi.setSystemTime(new Date('2027-01-01T10:00:00'));
+    const twoHourProvider = {
+      ...provider,
+      default_duration_minutes: 120,
+      availability: [{ day_of_week: 1, is_available: true, start_time: '09:00', end_time: '14:00' }],
+    };
+    expect(providerTimes(twoHourProvider, '2027-01-04')).toEqual([
+      '09:00',
+      '10:00',
+      '11:00',
+      '12:00',
+    ]);
+    const appointment = {
+      id: 'existing',
+      provider_id: provider.id,
+      appointment_date: '2027-01-04',
+      appointment_time: '11:00',
+      duration_minutes: 60,
+      status: 'Booked',
+    } as Appointment;
+    expect(slotProblem(twoHourProvider, '2027-01-04', '10:00', [appointment])).toContain('taken');
+    expect(slotProblem(twoHourProvider, '2027-01-04', '12:00', [appointment])).toBeNull();
+  });
   it('uses shared weekly hours for Online instead of location-specific hours', () => {
     const p = {
       ...provider,

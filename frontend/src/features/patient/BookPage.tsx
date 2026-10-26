@@ -13,6 +13,7 @@ export default function BookPage() {
     [providerId, setProviderId] = useState(''),
     [date, setDate] = useState(today()),
     [time, setTime] = useState(''),
+    [durationMinutes, setDurationMinutes] = useState(60),
     [calendarMode, setCalendarMode] = useState<CalendarMode>('week');
   const [type, setType] = useState('Individual counselling'),
     [mode, setMode] = useState(''),
@@ -39,13 +40,15 @@ export default function BookPage() {
         Boolean(location) &&
         (mode === 'Online' ? p.is_online : mode === 'In-person' && p.locations.includes(location)),
     ),
-    selected = providers.find((p) => p.id === providerId);
+    selected = providers.find((p) => p.id === providerId),
+    bookingProviders = providers.map((p) => ({ ...p, default_duration_minutes: durationMinutes })),
+    bookingSelected = selected ? { ...selected, default_duration_minutes: durationMinutes } : undefined;
   async function confirm() {
-    if (!selected || !location || !mode || !time)
+    if (!selected || !bookingSelected || !location || !mode || !time)
       return notify('Choose location, booking format, provider, date and time');
     const availabilityLocation = mode === 'Online' ? 'Online' : location;
     const problem = slotProblem(
-      selected,
+      bookingSelected,
       date,
       time,
       data.appointments,
@@ -61,7 +64,7 @@ export default function BookPage() {
         locationId: data.locations.find((l) => l.name === location)?.id,
         appointmentDate: date,
         appointmentTime: time,
-        durationMinutes: selected.default_duration_minutes,
+        durationMinutes,
         appointmentType: type,
         mode,
         note,
@@ -174,6 +177,19 @@ export default function BookPage() {
       <div className="card space-top">
         <div className="card-head">
           <h3>3. Available times</h3>
+          <label className="calendar-duration-select">
+            Duration
+            <select
+              value={durationMinutes}
+              onChange={(e) => {
+                setDurationMinutes(Number(e.target.value));
+                setTime('');
+              }}
+            >
+              <option value={60}>1 hour</option>
+              <option value={120}>2 hours</option>
+            </select>
+          </label>
           <span className="pill">{time ? `${time} selected` : 'Choose a slot'}</span>
           <button className="btn secondary" onClick={() => void run(refresh)}>
             Refresh availability
@@ -185,7 +201,7 @@ export default function BookPage() {
           </div>
         ) : (
           <SlotCalendar
-            providers={providers.filter((p) => !providerId || p.id === providerId)}
+            providers={bookingProviders.filter((p) => !providerId || p.id === providerId)}
             date={date}
             mode={calendarMode}
             selectedTime={time}
@@ -265,7 +281,7 @@ export default function BookPage() {
                   <br />
                   {formatDate(date)} at {time}
                   <br />
-                  {selected.default_duration_minutes} minutes · {location}
+                  {durationMinutes} minutes · {location}
                   <br />
                   {mode === 'Online' ? 'Online' : 'Physical'}
                 </p>

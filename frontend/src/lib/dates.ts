@@ -151,7 +151,10 @@ export function providerTimes(provider: Provider, date: string, locationName?: s
   const duration = provider.default_duration_minutes;
   if (!av?.is_available || duration <= 0) return [];
   const result: string[] = [];
-  for (let m = minutes(av.start_time); m + duration <= minutes(av.end_time); m += duration)
+  // Booking length and start-time interval are separate. Keep hourly starts for
+  // two-hour bookings, then let slotProblem verify the full continuous gap.
+  const startInterval = Math.min(duration, 60);
+  for (let m = minutes(av.start_time); m + duration <= minutes(av.end_time); m += startInterval)
     result.push(timeString(m));
   return result;
 }

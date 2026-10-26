@@ -238,6 +238,34 @@ providersRouter.post('/:id/unavailable', authRequired(['provider', 'admin']), as
   res.status(201).json({ unavailable: result.rows[0] });
 });
 
+providersRouter.delete('/:id/unavailable/:kind/:entryId', authRequired(['provider', 'admin']), async (req, res) => {
+  if (req.user.role === 'provider' && !(await query(`SELECT id FROM providers WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])).rows[0]) {
+    return res.status(403).json({ error: 'Not allowed' });
+  }
+  const table = req.params.kind === 'day'
+    ? 'provider_unavailable_days'
+    : req.params.kind === 'slot'
+      ? 'provider_unavailable_slots'
+      : null;
+  if (!table) return res.status(400).json({ error: 'Invalid unavailability type' });
+  const removed = await withTransaction(async (client) => {
+    const result = await client.query(
+      `DELETE FROM ${table} WHERE id = $1 AND provider_id = $2 RETURNING id, unavailable_date, reason`,
+      [req.params.entryId, req.params.id]
+    );
+    if (!result.rows[0]) return null;
+    await client.query(
+      `INSERT INTO audit_logs(user_id,user_name,user_role,action,details)
+       VALUES($1,$2,$3,'Removed provider unavailability',$4::jsonb)`,
+      [req.user.id, req.user.name || req.user.email || req.user.role, req.user.role,
+        JSON.stringify({ providerId: req.params.id, kind: req.params.kind, ...result.rows[0] })]
+    );
+    return result.rows[0];
+  });
+  if (!removed) return res.status(404).json({ error: 'Unavailable date or time slot not found' });
+  res.status(204).end();
+});
+
 providersRouter.patch('/:id/status', authRequired(['provider', 'admin']), async (req, res) => {
   const online = Boolean(req.body.isOnline);
   if (req.user.role === 'provider') {
