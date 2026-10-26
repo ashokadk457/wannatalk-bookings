@@ -1,5 +1,5 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
+import { randomBytes } from "node:crypto";
 import { query, withTransaction } from "../db.js";
 import { authRequired } from "../middleware/authRequired.js";
 import { generateHtmlPdf, passwordProtectPdf } from "../invoice.js";
@@ -11,40 +11,49 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 const fail = (message) =>
   Object.assign(new Error(message), { statusCode: 400 });
-const statementLinkPurpose = "statement-download";
-
-function createStatementDownloadToken(input) {
-  if (!process.env.JWT_SECRET) {
-    throw Object.assign(new Error("Statement link signing is not configured"), {
-      statusCode: 503,
-    });
-  }
-  return jwt.sign(
-    {
-      purpose: statementLinkPurpose,
-      providerId: String(input.providerId || ""),
-      customerType: input.customerType === "company" ? "company" : "patient",
-      customerId: String(input.customerId || ""),
-      from: String(input.from || ""),
-      to: String(input.to || ""),
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "24h" },
+async function createStatementDownloadCode(input, userId) {
+  const code = randomBytes(12).toString("hex");
+  await query(
+    `INSERT INTO statement_download_links
+       (code,provider_id,customer_type,customer_id,from_date,to_date,created_by_user_id,expires_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,now() + interval '24 hours')`,
+    [
+      code,
+      String(input.providerId || ""),
+      input.customerType === "company" ? "company" : "patient",
+      String(input.customerId || ""),
+      String(input.from || ""),
+      String(input.to || ""),
+      userId,
+    ],
   );
+  return code;
 }
 
-function verifyStatementDownloadToken(token) {
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    if (!payload || typeof payload !== "object" || payload.purpose !== statementLinkPurpose) {
-      throw new Error("Invalid statement link");
-    }
-    return payload;
-  } catch {
+async function statementInputFromCode(code) {
+  if (!/^[0-9a-f]{24}$/.test(String(code || "").toLowerCase())) {
     throw Object.assign(new Error("This statement download link is invalid or has expired"), {
       statusCode: 410,
     });
   }
+  const result = await query(
+    `SELECT provider_id,customer_type,customer_id,from_date::text,to_date::text
+       FROM statement_download_links
+      WHERE code=$1 AND expires_at>now()`,
+    [String(code).toLowerCase()],
+  );
+  if (!result.rows[0]) {
+    throw Object.assign(new Error("This statement download link is invalid or has expired"), {
+      statusCode: 410,
+    });
+  }
+  return {
+    providerId: result.rows[0].provider_id,
+    customerType: result.rows[0].customer_type,
+    customerId: result.rows[0].customer_id,
+    from: result.rows[0].from_date,
+    to: result.rows[0].to_date,
+  };
 }
 const cash = (value) => Math.round(Number(value) * 100) / 100;
 const date = (value) =>
@@ -717,9 +726,9 @@ billingLedgerRouter.get(
   }),
 );
 billingLedgerRouter.get(
-  "/statements/shared/:token",
+  "/s/:code",
   asyncHandler(async (req, res) => {
-    const input = verifyStatementDownloadToken(req.params.token);
+    const input = await statementInputFromCode(req.params.code);
     const s = await buildStatement(input);
     const passwordDetails = await statementPdfPassword(input);
     const pdf = await passwordProtectPdf(
@@ -731,6 +740,12 @@ billingLedgerRouter.get(
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="statement-${s.from}-${s.to}.pdf"`,
+    );
+    await query(
+      `UPDATE statement_download_links
+          SET download_count=download_count+1,last_downloaded_at=now()
+        WHERE code=$1`,
+      [String(req.params.code).toLowerCase()],
     );
     res.send(pdf);
   }),
@@ -770,10 +785,10 @@ billingLedgerRouter.post(
     if (!s.customer.phone) throw fail("The billing customer does not have a phone number");
     const passwordDetails = await statementPdfPassword(req.body);
     const providerName = s.provider.registered_business_name || s.provider.full_name;
-    const token = createStatementDownloadToken(req.body);
+    const code = await createStatementDownloadCode(req.body, req.user.id);
     const appBaseUrl = String(process.env.APP_BASE_URL || "https://bookings.wannatalk.co.za")
       .replace(/\/+$/, "");
-    const downloadUrl = `${appBaseUrl}/api/billing/statements/shared/${encodeURIComponent(token)}`;
+    const downloadUrl = `${appBaseUrl}/api/billing/s/${code}`;
     const message = [
       `Hello ${s.customer.name},`,
       `Your account statement from ${providerName} for ${s.from} to ${s.to} is ready.`,
