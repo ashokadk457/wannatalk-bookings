@@ -1413,7 +1413,7 @@ button.month-event.unavailable {
 }
 .dashboard-table .sub {
   font-size: 0.72rem;
-  white-space: nowrap;
+  white-space: normal;
 }
 .appointment-invoice-status {
   display: grid;
