@@ -202,8 +202,8 @@ providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
       [req.params.id, ['Booked', 'Confirmed', 'Arrived', 'Completed']]
     ),
     query(`SELECT pla.provider_id, pla.location_id, l.name AS location_name, pla.day_of_week, pla.is_available, pla.start_time, pla.end_time FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id WHERE pla.provider_id = $1 ORDER BY pla.location_id, pla.day_of_week`, [req.params.id]),
-    query(`SELECT id, provider_id, location_id, unavailable_date, reason FROM provider_unavailable_days WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date`, [req.params.id]),
-    query(`SELECT id, provider_id, location_id, unavailable_date, start_time, end_time, reason FROM provider_unavailable_slots WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date, start_time`, [req.params.id]),
+    query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, reason FROM provider_unavailable_days WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date`, [req.params.id]),
+    query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, start_time, end_time, reason FROM provider_unavailable_slots WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date, start_time`, [req.params.id]),
   ]);
   res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows, locationAvailability: locationAvailabilityResult.rows, unavailableDays: unavailableDaysResult.rows, unavailableSlots: unavailableSlotsResult.rows });
 });
