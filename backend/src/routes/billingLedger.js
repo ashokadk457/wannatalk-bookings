@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { query, withTransaction } from "../db.js";
 import { authRequired } from "../middleware/authRequired.js";
-import { generateHtmlPdf } from "../invoice.js";
+import { generateHtmlPdf, passwordProtectPdf } from "../invoice.js";
 import { sendInvoiceEmail } from "../mail.js";
+import { sendWhatsAppMsg } from "../whatsapp.js";
 
 export const billingLedgerRouter = Router();
 const asyncHandler = (fn) => (req, res, next) =>
@@ -592,6 +593,52 @@ async function buildStatement(input) {
   };
 }
 
+async function statementPdfPassword(input) {
+  const customerId = String(input.customerId || "");
+  const customerType = input.customerType === "company" ? "company" : "patient";
+  if (!customerId) throw fail("A billing account is required");
+  let identityDocument = "";
+  let phone = "";
+  if (customerType === "patient") {
+    const encryptionKey = process.env.PII_ENCRYPTION_KEY || process.env.JWT_SECRET;
+    if (!encryptionKey) {
+      const error = new Error("PII encryption is not configured");
+      error.statusCode = 500;
+      throw error;
+    }
+    const result = await query(
+      `SELECT CASE WHEN p.identity_document_encrypted IS NULL THEN NULL
+                   ELSE pgp_sym_decrypt(p.identity_document_encrypted,$2) END identity_document,
+              u.mobile phone
+         FROM patients p JOIN app_users u ON u.id=p.user_id WHERE p.id=$1`,
+      [customerId, encryptionKey],
+    );
+    if (!result.rows[0]) throw fail("Patient not found");
+    identityDocument = String(result.rows[0].identity_document || "").trim();
+    phone = String(result.rows[0].phone || "");
+  } else {
+    const result = await query(`SELECT phone FROM billing_companies WHERE id=$1`, [customerId]);
+    if (!result.rows[0]) throw fail("Billing account not found");
+    phone = String(result.rows[0].phone || "");
+  }
+  if (identityDocument) {
+    return {
+      password: identityDocument,
+      method: "identity-document",
+      guidance: "Use the patient's full ID or passport number to open the PDF.",
+    };
+  }
+  const phoneDigits = phone.replace(/\D/g, "");
+  if (phoneDigits.length >= 6) {
+    return {
+      password: phoneDigits.slice(-6),
+      method: "phone-last-6",
+      guidance: "Use the last 6 digits of the billing account phone number to open the PDF.",
+    };
+  }
+  throw fail("Add the patient's ID/passport number or a phone number with at least 6 digits before creating a protected statement PDF");
+}
+
 function statementHtml(s) {
   const rows = s.transactions
     .map(
@@ -618,9 +665,14 @@ billingLedgerRouter.get(
   authRequired(["admin", "provider"]),
   asyncHandler(async (req, res) => {
     await assertStatementAccess(req.user, String(req.query.providerId || ""));
-    const s = await buildStatement(req.query),
-      pdf = await generateHtmlPdf(statementHtml(s));
+    const s = await buildStatement(req.query);
+    const passwordDetails = await statementPdfPassword(req.query);
+    const pdf = await passwordProtectPdf(
+      await generateHtmlPdf(statementHtml(s)),
+      passwordDetails.password,
+    );
     res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("X-Statement-Password-Method", passwordDetails.method);
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="statement-${s.from}-${s.to}.pdf"`,
@@ -635,18 +687,62 @@ billingLedgerRouter.post(
     await assertStatementAccess(req.user, String(req.body.providerId || ""));
     const s = await buildStatement(req.body);
     if (!s.customer.email) throw fail("The billing customer does not have an email address");
-    const pdf = await generateHtmlPdf(statementHtml(s));
+    const passwordDetails = await statementPdfPassword(req.body);
+    const pdf = await passwordProtectPdf(
+      await generateHtmlPdf(statementHtml(s)),
+      passwordDetails.password,
+    );
     await sendInvoiceEmail({
       email: s.customer.email,
       fullName: s.customer.name,
       subject: `Account statement from ${s.provider.registered_business_name || s.provider.full_name}`,
-      message: `Please find your account statement for ${s.from} to ${s.to} attached. Closing balance: ${formatMoney(s.closingBalance)}.`,
+      message: `Please find your account statement for ${s.from} to ${s.to} attached. Closing balance: ${formatMoney(s.closingBalance)}.\n\nFor your privacy, the PDF is password protected. ${passwordDetails.guidance} The password is not included in this email.`,
       pdfBuffer: pdf,
       filename: `statement-${s.from}-to-${s.to}.pdf`,
       documentLabel: "statement",
     });
     await query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,'Emailed account statement',$4::jsonb)`, [req.user.id, actor(req.user), req.user.role, JSON.stringify({ providerId: req.body.providerId, customerId: req.body.customerId, customerType: req.body.customerType || "patient", from: s.from, to: s.to, email: s.customer.email })]);
-    res.json({ success: true, message: `Statement emailed to ${s.customer.email}.` });
+    res.json({ success: true, message: `Statement emailed to ${s.customer.email}. ${passwordDetails.guidance}` });
+  }),
+);
+
+billingLedgerRouter.post(
+  "/statements/whatsapp",
+  authRequired(["admin", "provider"]),
+  asyncHandler(async (req, res) => {
+    await assertStatementAccess(req.user, String(req.body.providerId || ""));
+    const s = await buildStatement(req.body);
+    if (!s.customer.phone) throw fail("The billing customer does not have a phone number");
+    const passwordDetails = await statementPdfPassword(req.body);
+    const providerName = s.provider.registered_business_name || s.provider.full_name;
+    const message = [
+      `Hello ${s.customer.name},`,
+      `Your account statement from ${providerName} for ${s.from} to ${s.to} is ready.`,
+      `Closing balance: ${formatMoney(s.closingBalance)}.`,
+      `The PDF is password protected. ${passwordDetails.guidance}`,
+    ].join("\n\n");
+    await sendWhatsAppMsg({ phoneNumber: s.customer.phone, message });
+    await query(
+      `INSERT INTO audit_logs(user_id,user_name,user_role,action,details)
+       VALUES($1,$2,$3,'Sent account statement via WhatsApp',$4::jsonb)`,
+      [
+        req.user.id,
+        actor(req.user),
+        req.user.role,
+        JSON.stringify({
+          providerId: req.body.providerId,
+          customerId: req.body.customerId,
+          customerType: req.body.customerType || "patient",
+          from: s.from,
+          to: s.to,
+          phone: s.customer.phone,
+        }),
+      ],
+    );
+    res.json({
+      success: true,
+      message: `Statement details sent by WhatsApp to ${s.customer.phone}.`,
+    });
   }),
 );
 

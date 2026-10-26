@@ -1,9 +1,11 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { basename, extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import puppeteer from 'puppeteer';
+import { encryptPDF } from '@pdfsmaller/pdf-encrypt';
 
 const defaultTemplatePath = fileURLToPath(
   process.env.NODE_ENV === 'production' ?
@@ -291,4 +293,22 @@ export async function generateHtmlPdf(html) {
       await page.close().catch(() => {});
     }
   });
+}
+
+export async function passwordProtectPdf(pdfBuffer, password) {
+  const userPassword = String(password || '').trim();
+  if (!userPassword) throw new Error('A PDF password is required');
+  const encrypted = await encryptPDF(new Uint8Array(pdfBuffer), userPassword, {
+    ownerPassword: randomBytes(32).toString('base64url'),
+    algorithm: 'AES-256',
+    allowPrinting: true,
+    allowHighQualityPrint: true,
+    allowCopying: false,
+    allowModifying: false,
+    allowAnnotating: false,
+    allowFillingForms: false,
+    allowAssembly: false,
+    allowExtraction: true,
+  });
+  return Buffer.from(encrypted);
 }

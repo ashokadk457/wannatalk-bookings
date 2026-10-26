@@ -32,15 +32,19 @@ async function requestWhatsApp(path, options = {}) {
     });
   } catch (error) {
     const causeCode = error?.cause?.code;
-    throw new Error(causeCode
+    const connectionError = new Error(causeCode
       ? `WhatsApp API connection failed (${causeCode})`
       : `WhatsApp API connection failed: ${error instanceof Error ? error.message : 'network error'}`);
+    connectionError.statusCode = 502;
+    throw connectionError;
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.success === false) {
     const providerError = [payload.message, payload.error, payload.detail]
       .find((value) => typeof value === 'string' && value.trim());
-    throw new Error(providerError || `WhatsApp service failed (${response.status})`);
+    const serviceError = new Error(providerError || `WhatsApp service failed (${response.status})`);
+    serviceError.statusCode = 502;
+    throw serviceError;
   }
   return payload;
 }
