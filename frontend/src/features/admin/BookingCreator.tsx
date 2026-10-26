@@ -17,6 +17,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     [note, setNote] = useState(''),
     [intake, setIntake] = useState(false),
     [durationChoice, setDurationChoice] = useState('60'),
+    [customDuration, setCustomDuration] = useState(''),
     [busy, setBusy] = useState(false);
   const locations = data.locations.filter((l) => l.name !== 'Online'),
     location = locations.find((l) => l.id === locationId),
@@ -29,7 +30,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
           : mode === 'In-person' && p.locations.includes(location!.name)),
     ),
     provider = eligibleProviders.find((p) => p.id === providerId);
-  const durationMinutes = Number(durationChoice);
+  const durationMinutes = Number(durationChoice === 'custom' ? customDuration : durationChoice);
   const slotProvider = provider
     ? { ...provider, default_duration_minutes: durationMinutes }
     : undefined;
@@ -134,7 +135,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                   onChange={(e) => {
                     const id = e.target.value;
                     setProvider(id);
-                    setDurationChoice('60');
+                    setDurationChoice('60'); setCustomDuration('');
                     setTime('');
                   }}
                 >
@@ -159,9 +160,10 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
                   setTime('');
                 }}
               >
-                <option value="60">1 hour</option>
-                <option value="120">2 hours</option>
+                {[30, 60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} minutes</option>)}
+                <option value="custom">Custom duration</option>
               </select>
+              {durationChoice === 'custom' && <input required type="number" min="15" max="480" step="1" placeholder="Minutes (15–480)" value={customDuration} onChange={(e) => { setCustomDuration(e.target.value); setTime(''); }} />}
             </Field>
             <Field label="Appointment date">
               <input

@@ -290,8 +290,8 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
 appointmentsRouter.post('/', authRequired(['patient', 'provider', 'admin']), asyncHandler(async (req, res) => {
   const { providerId, patientId, locationId, appointmentDate, appointmentTime, durationMinutes = 60, appointmentType, mode, note, intakeRequested = false } = req.body;
   const bookingDuration = Number(durationMinutes);
-  if (![60, 120].includes(bookingDuration)) {
-    return res.status(400).json({ error: 'Appointment duration must be 60 or 120 minutes' });
+  if (!Number.isInteger(bookingDuration) || bookingDuration < 15 || bookingDuration > 480) {
+    return res.status(400).json({ error: 'Appointment duration must be between 15 and 480 minutes' });
   }
 
   let effectivePatientId = patientId;

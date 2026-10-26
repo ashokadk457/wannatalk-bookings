@@ -489,6 +489,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     [providerId, setProviderId] = useState(''),
     [locationId, setLocationId] = useState(''),
     [duration, setDuration] = useState(60),
+    [customDuration, setCustomDuration] = useState(''),
     [type, setType] = useState('Individual counselling'),
     [mode, setMode] = useState('In-person'),
     [note, setNote] = useState(''),
@@ -522,6 +523,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     setProviderId(a.provider_id);
     setLocationId(a.location_id || '');
     setDuration(a.duration_minutes);
+    setCustomDuration('');
     setType(a.appointment_type);
     setMode(a.mode);
     setNote(a.note || '');
@@ -816,13 +818,15 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
                     />
                   </Field>
                   <Field label="Duration">
-                    <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+                    <select value={[30,60,90,120,150,180].includes(duration) ? duration : 'custom'} onChange={(e) => { if(e.target.value !== 'custom') { setDuration(Number(e.target.value)); setCustomDuration(''); } else { setDuration(0); setCustomDuration(''); } }}>
                       {[30, 60, 90, 120, 150, 180].map((n) => (
                         <option key={n} value={n}>
                           {n} minutes
                         </option>
                       ))}
+                      <option value="custom">Custom duration</option>
                     </select>
+                    {![30,60,90,120,150,180].includes(duration) && <input required type="number" min="15" max="480" step="1" placeholder="Minutes (15–480)" value={customDuration || duration} onChange={(e) => { setCustomDuration(e.target.value); setDuration(Number(e.target.value)); }} />}
                   </Field>
                   <Field label="Appointment type">
                     <select value={type} onChange={(e) => setType(e.target.value)}>

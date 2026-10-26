@@ -14,6 +14,8 @@ export default function BookPage() {
     [date, setDate] = useState(today()),
     [time, setTime] = useState(''),
     [durationMinutes, setDurationMinutes] = useState(60),
+    [durationChoice, setDurationChoice] = useState('60'),
+    [customDuration, setCustomDuration] = useState(''),
     [calendarMode, setCalendarMode] = useState<CalendarMode>('week');
   const [type, setType] = useState('Individual counselling'),
     [mode, setMode] = useState(''),
@@ -46,6 +48,8 @@ export default function BookPage() {
   async function confirm() {
     if (!selected || !bookingSelected || !location || !mode || !time)
       return notify('Choose location, booking format, provider, date and time');
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480)
+      return notify('Enter a custom duration between 15 and 480 minutes');
     const availabilityLocation = mode === 'Online' ? 'Online' : location;
     const problem = slotProblem(
       bookingSelected,
@@ -180,15 +184,17 @@ export default function BookPage() {
           <label className="calendar-duration-select">
             Duration
             <select
-              value={durationMinutes}
+              value={durationChoice}
               onChange={(e) => {
-                setDurationMinutes(Number(e.target.value));
+                const value = e.target.value; setDurationChoice(value);
+                if (value !== 'custom') setDurationMinutes(Number(value));
                 setTime('');
               }}
             >
-              <option value={60}>1 hour</option>
-              <option value={120}>2 hours</option>
+              {[30, 60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} minutes</option>)}
+              <option value="custom">Custom duration</option>
             </select>
+            {durationChoice === 'custom' && <input aria-label="Custom duration in minutes" type="number" min="15" max="480" step="1" placeholder="15–480 min" value={customDuration} onChange={(e) => { setCustomDuration(e.target.value); setDurationMinutes(Number(e.target.value)); setTime(''); }} />}
           </label>
           <span className="pill">{time ? `${time} selected` : 'Choose a slot'}</span>
           <button className="btn secondary" onClick={() => void run(refresh)}>
