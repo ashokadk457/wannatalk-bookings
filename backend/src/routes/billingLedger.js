@@ -1,4 +1,5 @@
 import { Router } from "express";
+import jwt from "jsonwebtoken";
 import { query, withTransaction } from "../db.js";
 import { authRequired } from "../middleware/authRequired.js";
 import { generateHtmlPdf, passwordProtectPdf } from "../invoice.js";
@@ -10,6 +11,41 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 const fail = (message) =>
   Object.assign(new Error(message), { statusCode: 400 });
+const statementLinkPurpose = "statement-download";
+
+function createStatementDownloadToken(input) {
+  if (!process.env.JWT_SECRET) {
+    throw Object.assign(new Error("Statement link signing is not configured"), {
+      statusCode: 503,
+    });
+  }
+  return jwt.sign(
+    {
+      purpose: statementLinkPurpose,
+      providerId: String(input.providerId || ""),
+      customerType: input.customerType === "company" ? "company" : "patient",
+      customerId: String(input.customerId || ""),
+      from: String(input.from || ""),
+      to: String(input.to || ""),
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "24h" },
+  );
+}
+
+function verifyStatementDownloadToken(token) {
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (!payload || typeof payload !== "object" || payload.purpose !== statementLinkPurpose) {
+      throw new Error("Invalid statement link");
+    }
+    return payload;
+  } catch {
+    throw Object.assign(new Error("This statement download link is invalid or has expired"), {
+      statusCode: 410,
+    });
+  }
+}
 const cash = (value) => Math.round(Number(value) * 100) / 100;
 const date = (value) =>
   /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? String(value) : null;
@@ -680,6 +716,25 @@ billingLedgerRouter.get(
     res.send(pdf);
   }),
 );
+billingLedgerRouter.get(
+  "/statements/shared/:token",
+  asyncHandler(async (req, res) => {
+    const input = verifyStatementDownloadToken(req.params.token);
+    const s = await buildStatement(input);
+    const passwordDetails = await statementPdfPassword(input);
+    const pdf = await passwordProtectPdf(
+      await generateHtmlPdf(statementHtml(s)),
+      passwordDetails.password,
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="statement-${s.from}-${s.to}.pdf"`,
+    );
+    res.send(pdf);
+  }),
+);
 billingLedgerRouter.post(
   "/statements/email",
   authRequired(["admin", "provider"]),
@@ -715,10 +770,15 @@ billingLedgerRouter.post(
     if (!s.customer.phone) throw fail("The billing customer does not have a phone number");
     const passwordDetails = await statementPdfPassword(req.body);
     const providerName = s.provider.registered_business_name || s.provider.full_name;
+    const token = createStatementDownloadToken(req.body);
+    const appBaseUrl = String(process.env.APP_BASE_URL || "https://bookings.wannatalk.co.za")
+      .replace(/\/+$/, "");
+    const downloadUrl = `${appBaseUrl}/api/billing/statements/shared/${encodeURIComponent(token)}`;
     const message = [
       `Hello ${s.customer.name},`,
       `Your account statement from ${providerName} for ${s.from} to ${s.to} is ready.`,
       `Closing balance: ${formatMoney(s.closingBalance)}.`,
+      `Download your statement (link expires in 24 hours): ${downloadUrl}`,
       `The PDF is password protected. ${passwordDetails.guidance}`,
     ].join("\n\n");
     await sendWhatsAppMsg({ phoneNumber: s.customer.phone, message });
@@ -741,7 +801,7 @@ billingLedgerRouter.post(
     );
     res.json({
       success: true,
-      message: `Statement details sent by WhatsApp to ${s.customer.phone}.`,
+      message: `Statement download link sent by WhatsApp to ${s.customer.phone}.`,
     });
   }),
 );
