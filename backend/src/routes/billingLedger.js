@@ -2,6 +2,7 @@ import { Router } from "express";
 import { query, withTransaction } from "../db.js";
 import { authRequired } from "../middleware/authRequired.js";
 import { generateHtmlPdf } from "../invoice.js";
+import { sendInvoiceEmail } from "../mail.js";
 
 export const billingLedgerRouter = Router();
 const asyncHandler = (fn) => (req, res, next) =>
@@ -467,6 +468,19 @@ billingLedgerRouter.post(
   }),
 );
 
+async function assertStatementAccess(user, providerId) {
+  if (user.role === "admin") return;
+  const owned = await query(
+    `SELECT 1 FROM providers WHERE id=$1 AND user_id=$2`,
+    [providerId, user.id],
+  );
+  if (!owned.rows[0]) {
+    const error = new Error("Not allowed to access another provider's statement");
+    error.statusCode = 403;
+    throw error;
+  }
+}
+
 async function buildStatement(input) {
   const providerId = String(input.providerId || ""),
     type = input.customerType === "company" ? "company" : "patient",
@@ -545,7 +559,13 @@ async function buildStatement(input) {
       return { ...x, balance };
     });
   const provider = await query(
-    `SELECT u.full_name,bp.registered_business_name,bp.billing_email,bp.billing_phone FROM providers p JOIN app_users u ON u.id=p.user_id LEFT JOIN provider_billing_profiles bp ON bp.provider_id=p.id WHERE p.id=$1`,
+    `SELECT u.full_name,bp.registered_business_name,bp.billing_email,bp.billing_phone,
+            bp.billing_address,bp.logo_url,bp.brand_primary_color,p.practice_number,
+            p.medical_registration_number,bp.bank_account_holder,bp.bank_name,
+            bp.bank_account_number,bp.bank_account_type,bp.bank_branch_code,
+            bp.remittance_instructions
+       FROM providers p JOIN app_users u ON u.id=p.user_id
+       LEFT JOIN provider_billing_profiles bp ON bp.provider_id=p.id WHERE p.id=$1`,
     [providerId],
   );
   const customer =
@@ -579,19 +599,25 @@ function statementHtml(s) {
         `<tr><td>${html(x.date)}</td><td>${html(x.type)}</td><td>${html(x.reference)}</td><td>${x.debit ? html(formatMoney(x.debit)) : "—"}</td><td>${x.credit ? html(formatMoney(x.credit)) : "—"}</td><td><b>${html(formatMoney(x.balance))}</b></td></tr>`,
     )
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font:12px Arial;color:#17352c;margin:0}.page{border-top:8px solid #07865f;padding:28px}header{display:flex;justify-content:space-between;border-bottom:2px solid #07865f;padding-bottom:20px}h1{margin:4px 0;color:#075f49}.period{text-align:right}.balance{display:flex;justify-content:flex-end;gap:25px;padding:17px;font-size:16px}table{width:100%;border-collapse:collapse}th{background:#eaf7f2;color:#075f49;text-align:left;padding:10px}td{padding:10px;border-bottom:1px solid #dce8e3}.closing{margin-top:18px;background:#102f3d;color:#fff;border-radius:8px;font-size:18px}</style></head><body><main class="page"><header><div><small>ACCOUNT STATEMENT</small><h1>${html(s.provider.registered_business_name || s.provider.full_name)}</h1><p>${html(s.customer.name)}</p></div><div class="period"><span>Statement period</span><h3>${html(s.from)} — ${html(s.to)}</h3></div></header><div class="balance"><span>Opening balance</span><b>${html(formatMoney(s.openingBalance))}</b></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No transactions during this period.</td></tr>'}</tbody></table><div class="balance closing"><span>Closing balance</span><b>${html(formatMoney(s.closingBalance))}</b></div></main></body></html>`;
+  const providerName = s.provider.registered_business_name || s.provider.full_name;
+  const address = String(s.provider.billing_address || "").replace(/\n/g, "<br>");
+  const bank = [s.provider.bank_account_holder, s.provider.bank_name, s.provider.bank_account_number, s.provider.bank_account_type].filter(Boolean).map(html).join("<br>");
+  const brand = /^#[0-9a-f]{6}$/i.test(s.provider.brand_primary_color || "") ? s.provider.brand_primary_color : "#087b5b";
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:11px Arial;color:#17352c;margin:0}.page{border:1px solid #d9e6df;padding:22px}.top{border-top:7px solid ${brand};padding-top:13px;display:flex;justify-content:space-between;gap:24px}.brand{max-width:58%}.logo{max-height:54px;max-width:175px;object-fit:contain;display:block;margin-bottom:8px}h1{font-size:20px;margin:0 0 4px;color:${brand}}p{margin:3px 0;line-height:1.35}.meta{text-align:right;min-width:190px}.title{font-size:19px;font-weight:700;margin:4px 0 20px;text-transform:uppercase}.account{display:flex;justify-content:space-between;border-bottom:2px solid ${brand};padding:8px 0 14px;margin-bottom:12px}.customer{font-size:14px;font-weight:700}.balance{display:flex;justify-content:flex-end;gap:25px;padding:12px;font-size:14px}.opening{background:#f1f8f5}.closing{margin-top:15px;background:#163d2b;color:#fff;font-size:16px}table{width:100%;border-collapse:collapse}th{background:#eaf7f2;color:#075f49;text-align:left;padding:9px;border:1px solid #cfe0d8}td{padding:8px;border:1px solid #dce8e3;vertical-align:top}.money{text-align:right}.bottom{display:flex;justify-content:space-between;gap:24px;margin-top:20px}.bank{font-size:10px;line-height:1.45}.bank b{font-size:11px}.note{font-size:10px;max-width:55%;color:#4c655b}</style></head><body><main class="page"><section class="top"><div class="brand">${s.provider.logo_url ? `<img class="logo" src="${html(s.provider.logo_url)}" alt="">` : ""}<h1>${html(providerName)}</h1><p>${address}</p><p>${html(s.provider.billing_phone || "")}</p><p>${html(s.provider.billing_email || "")}</p></div><div class="meta"><div class="title">Statement</div><p><b>Date:</b> ${html(s.to)}</p><p><b>Period:</b> ${html(s.from)} — ${html(s.to)}</p>${s.provider.practice_number ? `<p><b>Practice no.:</b> ${html(s.provider.practice_number)}</p>` : ""}${s.provider.medical_registration_number ? `<p><b>Registration:</b> ${html(s.provider.medical_registration_number)}</p>` : ""}</div></section><section class="account"><div><div class="customer">${html(s.customer.name)}</div><p>${html(s.customer.email || "")}</p><p>${html(s.customer.phone || "")}</p></div><div><b>Account statement</b><p>All invoices, payments and credits</p></div></section><div class="balance opening"><span>Opening balance</span><b>${html(formatMoney(s.openingBalance))}</b></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Reference</th><th class="money">Debit</th><th class="money">Credit</th><th class="money">Balance</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No transactions during this period.</td></tr>'}</tbody></table><div class="balance closing"><span>Amount due / closing balance</span><b>${html(formatMoney(s.closingBalance))}</b></div><section class="bottom"><div class="bank">${bank ? `<b>Banking details</b><br>${bank}` : ""}</div><div class="note">${html(s.provider.remittance_instructions || "Please use the invoice reference when making payment.")}</div></section></main></body></html>`;
 }
 billingLedgerRouter.get(
   "/statements",
-  authRequired(["admin"]),
-  asyncHandler(async (req, res) =>
-    res.json({ statement: await buildStatement(req.query) }),
-  ),
+  authRequired(["admin", "provider"]),
+  asyncHandler(async (req, res) => {
+    await assertStatementAccess(req.user, String(req.query.providerId || ""));
+    res.json({ statement: await buildStatement(req.query) });
+  }),
 );
 billingLedgerRouter.get(
   "/statements/pdf",
-  authRequired(["admin"]),
+  authRequired(["admin", "provider"]),
   asyncHandler(async (req, res) => {
+    await assertStatementAccess(req.user, String(req.query.providerId || ""));
     const s = await buildStatement(req.query),
       pdf = await generateHtmlPdf(statementHtml(s));
     res.setHeader("Content-Type", "application/pdf");
@@ -600,6 +626,27 @@ billingLedgerRouter.get(
       `attachment; filename="statement-${s.from}-${s.to}.pdf"`,
     );
     res.send(pdf);
+  }),
+);
+billingLedgerRouter.post(
+  "/statements/email",
+  authRequired(["admin", "provider"]),
+  asyncHandler(async (req, res) => {
+    await assertStatementAccess(req.user, String(req.body.providerId || ""));
+    const s = await buildStatement(req.body);
+    if (!s.customer.email) throw fail("The billing customer does not have an email address");
+    const pdf = await generateHtmlPdf(statementHtml(s));
+    await sendInvoiceEmail({
+      email: s.customer.email,
+      fullName: s.customer.name,
+      subject: `Account statement from ${s.provider.registered_business_name || s.provider.full_name}`,
+      message: `Please find your account statement for ${s.from} to ${s.to} attached. Closing balance: ${formatMoney(s.closingBalance)}.`,
+      pdfBuffer: pdf,
+      filename: `statement-${s.from}-to-${s.to}.pdf`,
+      documentLabel: "statement",
+    });
+    await query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,'Emailed account statement',$4::jsonb)`, [req.user.id, actor(req.user), req.user.role, JSON.stringify({ providerId: req.body.providerId, customerId: req.body.customerId, customerType: req.body.customerType || "patient", from: s.from, to: s.to, email: s.customer.email })]);
+    res.json({ success: true, message: `Statement emailed to ${s.customer.email}.` });
   }),
 );
 

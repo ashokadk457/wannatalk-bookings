@@ -85,6 +85,7 @@ export default function Router() {
           <Route path="billing/profile" element={<ProviderBillingProfiles />} />
           <Route path="billing/invoices" element={<BillingInvoices />} />
           <Route path="billing/outstanding" element={<BillingOutstanding />} />
+          <Route path="billing/statements" element={<BillingStatements />} />
           <Route path="automatic-reminders" element={<AutomaticReminders />} />
           <Route path="availability" element={<Availability />} />
           <Route path="patients" element={<Directory />} />

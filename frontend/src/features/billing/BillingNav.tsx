@@ -10,6 +10,7 @@ export default function BillingNav() {
         <NavLink to="/provider/billing/profile">Billing &amp; bank details</NavLink>
         <NavLink to="/provider/billing/invoices">Invoices</NavLink>
         <NavLink to="/provider/billing/outstanding">Outstanding</NavLink>
+        <NavLink to="/provider/billing/statements">Statements</NavLink>
       </nav>
     );
   }
