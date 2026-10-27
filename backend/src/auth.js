@@ -2,9 +2,13 @@ import jwt from 'jsonwebtoken';
 
 const jwtSecret = process.env.JWT_SECRET;
 
-export function signToken(user) {
+export function shouldExtendLogin(role, requested) {
+  return requested === true && (role === 'provider' || role === 'patient');
+}
+
+export function signToken(user, extendedLogin = false) {
   if (!jwtSecret) throw new Error('JWT_SECRET is required');
-  return jwt.sign({ id: user.id, role: user.role, name: user.full_name, email: user.email, authVersion: Number(user.auth_version || 0) }, jwtSecret, { expiresIn: '12h' });
+  return jwt.sign({ id: user.id, role: user.role, name: user.full_name, email: user.email, authVersion: Number(user.auth_version || 0) }, jwtSecret, { expiresIn: extendedLogin ? '14d' : '12h' });
 }
 
 export function verifyToken(token) {

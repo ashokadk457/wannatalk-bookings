@@ -131,19 +131,25 @@ for (const role of ['patient', 'provider', 'admin'] as Role[]) {
   });
 }
 test('MFA login rejects a bad code, verifies, and logs out', async ({ page }) => {
-  await mockApi(page, 'patient', false);
+  const api = await mockApi(page, 'patient', false);
   await page.goto('/login');
   await page.getByRole('button', { name: '👤 Patient' }).click();
   await page.getByLabel('Email', { exact: true }).fill('patient@example.test');
   await page.getByLabel('Password', { exact: true }).fill('test-password-123');
+  await expect(page.getByLabel('Keep me logged in for 14 days')).toHaveCount(0);
   await page.getByRole('button', { name: 'Login', exact: true }).last().click();
   await page.getByRole('button', { name: /Send by Email/ }).click();
+  await expect(page.getByLabel('Trust this device for 14 days')).toBeVisible();
+  await page.getByLabel('Trust this device for 14 days').check();
   await page.getByLabel('Verification code').fill('111111');
   await page.getByRole('button', { name: 'Verify and continue' }).click();
   await expect(page.locator('.toast')).toHaveText('Incorrect verification code');
   await page.getByLabel('Verification code').fill('123456');
   await page.getByRole('button', { name: 'Verify and continue' }).click();
   await expect(page).toHaveURL(/patient\/book/);
+  expect(
+    api.requests.filter((request) => request.path === '/auth/mfa/verify').at(-1)?.body.trustDevice,
+  ).toBe(true);
   await page.getByRole('button', { name: 'Log out' }).click();
   await expect(page).toHaveURL(/login/);
   expect(await page.evaluate(() => localStorage.getItem('wannatalkApiToken'))).toBeNull();

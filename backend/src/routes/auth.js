@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { envNumber } from '../env.js';
-import { publicUser, signToken, verifyToken } from '../auth.js';
+import { publicUser, shouldExtendLogin, signToken, verifyToken } from '../auth.js';
 import { sendPasswordResetEmail } from '../mail.js';
 import { authRequired } from '../middleware/authRequired.js';
 import {
@@ -423,7 +423,8 @@ authRouter.post('/login', loginRateLimit, async (req, res, next) => {
       return res.status(403).json({ error: message });
     }
     if (await trustedDeviceIsValid(req, user.id)) {
-      return res.json({ token: signToken(user), user: publicUser(user), trustedDevice: true });
+      const useExtendedLogin = shouldExtendLogin(user.role, true);
+      return res.json({ token: signToken(user, useExtendedLogin), user: publicUser(user), trustedDevice: true });
     }
 
     const challenge = await createMfaChallenge({
@@ -463,7 +464,8 @@ authRouter.post('/mfa/verify', async (req, res, next) => {
     }
     if (!user.is_active) return res.status(403).json({ error: 'This account is not active' });
     if (trustDevice) await rememberTrustedDevice({ req, res, userId: user.id });
-    res.json({ status: 'approved', token: signToken(user), user: publicUser(user), trustedDevice: trustDevice });
+    const useExtendedLogin = shouldExtendLogin(user.role, trustDevice);
+    res.json({ status: 'approved', token: signToken(user, useExtendedLogin), user: publicUser(user), trustedDevice: trustDevice });
   } catch (error) {
     next(error);
   }
