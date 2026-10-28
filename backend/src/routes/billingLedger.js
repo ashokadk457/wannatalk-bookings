@@ -827,7 +827,7 @@ billingLedgerRouter.get(
   authRequired(["admin"]),
   asyncHandler(async (req, res) => {
     const result = await query(
-      `SELECT id,user_name,user_role,action,details,created_at FROM audit_logs WHERE action ILIKE '%billing%' OR action ILIKE '%invoice%' OR action ILIKE '%credit note%' ORDER BY created_at DESC LIMIT 500`,
+      `SELECT id,user_name,user_role,action,details,created_at FROM audit_logs WHERE action ILIKE '%billing%' OR action ILIKE '%invoice%' OR action ILIKE '%credit note%' OR action ILIKE '%quote%' ORDER BY created_at DESC LIMIT 500`,
     );
     res.json({ history: result.rows });
   }),

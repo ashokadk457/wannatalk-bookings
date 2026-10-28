@@ -105,6 +105,8 @@ export async function renderStoredInvoiceHtml(invoice) {
   }
   const issuer=invoice.issuer_snapshot||{}, customer=invoice.customer_snapshot||{};
   const documentType=invoice.document_type==='Quote'?'Quote':'Invoice';
+  const documentNumber=invoice.invoice_number||invoice.quote_number||'';
+  const dueDate=documentType==='Quote'?invoice.valid_until:invoice.due_date;
   const properCase = value => String(value||'').toLocaleLowerCase('en-ZA').replace(/(^|[\s'-])([\p{L}])/gu,(_,separator,letter)=>separator+letter.toLocaleUpperCase('en-ZA'));
   const rawDisplayName = customer.name || [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
   const displayName = customer.type === 'company' ? rawDisplayName : properCase(rawDisplayName);
@@ -114,7 +116,7 @@ export async function renderStoredInvoiceHtml(invoice) {
     <td><strong>${escapeHtml(formatDate(item.service_date||item.appointment_date))} ${escapeHtml(formatTime(item.appointment_time))}</strong><br><br><span class="code">${escapeHtml(item.tariff_code||'81305')}</span></td>
     <td class="desc"><div class="service-main">${escapeHtml(item.description||patientSummary)}</div>${item.provider_name?`<div class="service-sub">Provided by: ${escapeHtml(item.provider_name)}</div>`:''}</td>
     <td class="code">${escapeHtml(item.quantity||'1')}</td>
-    <td class="code">${escapeHtml(item.document_number||invoice.invoice_number)}</td>
+    <td class="code">${escapeHtml(item.document_number||documentNumber)}</td>
     <td class="amount">R ${escapeHtml(formatAmount(item.rate??item.amount))}</td>
     <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
   </tr>`).join('');
@@ -125,9 +127,9 @@ export async function renderStoredInvoiceHtml(invoice) {
     html=html.replace('<strong>Due:</strong>','<strong>Valid until:</strong>');
     html=html.replace('<th>Total due</th>','<th>Quote total</th>');
   }
-  html = fillPlaceholder(html, 'invoice-number', invoice.invoice_number);
+  html = fillPlaceholder(html, 'invoice-number', documentNumber);
   html = fillPlaceholder(html, 'invoice-issued-date', formatDate(invoice.issue_date||invoice.issued_at));
-  html = fillPlaceholder(html, 'invoice-due-date', formatDate(invoice.due_date));
+  html = fillPlaceholder(html, 'invoice-due-date', formatDate(dueDate));
   html = fillPlaceholder(html, 'invoice-patient-name', displayName);
   html = fillPlaceholder(html, 'invoice-patient-summary', summary);
   html = fillPlaceholder(html, 'invoice-total', `R ${formatAmount(invoice.total_amount)}`);
