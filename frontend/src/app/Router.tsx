@@ -30,6 +30,7 @@ const ProviderBillingProfiles = lazy(
 const DefaultBankAccount = lazy(() => import('../features/billing/DefaultBankAccountPage'));
 const BillingCompanies = lazy(() => import('../features/billing/CompaniesPage'));
 const BillingInvoices = lazy(() => import('../features/billing/InvoicesPage'));
+const BillingQuotes = lazy(() => import('../features/billing/QuotesPage'));
 const BillingOutstanding = lazy(() => import('../features/billing/OutstandingPage'));
 const BillingOverview = lazy(() => import('../features/billing/BillingOverviewPage'));
 const BillingStatements = lazy(() => import('../features/billing/StatementsPage'));
@@ -84,6 +85,7 @@ export default function Router() {
           <Route path="billing/overview" element={<BillingOverview />} />
           <Route path="billing/profile" element={<ProviderBillingProfiles />} />
           <Route path="billing/invoices" element={<BillingInvoices />} />
+          <Route path="billing/quotes" element={<BillingQuotes />} />
           <Route path="billing/outstanding" element={<BillingOutstanding />} />
           <Route path="billing/statements" element={<BillingStatements />} />
           <Route path="automatic-reminders" element={<AutomaticReminders />} />
@@ -108,6 +110,7 @@ export default function Router() {
           <Route path="billing/default-bank" element={<DefaultBankAccount />} />
           <Route path="billing/companies" element={<BillingCompanies />} />
           <Route path="billing/invoices" element={<BillingInvoices />} />
+          <Route path="billing/quotes" element={<BillingQuotes />} />
           <Route path="billing/outstanding" element={<BillingOutstanding />} />
           <Route path="billing/statements" element={<BillingStatements />} />
           <Route path="billing/payments" element={<BillingPayments />} />

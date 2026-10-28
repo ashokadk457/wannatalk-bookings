@@ -12,6 +12,7 @@ const migrations = [
   '031_default_bank_account.sql',
   '032_invoice_edit_history.sql',
   '033_statement_download_links.sql',
+  '034_quotes.sql',
 ];
 
 try {

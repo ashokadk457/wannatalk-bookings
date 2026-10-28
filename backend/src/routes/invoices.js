@@ -70,8 +70,25 @@ async function loadInvoice(client,id){
   return mapped(h.rows[0],lines.rows);
 }
 
+// Deleted invoices are voided, never physically removed.  Financial events remain
+// traceable; active payment allocations are released back to the patient as credit.
+async function voidInvoice(client,user,invoice,reason,action='Deleted invoice',details={}){
+  const activeAllocations=(await client.query(`SELECT a.id,a.payment_id,a.amount,p.unallocated_amount FROM billing_payment_allocations a JOIN billing_payments p ON p.id=a.payment_id WHERE a.invoice_id=$1 AND p.status='Active' FOR UPDATE OF a,p`,[invoice.id])).rows;
+  const issuedCredits=(await client.query(`SELECT id,credit_note_number,amount FROM billing_credit_notes WHERE invoice_id=$1 AND status='Issued' ORDER BY created_at`,[invoice.id])).rows;
+  const paidRefunds=(await client.query(`SELECT id,amount,refund_date::text FROM billing_refunds WHERE invoice_id=$1 AND status='Paid' ORDER BY created_at`,[invoice.id])).rows;
+  for(const allocation of activeAllocations){
+    await client.query(`DELETE FROM billing_payment_allocations WHERE id=$1`,[allocation.id]);
+    await client.query(`UPDATE billing_payments SET unallocated_amount=unallocated_amount+$1 WHERE id=$2`,[allocation.amount,allocation.payment_id]);
+  }
+  const deletionReason=String(reason).slice(0,500);
+  await client.query(`UPDATE invoices SET status_before_delete=status,status='Void',deleted_at=now(),deleted_by_user_id=$2,deleted_by_name=$3,deletion_reason=$4,outstanding_balance=0,updated_at=now() WHERE id=$1`,[invoice.id,user.id,user.name||user.email||'Administrator',deletionReason]);
+  await client.query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,$4,$5::jsonb)`,[user.id,user.name||user.email||'Administrator',user.role,action,JSON.stringify({invoiceId:invoice.id,invoiceNumber:invoice.invoice_number,reason:deletionReason,previousStatus:invoice.status,releasedPaymentAllocations:activeAllocations.map(x=>({paymentId:x.payment_id,amount:Number(x.amount)})),preservedCreditNotes:issuedCredits.map(x=>({creditNoteId:x.id,creditNoteNumber:x.credit_note_number,amount:Number(x.amount)})),preservedRefunds:paidRefunds.map(x=>({refundId:x.id,amount:Number(x.amount),refundDate:x.refund_date})),...details})]);
+}
+
 invoicesRouter.get('/',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
   await query(`UPDATE invoices SET status='Overdue',updated_at=now() WHERE status='Issued' AND outstanding_balance>0 AND due_at<now()`);
+  const legacyCancelled=await query(`UPDATE invoices i SET status_before_delete=i.status,status='Void',deleted_at=now(),deleted_by_user_id=$1,deleted_by_name=$2,deletion_reason='Automatically deleted because all linked appointments were cancelled',billing_review=false,billing_review_reason=NULL,updated_at=now() WHERE i.deleted_at IS NULL AND i.status NOT IN('Void','Credited') AND EXISTS(SELECT 1 FROM invoice_items linked WHERE linked.invoice_id=i.id) AND NOT EXISTS(SELECT 1 FROM invoice_items manual WHERE manual.invoice_id=i.id AND manual.appointment_id IS NULL) AND NOT EXISTS(SELECT 1 FROM invoice_items item JOIN appointments a ON a.id=item.appointment_id WHERE item.invoice_id=i.id AND a.status<>'Cancelled') AND COALESCE(i.payments_received,0)=0 AND NOT EXISTS(SELECT 1 FROM billing_payment_allocations allocation JOIN billing_payments payment ON payment.id=allocation.payment_id WHERE allocation.invoice_id=i.id AND payment.status='Active') AND NOT EXISTS(SELECT 1 FROM billing_credit_notes credit WHERE credit.invoice_id=i.id AND credit.status='Issued') AND NOT EXISTS(SELECT 1 FROM billing_refunds refund WHERE refund.invoice_id=i.id AND refund.status='Paid') RETURNING i.id,i.invoice_number`,[req.user.id,req.user.name||req.user.email||'System']);
+  if(legacyCancelled.rows.length)await query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,'Automatically deleted legacy cancelled-appointment invoices',$4::jsonb)`,[req.user.id,req.user.name||req.user.email||'System',req.user.role,JSON.stringify({invoices:legacyCancelled.rows})]);
   const result=await query(`SELECT i.id,i.invoice_number,i.provider_id,i.patient_id,i.company_id,i.issue_date::text,i.due_date::text,i.due_at,i.total_amount,i.payments_received,i.outstanding_balance,i.status,i.billing_review,i.billing_review_reason,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name,a.appointment_date::text,a.appointment_time::time::text appointment_time,a.appointment_type service,(SELECT COUNT(*)>0 AND BOOL_AND(ap.status='Cancelled') FROM invoice_items iic JOIN appointments ap ON ap.id=iic.appointment_id WHERE iic.invoice_id=i.id) appointments_cancelled FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id LEFT JOIN LATERAL (SELECT ap.appointment_date,ap.appointment_time,ap.appointment_type FROM invoice_items ii JOIN appointments ap ON ap.id=ii.appointment_id WHERE ii.invoice_id=i.id ORDER BY ii.created_at LIMIT 1) a ON true WHERE i.deleted_at IS NULL AND ($1::uuid IS NULL OR EXISTS(SELECT 1 FROM providers owned WHERE owned.id=i.provider_id AND owned.user_id=$1)) ORDER BY i.issue_date DESC,i.created_at DESC`,[req.user.role==='provider'?req.user.id:null]);
   res.json({invoices:result.rows.map(x=>({...x,total_amount:Number(x.total_amount),payments_received:Number(x.payments_received),outstanding_balance:Number(x.outstanding_balance)}))});
 }));
@@ -79,6 +96,15 @@ invoicesRouter.get('/',authRequired(['admin','provider']),asyncHandler(async(req
 invoicesRouter.get('/deleted',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
   const result=await query(`SELECT i.id,i.invoice_number,i.issue_date::text,i.total_amount,i.payments_received,i.outstanding_balance,i.status_before_delete,i.deleted_at,i.deleted_by_name,i.deletion_reason,i.billing_customer_type,u.full_name patient_name,pu.full_name provider_name,c.registered_name company_name FROM invoices i JOIN patients p ON p.id=i.patient_id JOIN app_users u ON u.id=p.user_id LEFT JOIN providers pr ON pr.id=i.provider_id LEFT JOIN app_users pu ON pu.id=pr.user_id LEFT JOIN billing_companies c ON c.id=i.company_id WHERE i.deleted_at IS NOT NULL AND ($1::uuid IS NULL OR EXISTS(SELECT 1 FROM providers owned WHERE owned.id=i.provider_id AND owned.user_id=$1)) ORDER BY i.deleted_at DESC`,[req.user.role==='provider'?req.user.id:null]);
   res.json({invoices:result.rows.map(x=>({...x,total_amount:Number(x.total_amount),payments_received:Number(x.payments_received),outstanding_balance:Number(x.outstanding_balance)}))});
+}));
+
+invoicesRouter.get('/account-balance',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{
+  const patientId=String(req.query.patientId||'');
+  const providerId=String(req.query.providerId||'');
+  if(!patientId||!providerId)throw fail('Patient and provider are required');
+  if(req.user.role==='provider'&&!(await query(`SELECT 1 FROM providers WHERE id=$1 AND user_id=$2`,[providerId,req.user.id])).rows[0])throw Object.assign(new Error('Not allowed'),{statusCode:403});
+  const result=await query(`SELECT COALESCE(SUM(outstanding_balance),0) outstanding FROM invoices WHERE patient_id=$1 AND provider_id=$2 AND deleted_at IS NULL AND status NOT IN('Void','Credited')`,[patientId,providerId]);
+  res.json({outstanding:Number(result.rows[0].outstanding||0)});
 }));
 
 invoicesRouter.get('/settings/default-bank',authRequired(['admin']),asyncHandler(async(req,res)=>{
@@ -160,7 +186,7 @@ invoicesRouter.patch('/:id',authRequired(['admin','provider']),asyncHandler(asyn
     const oldItems=(await client.query(`SELECT * FROM invoice_items WHERE invoice_id=$1 ORDER BY created_at,id`,[current.id])).rows;
     const issueDate=isoDate(req.body.issueDate);const dueDate=isoDate(req.body.dueDate);
     if(!issueDate||!dueDate||dueDate<issueDate)throw fail('Enter valid issue and due dates');
-    const lines=requested.map((item,index)=>{const rate=parseInvoiceAmount(item.rate??item.amount),quantity=Number(item.quantity??1),discount=cash(item.discountAmount||0),tax=cash(item.taxAmount||0),serviceDate=isoDate(item.serviceDate);if(!rate||!Number.isFinite(quantity)||quantity<=0||discount<0||tax<0||!serviceDate)throw fail(`Enter valid values for line ${index+1}`);const amount=cash(rate*quantity-discount+tax);if(amount<=0)throw fail(`Line ${index+1} total must be greater than zero`);return{appointmentId:item.appointmentId?String(item.appointmentId):null,serviceDate,description:String(item.description||'Professional consultation').trim().slice(0,500),tariffCode:String(item.tariffCode||'').trim().slice(0,40),icd10Code:String(item.icd10Code||'').trim().slice(0,40),documentNumber:String(item.documentNumber||'').trim().slice(0,40),quantity:cash(quantity),rate,discount,tax,amount};});
+    const lines=requested.map((item,index)=>{const rawRate=item.rate??item.amount,rate=Number(rawRate),quantity=Number(item.quantity??1),discount=cash(item.discountAmount||0),tax=cash(item.taxAmount||0),serviceDate=isoDate(item.serviceDate);if(rawRate===''||rawRate===null||rawRate===undefined||!Number.isFinite(rate)||rate<0||!Number.isFinite(quantity)||quantity<=0||discount<0||tax<0||!serviceDate)throw fail(`Enter valid values for line ${index+1}`);const amount=cash(rate*quantity-discount+tax);if(amount<0)throw fail(`Line ${index+1} total cannot be negative`);return{appointmentId:item.appointmentId?String(item.appointmentId):null,serviceDate,description:String(item.description||'Professional consultation').trim().slice(0,500),tariffCode:String(item.tariffCode||'').trim().slice(0,40),icd10Code:String(item.icd10Code||'').trim().slice(0,40),documentNumber:String(item.documentNumber||'').trim().slice(0,40),quantity:cash(quantity),rate:cash(rate),discount,tax,amount};});
     const appointmentIds=[...new Set(lines.map(x=>x.appointmentId).filter(Boolean))];
     if(appointmentIds.length!==lines.filter(x=>x.appointmentId).length)throw fail('The same appointment cannot appear on more than one invoice line');
     if(appointmentIds.length){const valid=await client.query(`SELECT id,provider_id,patient_id FROM appointments WHERE id=ANY($1::uuid[])`,[appointmentIds]);if(valid.rows.length!==appointmentIds.length)throw fail('One or more linked appointments no longer exist');if(req.user.role==='provider'&&valid.rows.some(a=>String(a.provider_id)!==String(current.provider_id)||String(a.patient_id)!==String(current.patient_id)))throw Object.assign(new Error('Not allowed'),{statusCode:403});}
@@ -180,6 +206,10 @@ invoicesRouter.patch('/:id',authRequired(['admin','provider']),asyncHandler(asyn
     if(!summary.length)summary.push('No invoice values changed');
     const version=(await client.query(`SELECT COALESCE(MAX(version_number),0)+1 version FROM invoice_edit_history WHERE invoice_id=$1`,[current.id])).rows[0].version;
     await client.query(`INSERT INTO invoice_edit_history(invoice_id,version_number,edited_by_user_id,edited_by_name,reason,invoice_snapshot,changes) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)`,[current.id,version,req.user.id,req.user.name||req.user.email||'Administrator',reason,JSON.stringify({invoice:current,items:oldItems}),JSON.stringify({summary,beforeTotal:Number(current.total_amount),afterTotal:total,newItems:lines})]);
+    if(total===0){
+      await voidInvoice(client,req.user,current,`Voided by zero-value invoice edit: ${reason}`,'Voided invoice by zero-value edit',{version});
+      return {id:current.id,voided:true};
+    }
     await client.query(`UPDATE invoices SET issue_date=$2,due_date=$3,due_at=$4,total_amount=$5,subtotal=$6,discount_total=$7,tax_total=$8,outstanding_balance=$9,status=$10,notes=$11,updated_at=now() WHERE id=$1`,[current.id,issueDate,dueDate,`${dueDate}T23:59:59+02:00`,total,subtotal,discount,tax,outstanding,status,notes]);
     await client.query(`DELETE FROM invoice_items WHERE invoice_id=$1`,[current.id]);
     for(const x of lines)await client.query(`INSERT INTO invoice_items(invoice_id,appointment_id,description,amount,service_date,tariff_code,icd10_code,document_number,quantity,rate,discount_amount,tax_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[current.id,x.appointmentId,x.description,x.amount,x.serviceDate,x.tariffCode,x.icd10Code,x.documentNumber,x.quantity,x.rate,x.discount,x.tax]);
@@ -197,11 +227,7 @@ invoicesRouter.delete('/:id',authRequired(['admin','provider']),asyncHandler(asy
     const invoice=found.rows[0];
     if(!invoice||invoice.deleted_at)throw Object.assign(new Error('Invoice not found'),{statusCode:404});
     if(!(await ownsInvoice(client,req.user,invoice)))throw Object.assign(new Error('Invoice not found'),{statusCode:404});
-    const activity=await client.query(`SELECT EXISTS(SELECT 1 FROM billing_payment_allocations a JOIN billing_payments p ON p.id=a.payment_id WHERE a.invoice_id=$1 AND p.status='Active') has_payment,EXISTS(SELECT 1 FROM billing_credit_notes c WHERE c.invoice_id=$1 AND c.status='Issued') has_credit,EXISTS(SELECT 1 FROM billing_refunds r WHERE r.invoice_id=$1 AND r.status='Paid') has_refund`,[invoice.id]);
-    const linked=activity.rows[0];
-    if(Number(invoice.payments_received)>0||linked.has_payment||linked.has_credit||linked.has_refund)throw fail('Invoices with payments, credits, or refunds cannot be deleted. Reverse the financial activity first.');
-    await client.query(`UPDATE invoices SET status_before_delete=status,status='Void',deleted_at=now(),deleted_by_user_id=$2,deleted_by_name=$3,deletion_reason=$4,updated_at=now() WHERE id=$1`,[invoice.id,req.user.id,req.user.name||req.user.email||'Administrator',reason]);
-    await client.query(`INSERT INTO audit_logs(user_id,user_name,user_role,action,details) VALUES($1,$2,$3,'Deleted invoice',$4::jsonb)`,[req.user.id,req.user.name||req.user.email||'Administrator',req.user.role,JSON.stringify({invoiceId:invoice.id,invoiceNumber:invoice.invoice_number,reason,previousStatus:invoice.status})]);
+    await voidInvoice(client,req.user,invoice,reason);
   });
   res.status(204).end();
 }));

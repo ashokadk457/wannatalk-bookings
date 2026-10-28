@@ -35,14 +35,16 @@ async function replacePatients(client, companyId, patientIds) {
   for (const patientId of patientIds) await client.query(`INSERT INTO billing_company_patients (company_id, patient_id) VALUES ($1,$2)`, [companyId, patientId]);
 }
 
-billingCompaniesRouter.get('/', authRequired(['admin']), asyncHandler(async (req, res) => {
+billingCompaniesRouter.get('/', authRequired(['admin','provider']), asyncHandler(async (req, res) => {
   const result = await query(
     `SELECT c.*,
-            COALESCE(array_agg(cp.patient_id) FILTER (WHERE cp.patient_id IS NOT NULL), '{}') AS patient_ids,
-            COUNT(cp.patient_id)::integer AS patient_count
+            COALESCE(array_agg(cp.patient_id) FILTER (WHERE cp.patient_id IS NOT NULL AND ($1::uuid IS NULL OR EXISTS(SELECT 1 FROM appointments a JOIN providers own ON own.id=a.provider_id WHERE own.user_id=$1 AND a.patient_id=cp.patient_id))), '{}') AS patient_ids,
+            COUNT(cp.patient_id) FILTER (WHERE $1::uuid IS NULL OR EXISTS(SELECT 1 FROM appointments a JOIN providers own ON own.id=a.provider_id WHERE own.user_id=$1 AND a.patient_id=cp.patient_id))::integer AS patient_count
      FROM billing_companies c
      LEFT JOIN billing_company_patients cp ON cp.company_id = c.id
-     GROUP BY c.id ORDER BY c.registered_name`
+     WHERE $1::uuid IS NULL OR EXISTS(SELECT 1 FROM billing_company_patients scoped JOIN appointments a ON a.patient_id=scoped.patient_id JOIN providers own ON own.id=a.provider_id WHERE scoped.company_id=c.id AND own.user_id=$1)
+     GROUP BY c.id ORDER BY c.registered_name`,
+    [req.user.role==='provider'?req.user.id:null]
   );
   res.json({ companies: result.rows });
 }));

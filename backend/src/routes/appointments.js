@@ -226,6 +226,7 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
             inv.payments_received, inv.outstanding_balance, inv.due_at,
             inv.billing_review, inv.billing_review_reason,
             inv.invoice_provider_id, inv.invoice_patient_id, inv.invoice_company_id, inv.invoice_billing_customer_type,
+            COALESCE(account_balance.outstanding,0) AS patient_total_outstanding,
             (inv.outstanding_balance > 0 AND (a.appointment_date + a.appointment_time) < now()) AS appointment_passed_unpaid,
             EXISTS (
               SELECT 1 FROM communication_deliveries cd
@@ -280,6 +281,11 @@ appointmentsRouter.get('/', authRequired(), asyncHandler(async (req, res) => {
        ORDER BY i.created_at DESC
        LIMIT 1
      ) inv ON true
+     LEFT JOIN LATERAL (
+       SELECT SUM(i.outstanding_balance) AS outstanding FROM invoices i
+       WHERE i.patient_id=a.patient_id AND i.provider_id=a.provider_id
+         AND i.deleted_at IS NULL AND i.status NOT IN ('Void','Credited')
+     ) account_balance ON true
      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
      ORDER BY a.appointment_date, a.appointment_time`,
     params

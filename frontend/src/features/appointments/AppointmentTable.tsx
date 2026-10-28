@@ -303,11 +303,14 @@ export default function AppointmentTable({
                     <div className="sub">
                       {a.invoice_number} · R {Number(a.outstanding_balance || 0).toFixed(2)} balance
                     </div>
+                    <div className="sub">Current invoice: R {Number(a.total_amount || 0).toFixed(2)}</div>
+                    {Number(a.patient_total_outstanding || 0) > 0 && <div className="sub"><strong>Total account outstanding: R {Number(a.patient_total_outstanding).toFixed(2)}</strong></div>}
                   </div>
                 )}
                 {user?.role !== 'patient' && !a.invoice_id && (
                   <div className="appointment-invoice-status">
                     <span className="invoice-status-badge">No invoice</span>
+                    {Number(a.patient_total_outstanding || 0) > 0 && <div className="sub"><strong>Total account outstanding: R {Number(a.patient_total_outstanding).toFixed(2)}</strong></div>}
                   </div>
                 )}
               </td>

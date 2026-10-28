@@ -77,10 +77,11 @@ async function audit(client, user, action, details) {
 }
 async function refreshInvoice(client, id) {
   const result = await client.query(
-    `SELECT i.total_amount,COALESCE((SELECT SUM(pa.amount) FROM billing_payment_allocations pa JOIN billing_payments p ON p.id=pa.payment_id WHERE pa.invoice_id=i.id AND p.status='Active'),0) paid,COALESCE((SELECT SUM(c.amount) FROM billing_credit_notes c WHERE c.invoice_id=i.id AND c.status='Issued'),0) credited,i.due_at,i.due_date FROM invoices i WHERE i.id=$1 FOR UPDATE`,
+    `SELECT i.total_amount,i.status,i.deleted_at,COALESCE((SELECT SUM(pa.amount) FROM billing_payment_allocations pa JOIN billing_payments p ON p.id=pa.payment_id WHERE pa.invoice_id=i.id AND p.status='Active'),0) paid,COALESCE((SELECT SUM(c.amount) FROM billing_credit_notes c WHERE c.invoice_id=i.id AND c.status='Issued'),0) credited,i.due_at,i.due_date FROM invoices i WHERE i.id=$1 FOR UPDATE`,
     [id],
   );
   if (!result.rows[0]) throw fail("Invoice not found");
+  if (result.rows[0].deleted_at || result.rows[0].status === "Void") return 0;
   const row = result.rows[0],
     outstanding = Math.max(
       0,
@@ -551,7 +552,7 @@ async function buildStatement(input) {
     [providerId, customerId, to],
   );
   const credits = await query(
-    `SELECT c.id,c.credit_note_number,c.credit_date::text transaction_date,c.amount,c.reason,c.status,i.invoice_number FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id WHERE c.provider_id=$1 AND ${type === "company" ? "c.company_id" : "c.patient_id"}=$2 AND c.credit_date<=$3 ORDER BY c.credit_date,c.created_at`,
+    `SELECT c.id,c.credit_note_number,c.credit_date::text transaction_date,c.amount,c.reason,c.status,i.invoice_number FROM billing_credit_notes c JOIN invoices i ON i.id=c.invoice_id WHERE c.provider_id=$1 AND i.status<>'Void' AND ${type === "company" ? "c.company_id" : "c.patient_id"}=$2 AND c.credit_date<=$3 ORDER BY c.credit_date,c.created_at`,
     [providerId, customerId, to],
   );
   const priorInvoices = invoices.rows

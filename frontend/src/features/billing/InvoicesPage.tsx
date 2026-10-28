@@ -459,7 +459,7 @@ export default function InvoicesPage() {
     }
     if (
       !window.confirm(
-        `Delete invoice ${invoice.invoice_number}? It will remain in deleted history.`,
+        `Delete invoice ${invoice.invoice_number}? It will remain in deleted history. Any active payment allocation will be retained as unallocated patient credit.`,
       )
     ) {
       return;

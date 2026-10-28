@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Field } from '../../components/ui';
 import Modal from '../../components/Modal';
@@ -18,6 +18,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     [intake, setIntake] = useState(false),
     [durationChoice, setDurationChoice] = useState('60'),
     [customDuration, setCustomDuration] = useState(''),
+    [accountOutstanding, setAccountOutstanding] = useState<number | null>(null),
     [busy, setBusy] = useState(false);
   const locations = data.locations.filter((l) => l.name !== 'Online'),
     location = locations.find((l) => l.id === locationId),
@@ -31,6 +32,14 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     ),
     provider = eligibleProviders.find((p) => p.id === providerId);
   const durationMinutes = Number(durationChoice === 'custom' ? customDuration : durationChoice);
+  useEffect(() => {
+    if (!patientId || !providerId) { setAccountOutstanding(null); return; }
+    let active = true;
+    mutate<{ outstanding: number }>(`/invoices/account-balance?patientId=${encodeURIComponent(patientId)}&providerId=${encodeURIComponent(providerId)}`, 'GET')
+      .then((result) => { if (active) setAccountOutstanding(result.outstanding); })
+      .catch(() => { if (active) setAccountOutstanding(null); });
+    return () => { active = false; };
+  }, [patientId, providerId]);
   const slotProvider = provider
     ? { ...provider, default_duration_minutes: durationMinutes }
     : undefined;
@@ -126,6 +135,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
               onChange={setPatient}
               allowCreate={user?.role === 'admin'}
             />
+            {accountOutstanding !== null && <div className={`notice ${accountOutstanding > 0 ? 'notice-warning' : ''}`}><strong>Total account outstanding: R {accountOutstanding.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><br /><span className="sub">This is the patient’s total unpaid balance with this provider, excluding the booking being created.</span></div>}
             {user?.role === 'admin' ? (
               <Field label="Provider">
                 <select

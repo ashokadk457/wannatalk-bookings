@@ -262,7 +262,7 @@ export default function InvoiceEditModal({
                       aria-label="Rate"
                       required
                       type="number"
-                      min="0.01"
+                      min="0"
                       step="0.01"
                       value={line.rate}
                       onChange={(event) => update(line.key, 'rate', event.target.value)}
@@ -302,7 +302,7 @@ export default function InvoiceEditModal({
           <footer className="invoice-workspace-footer">
             <div className="invoice-save-feedback">{error && <p role="alert">{error}</p>}</div>
             <div className="invoice-form-total">
-              <span>Revised total</span>
+              <span>{total === 0 ? 'Invoice will be voided' : 'Revised total'}</span>
               <strong>
                 R{' '}
                 {total.toLocaleString('en-ZA', {
@@ -313,7 +313,7 @@ export default function InvoiceEditModal({
             </div>
             <div className="modal-actions">
               <button className="btn" disabled={busy}>
-                {busy ? 'Saving revision…' : 'Save invoice revision'}
+                {busy ? 'Saving revision…' : total === 0 ? 'Void invoice' : 'Save invoice revision'}
               </button>
               <button type="button" className="btn secondary" onClick={onClose}>
                 Cancel

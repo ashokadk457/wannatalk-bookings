@@ -108,6 +108,7 @@ export interface Appointment {
   total_amount?: number | null;
   payments_received?: number | null;
   outstanding_balance?: number | null;
+  patient_total_outstanding?: number | null;
   due_at?: string | null;
   billing_review?: boolean;
   billing_review_reason?: string | null;

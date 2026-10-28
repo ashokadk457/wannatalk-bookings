@@ -104,6 +104,7 @@ export async function renderStoredInvoiceHtml(invoice) {
     throw error;
   }
   const issuer=invoice.issuer_snapshot||{}, customer=invoice.customer_snapshot||{};
+  const documentType=invoice.document_type==='Quote'?'Quote':'Invoice';
   const properCase = value => String(value||'').toLocaleLowerCase('en-ZA').replace(/(^|[\s'-])([\p{L}])/gu,(_,separator,letter)=>separator+letter.toLocaleUpperCase('en-ZA'));
   const rawDisplayName = customer.name || [String(invoice.patient_title || '').trim(), String(invoice.patient_name || '').trim()].filter(Boolean).join(' ');
   const displayName = customer.type === 'company' ? rawDisplayName : properCase(rawDisplayName);
@@ -111,13 +112,19 @@ export async function renderStoredInvoiceHtml(invoice) {
   const patientSummary = [properCase(invoice.patient_name), formatDateOfBirth(invoice.patient_date_of_birth)].filter(Boolean).join(' ');
   const rows = invoice.items.map((item) => `<tr>
     <td><strong>${escapeHtml(formatDate(item.service_date||item.appointment_date))} ${escapeHtml(formatTime(item.appointment_time))}</strong><br><br><span class="code">${escapeHtml(item.tariff_code||'81305')}</span></td>
-    <td class="desc"><div class="service-main">00 ${escapeHtml(patientSummary)}</div><div class="service-sub">Seen by: ${escapeHtml(item.provider_name)}</div><br><div class="service-description">Assessment, consultation, counselling and/or therapy (individual)</div></td>
-    <td class="code">${escapeHtml(item.icd10_code||'Z71.9')}</td>
+    <td class="desc"><div class="service-main">${escapeHtml(item.description||patientSummary)}</div>${item.provider_name?`<div class="service-sub">Provided by: ${escapeHtml(item.provider_name)}</div>`:''}</td>
+    <td class="code">${escapeHtml(item.quantity||'1')}</td>
     <td class="code">${escapeHtml(item.document_number||invoice.invoice_number)}</td>
-    <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
+    <td class="amount">R ${escapeHtml(formatAmount(item.rate??item.amount))}</td>
     <td class="amount">R ${escapeHtml(formatAmount(item.amount))}</td>
   </tr>`).join('');
   let html = template;
+  html=html.replace('<div class="doc-title">Invoice</div>',`<div class="doc-title">${documentType}</div>`);
+  if(documentType==='Quote'){
+    html=html.replace('<strong>Invoice No.:</strong>','<strong>Quote No.:</strong>');
+    html=html.replace('<strong>Due:</strong>','<strong>Valid until:</strong>');
+    html=html.replace('<th>Total due</th>','<th>Quote total</th>');
+  }
   html = fillPlaceholder(html, 'invoice-number', invoice.invoice_number);
   html = fillPlaceholder(html, 'invoice-issued-date', formatDate(invoice.issue_date||invoice.issued_at));
   html = fillPlaceholder(html, 'invoice-due-date', formatDate(invoice.due_date));

@@ -9,6 +9,7 @@ export default function BillingNav() {
         <NavLink to="/provider/billing/overview">Overview</NavLink>
         <NavLink to="/provider/billing/profile">Billing &amp; bank details</NavLink>
         <NavLink to="/provider/billing/invoices">Invoices</NavLink>
+        <NavLink to="/provider/billing/quotes">Quotes</NavLink>
         <NavLink to="/provider/billing/outstanding">Outstanding</NavLink>
         <NavLink to="/provider/billing/statements">Statements</NavLink>
       </nav>
@@ -21,6 +22,7 @@ export default function BillingNav() {
       <NavLink to="/admin/billing/default-bank">Default Bank</NavLink>
       <NavLink to="/admin/billing/companies">Financially Responsible Party</NavLink>
       <NavLink to="/admin/billing/invoices">Invoices</NavLink>
+      <NavLink to="/admin/billing/quotes">Quotes</NavLink>
       <NavLink to="/admin/billing/outstanding">Outstanding</NavLink>
       <NavLink to="/admin/billing/statements">Statements</NavLink>
       <NavLink to="/admin/billing/payments">Payments</NavLink>
