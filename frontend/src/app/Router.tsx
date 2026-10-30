@@ -71,6 +71,7 @@ export default function Router() {
           <Route index element={<Navigate to="book" replace />} />
           <Route path="book" element={<Book />} />
           <Route path="appointments" element={<PatientAppointments />} />
+          <Route path="billing/statements" element={<BillingStatements />} />
           <Route path="waiting" element={<Waiting />} />
           <Route path="profile" element={<Profile />} />
         </Route>

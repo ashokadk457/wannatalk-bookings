@@ -317,6 +317,9 @@ export default function AppointmentTable({
               <td>
                 <div className="actions">
                   {joinAllowed(a) && <MeetingLink url={a.meeting_url} />}
+                  <button className="btn secondary small appointment-icon-action" data-tooltip="View statement" aria-label="View statement" onClick={() => navigate(`/${user?.role}/billing/statements`, { state: { providerId: a.provider_id, customerId: a.patient_id, customerType: 'patient' } })}>
+                    <ActionIcon type="invoice" done />
+                  </button>
                   {user?.role !== 'patient' && (
                     <button
                       className="btn secondary small appointment-icon-action"

@@ -515,8 +515,16 @@ billingLedgerRouter.post(
   }),
 );
 
-async function assertStatementAccess(user, providerId) {
+async function assertStatementAccess(user, providerId, customerId) {
   if (user.role === "admin") return;
+  if (user.role === "patient") {
+    const ownedPatient = await query(`SELECT 1 FROM patients WHERE id=$1 AND user_id=$2`, [customerId, user.id]);
+    const linked = await query(`SELECT 1 FROM appointments WHERE provider_id=$1 AND patient_id=$2 LIMIT 1`, [providerId, customerId]);
+    if (ownedPatient.rows[0] && linked.rows[0]) return;
+    const error = new Error("Not allowed to access this statement");
+    error.statusCode = 403;
+    throw error;
+  }
   const owned = await query(
     `SELECT 1 FROM providers WHERE id=$1 AND user_id=$2`,
     [providerId, user.id],
@@ -700,17 +708,17 @@ function statementHtml(s) {
 }
 billingLedgerRouter.get(
   "/statements",
-  authRequired(["admin", "provider"]),
+  authRequired(["admin", "provider", "patient"]),
   asyncHandler(async (req, res) => {
-    await assertStatementAccess(req.user, String(req.query.providerId || ""));
+    await assertStatementAccess(req.user, String(req.query.providerId || ""), String(req.query.customerId || ""));
     res.json({ statement: await buildStatement(req.query) });
   }),
 );
 billingLedgerRouter.get(
   "/statements/pdf",
-  authRequired(["admin", "provider"]),
+  authRequired(["admin", "provider", "patient"]),
   asyncHandler(async (req, res) => {
-    await assertStatementAccess(req.user, String(req.query.providerId || ""));
+    await assertStatementAccess(req.user, String(req.query.providerId || ""), String(req.query.customerId || ""));
     const s = await buildStatement(req.query);
     const passwordDetails = await statementPdfPassword(req.query);
     const pdf = await passwordProtectPdf(

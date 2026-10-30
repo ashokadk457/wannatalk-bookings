@@ -38,6 +38,7 @@ export interface BusyTime {
   end_time: string;
 }
 export interface LocationAvailability extends Availability { location_id: string; location_name: string; }
+export interface AvailabilityTemplate { id: string; name: string; weekly_availability: Availability[]; is_active: boolean; created_at?: string; updated_at?: string; }
 export interface UnavailableDay { id: string; location_id: string | null; unavailable_date: string; reason: string | null; }
 export interface UnavailableSlot extends UnavailableDay { start_time: string; end_time: string; }
 export interface Provider {
@@ -63,6 +64,7 @@ export interface Provider {
   blocks: TimeBlock[];
   busy: BusyTime[];
   locationAvailability?: LocationAvailability[];
+  templates?: AvailabilityTemplate[];
   unavailableDays?: UnavailableDay[];
   unavailableSlots?: UnavailableSlot[];
 }

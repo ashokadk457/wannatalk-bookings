@@ -68,12 +68,6 @@ export async function assertProviderAvailable(client, { providerId, locationId =
     error.statusCode = 404;
     throw error;
   }
-  if (isOnlineMode(mode) && !provider.rows[0].is_online) {
-    const error = new Error('This provider is not accepting online bookings');
-    error.statusCode = 409;
-    throw error;
-  }
-
   let isOnlineLocation = false;
   if (locationId) {
     const location = await client.query(`SELECT name FROM locations WHERE id = $1`, [locationId]);
@@ -83,16 +77,19 @@ export async function assertProviderAvailable(client, { providerId, locationId =
       throw error;
     }
     isOnlineLocation = String(location.rows[0].name).toLowerCase() === 'online';
-    if (isOnlineLocation && !provider.rows[0].is_online) {
-      const error = new Error('This provider is not accepting online bookings');
-      error.statusCode = 409;
-      throw error;
-    }
   }
 
   const onlineBooking = isOnlineMode(mode) || isOnlineLocation;
   const availabilityLocationId = onlineBooking ? null : locationId;
   let hasLocationSchedule = false;
+  if (onlineBooking) {
+    const onlineSchedule = await client.query(`SELECT is_available, start_time, end_time,
+      (is_available = true AND start_time <= $3::time AND end_time >= ($3::time + ($4 * interval '1 minute'))::time) AS slot_allowed
+      FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id
+      WHERE pla.provider_id=$1 AND lower(l.name)='online' AND pla.day_of_week=EXTRACT(DOW FROM $2::date)::integer`, [providerId, appointmentDate, appointmentTime, duration]);
+    hasLocationSchedule = Boolean(onlineSchedule.rows[0]);
+    if (!onlineSchedule.rows[0]?.slot_allowed) { const error = new Error('The provider is not accepting online bookings on this day and time'); error.statusCode = 409; throw error; }
+  }
   if (locationId) {
     if (!onlineBooking) {
       const locationSchedule = await client.query(`SELECT is_available, start_time, end_time,

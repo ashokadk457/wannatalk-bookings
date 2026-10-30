@@ -44,6 +44,8 @@ export const joinAllowed = (a: Appointment) =>
   !['Cancelled', 'No-show'].includes(a.status) &&
   Boolean(a.meeting_url);
 export const occupiesSlot = (a: Appointment) => !['Cancelled', 'No-show'].includes(a.status);
+export const onlineAvailableOn = (provider: Provider, date: string) =>
+  Boolean(provider.locationAvailability?.some((a) => a.location_name.toLowerCase() === 'online' && a.day_of_week === dateOf(date).getDay() && a.is_available));
 export const statusClass = (status: string) => status.toLowerCase();
 export const initials = (name: string) =>
   name
@@ -64,7 +66,7 @@ export function slotProblem(
   if (isPast(date, time)) return 'Past dates and times cannot be booked';
   if (!provider.is_active) return 'This provider is inactive';
   const locationAvailability =
-    locationName && locationName.toLowerCase() !== 'online'
+    locationName
       ? provider.locationAvailability?.find(
           (a) => a.location_name === locationName && a.day_of_week === dateOf(date).getDay(),
         )
@@ -140,7 +142,7 @@ export function slotProblem(
 }
 export function providerTimes(provider: Provider, date: string, locationName?: string) {
   const locationAvailability =
-    locationName && locationName.toLowerCase() !== 'online'
+    locationName
       ? provider.locationAvailability?.find(
           (a) => a.location_name === locationName && a.day_of_week === dateOf(date).getDay(),
         )
