@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { addMonths, isoDate, providerTimes, slotProblem } from '../lib/dates';
+import { addMonths, isoDate, onlineAllowedAtLocation, providerTimes, slotProblem } from '../lib/dates';
 import type { Appointment, Provider } from '../types';
 const provider: Provider = {
   id: 'provider-1',
@@ -11,7 +11,7 @@ const provider: Provider = {
   default_duration_minutes: 60,
   bio: '',
   is_online: false,
-  locations: ['Online'],
+  locations: ['Centurion'],
   blocks: [],
   busy: [],
   availability: [{ day_of_week: 1, is_available: true, start_time: '09:00', end_time: '12:00' }],
@@ -51,22 +51,24 @@ describe('Booking rules', () => {
     expect(slotProblem(twoHourProvider, '2027-01-04', '10:00', [appointment])).toContain('taken');
     expect(slotProblem(twoHourProvider, '2027-01-04', '12:00', [appointment])).toBeNull();
   });
-  it('uses shared weekly hours for Online instead of location-specific hours', () => {
+  it('uses the selected location weekly hours and online switch', () => {
     const p = {
       ...provider,
-      is_online: true,
       locationAvailability: [
         {
-          location_id: 'online-location',
-          location_name: 'Online',
+          location_id: 'centurion-location',
+          location_name: 'Centurion',
           day_of_week: 1,
           is_available: true,
+          online_booking_enabled: true,
           start_time: '14:00',
           end_time: '16:00',
         },
       ],
     };
-    expect(providerTimes(p, '2027-01-04', 'Online')).toEqual(['09:00', '10:00', '11:00']);
+    expect(providerTimes(p, '2027-01-04', 'Centurion')).toEqual(['14:00', '15:00']);
+    expect(onlineAllowedAtLocation(p, '2027-01-04', 'Centurion')).toBe(true);
+    expect(onlineAllowedAtLocation(p, '2027-01-05', 'Centurion')).toBe(false);
   });
   it('does not make an offline provider unavailable', () => {
     vi.setSystemTime(new Date('2027-01-01T10:00:00'));
