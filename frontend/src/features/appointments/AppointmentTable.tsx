@@ -27,7 +27,7 @@ function ActionIcon({
   type,
   done = false,
 }: {
-  type: 'message' | 'invoice' | 'payment' | 'money' | 'followup';
+  type: 'message' | 'invoice' | 'payment' | 'money' | 'followup' | 'statement';
   done?: boolean;
 }) {
   const tone = done ? '#079b4b' : '#c52227';
@@ -114,6 +114,13 @@ function ActionIcon({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+      </svg>
+    );
+  if (type === 'statement')
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="12" fill={tone} />
+        <path d="M7.5 5.5h6l3 3V18.5h-9zM13.5 5.8v3h2.8M9.5 12h5M9.5 14.8h5" fill="none" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   return (
@@ -371,6 +378,16 @@ export default function AppointmentTable({
                         </button>
                       )}
                     </>
+                  )}
+                  {user?.role !== 'patient' && (
+                    <button
+                      className="btn secondary small appointment-icon-action"
+                      data-tooltip="View patient statement"
+                      aria-label="View patient statement"
+                      onClick={() => navigate(`/${user?.role}/billing/statements?providerId=${encodeURIComponent(a.provider_id)}&customerType=patient&customerId=${encodeURIComponent(a.patient_id)}`)}
+                    >
+                      <ActionIcon type="statement" />
+                    </button>
                   )}
                   {user?.role !== 'patient' && (
                     <button
