@@ -228,6 +228,44 @@ providersRouter.put('/:id/location-availability', authRequired(['provider', 'adm
   res.json({ ok: true });
 });
 
+async function assertProviderScheduleAccess(user, providerId) {
+  if (user.role === 'admin') return;
+  const owner = await query(`SELECT id FROM providers WHERE id=$1 AND user_id=$2`, [providerId, user.id]);
+  if (!owner.rows[0]) throw Object.assign(new Error('Not allowed'), { statusCode: 403 });
+}
+function templateRows(input) {
+  const rows = Array.isArray(input) ? input : [];
+  if (rows.length !== 7 || new Set(rows.map((row) => Number(row.dayOfWeek))).size !== 7) throw Object.assign(new Error('All seven weekly template days are required'), { statusCode: 400 });
+  return rows.map((row) => ({ day: Number(row.dayOfWeek), locationId: row.locationId || null, available: Boolean(row.isAvailable), online: Boolean(row.onlineBookingEnabled), start: String(row.startTime || ''), end: String(row.endTime || '') }));
+}
+async function saveWeeklyTemplate(client, providerId, templateId, rows) {
+  await client.query(`DELETE FROM provider_weekly_schedule_template_rows WHERE template_id=$1`, [templateId]);
+  for (const row of rows) {
+    if (!Number.isInteger(row.day) || row.day < 0 || row.day > 6 || !/^\d\d:\d\d/.test(row.start) || !/^\d\d:\d\d/.test(row.end) || row.end <= row.start || (row.available && !row.locationId)) throw Object.assign(new Error('Each available template day needs a location and valid time interval'), { statusCode: 400 });
+    if (row.locationId) {
+      const location = await client.query(`SELECT name FROM locations WHERE id=$1 AND is_active=true`, [row.locationId]);
+      if (!location.rows[0] || String(location.rows[0].name).toLowerCase() === 'online') throw Object.assign(new Error('Templates must use physical practice locations'), { statusCode: 400 });
+    }
+    await client.query(`INSERT INTO provider_weekly_schedule_template_rows(template_id,day_of_week,location_id,is_available,online_booking_enabled,start_time,end_time) VALUES($1,$2,$3,$4,$5,$6,$7)`, [templateId,row.day,row.locationId,row.available,row.available && row.online,row.start,row.end]);
+  }
+}
+providersRouter.get('/:id/weekly-templates', authRequired(['provider', 'admin']), async (req,res,next) => { try {
+  await assertProviderScheduleAccess(req.user, req.params.id);
+  const result=await query(`SELECT t.id,t.name,t.created_at,t.updated_at,COALESCE(json_agg(json_build_object('dayOfWeek',r.day_of_week,'locationId',r.location_id,'isAvailable',r.is_available,'onlineBookingEnabled',r.online_booking_enabled,'startTime',r.start_time::text,'endTime',r.end_time::text) ORDER BY r.day_of_week) FILTER(WHERE r.template_id IS NOT NULL),'[]') rows FROM provider_weekly_schedule_templates t LEFT JOIN provider_weekly_schedule_template_rows r ON r.template_id=t.id WHERE t.provider_id=$1 GROUP BY t.id ORDER BY t.updated_at DESC,t.name`,[req.params.id]);
+  res.json({templates:result.rows});
+} catch(error){next(error);} });
+providersRouter.post('/:id/weekly-templates', authRequired(['provider', 'admin']), async (req,res,next) => { try {
+  await assertProviderScheduleAccess(req.user, req.params.id); const name=String(req.body.name||'').trim().slice(0,80); if(!name) throw Object.assign(new Error('Enter a template name'),{statusCode:400}); const rows=templateRows(req.body.rows);
+  const template=await withTransaction(async client=>{const saved=await client.query(`INSERT INTO provider_weekly_schedule_templates(provider_id,name,created_by_user_id) VALUES($1,$2,$3) RETURNING id,name,created_at,updated_at`,[req.params.id,name,req.user.id]);await saveWeeklyTemplate(client,req.params.id,saved.rows[0].id,rows);return saved.rows[0];}); res.status(201).json({template});
+} catch(error){next(error);} });
+providersRouter.put('/:id/weekly-templates/:templateId', authRequired(['provider', 'admin']), async (req,res,next) => { try {
+  await assertProviderScheduleAccess(req.user, req.params.id); const rows=templateRows(req.body.rows);
+  await withTransaction(async client=>{const found=await client.query(`SELECT id FROM provider_weekly_schedule_templates WHERE id=$1 AND provider_id=$2 FOR UPDATE`,[req.params.templateId,req.params.id]);if(!found.rows[0])throw Object.assign(new Error('Weekly template not found'),{statusCode:404});await saveWeeklyTemplate(client,req.params.id,req.params.templateId,rows);await client.query(`UPDATE provider_weekly_schedule_templates SET updated_at=now() WHERE id=$1`,[req.params.templateId]);});res.json({ok:true});
+} catch(error){next(error);} });
+providersRouter.delete('/:id/weekly-templates/:templateId', authRequired(['provider', 'admin']), async (req,res,next) => { try {
+  await assertProviderScheduleAccess(req.user, req.params.id); const result=await query(`DELETE FROM provider_weekly_schedule_templates WHERE id=$1 AND provider_id=$2 RETURNING id`,[req.params.templateId,req.params.id]);if(!result.rows[0])return res.status(404).json({error:'Weekly template not found'});res.status(204).end();
+} catch(error){next(error);} });
+
 providersRouter.post('/:id/unavailable', authRequired(['provider', 'admin']), async (req, res) => {
   if (req.user.role === 'provider' && !(await query(`SELECT id FROM providers WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])).rows[0]) return res.status(403).json({ error: 'Not allowed' });
   const locationId = null, date = String(req.body.date || ''), startTime = req.body.startTime || null, endTime = req.body.endTime || null, reason = String(req.body.reason || '').slice(0, 200);

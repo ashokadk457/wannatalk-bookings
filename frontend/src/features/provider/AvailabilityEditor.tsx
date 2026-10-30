@@ -1,9 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Card, Field } from '../../components/ui';
 import { days, minutes, shortTime, today } from '../../lib/dates';
-import { mutate } from '../../services/api';
+import { api, mutate } from '../../services/api';
 import type { Provider } from '../../types';
+
+interface WeeklyTemplate { id:string; name:string; updated_at:string; rows:Array<{dayOfWeek:number;locationId:string|null;isAvailable:boolean;onlineBookingEnabled:boolean;startTime:string;endTime:string}> }
 
 export default function AvailabilityEditor({ provider }: { provider: Provider }) {
   const { data, run, refresh, notify } = useApp();
@@ -31,6 +33,7 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
   const [duration, setDuration] = useState(provider.default_duration_minutes);
   const [rows, setRows] = useState(initialRows),
     [busy, setBusy] = useState(false);
+  const [templates,setTemplates]=useState<WeeklyTemplate[]>([]),[selectedTemplate,setSelectedTemplate]=useState('');
   const [from, setFrom] = useState(''),
     [to, setTo] = useState(''),
     [start, setStart] = useState(''),
@@ -38,6 +41,13 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
     [reason, setReason] = useState('');
   const change = (day: number, patch: Partial<(typeof rows)[number]>) =>
     setRows((value) => value.map((row) => (row.dayOfWeek === day ? { ...row, ...patch } : row)));
+  const loadTemplates=async()=>{try{const result=await api<{templates:WeeklyTemplate[]}>(`/providers/${provider.id}/weekly-templates`);setTemplates(result.templates);}catch(error){notify(error instanceof Error?error.message:'Unable to load weekly templates');}};
+  useEffect(()=>{void loadTemplates();},[provider.id]);
+  const templateRows=()=>rows.map(row=>({dayOfWeek:row.dayOfWeek,locationId:row.locationId||null,isAvailable:row.isAvailable,onlineBookingEnabled:row.onlineBookingEnabled,startTime:row.startTime,endTime:row.endTime}));
+  async function saveTemplate(){const name=window.prompt('Name this weekly schedule template (for example, Standard practice week):');if(!name?.trim())return;await run(async()=>{await mutate(`/providers/${provider.id}/weekly-templates`,'POST',{name:name.trim(),rows:templateRows()});await loadTemplates();},'Weekly template saved');}
+  function applyTemplate(){const template=templates.find(x=>x.id===selectedTemplate);if(!template)return;setRows(template.rows.map(row=>({dayOfWeek:row.dayOfWeek,locationId:row.locationId||locations[0]?.id||'',isAvailable:row.isAvailable,onlineBookingEnabled:row.onlineBookingEnabled,startTime:shortTime(row.startTime),endTime:shortTime(row.endTime)})));notify(`Applied “${template.name}”. Save weekly schedule to publish it.`);}
+  async function overwriteTemplate(){const template=templates.find(x=>x.id===selectedTemplate);if(!template)return; if(!window.confirm(`Replace “${template.name}” with the current weekly schedule?`))return;await run(async()=>{await mutate(`/providers/${provider.id}/weekly-templates/${template.id}`,'PUT',{rows:templateRows()});await loadTemplates();},'Weekly template updated');}
+  async function deleteTemplate(){const template=templates.find(x=>x.id===selectedTemplate);if(!template)return;if(!window.confirm(`Delete weekly template “${template.name}”?`))return;await run(async()=>{await mutate(`/providers/${provider.id}/weekly-templates/${template.id}`,'DELETE');setSelectedTemplate('');await loadTemplates();},'Weekly template deleted');}
   async function saveWeekly(e: FormEvent) {
     e.preventDefault();
     if (
@@ -170,6 +180,10 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
       </div>
       {tab === 'weekly' ? (
         <form onSubmit={saveWeekly}>
+          <section className="weekly-template-library" aria-label="Weekly schedule templates">
+            <div className="weekly-template-copy"><strong>Weekly template library</strong><span>Reuse a proven weekly pattern, then save your schedule when ready.</span></div>
+            <div className="weekly-template-controls"><select aria-label="Weekly schedule template" value={selectedTemplate} onChange={e=>setSelectedTemplate(e.target.value)}><option value="">Choose a saved template</option>{templates.map(template=><option key={template.id} value={template.id}>{template.name}</option>)}</select><button type="button" className="btn secondary small" disabled={!selectedTemplate} onClick={applyTemplate}>Apply</button><button type="button" className="btn secondary small" onClick={()=>void saveTemplate()}>Save as new</button>{selectedTemplate&&<><button type="button" className="btn secondary small" onClick={()=>void overwriteTemplate()}>Update</button><button type="button" className="btn danger small" onClick={()=>void deleteTemplate()}>Delete</button></>}</div>
+          </section>
           <div className="notice">
             Select the physical location where this provider works on each weekday. Enable online
             booking only for the days and locations where it may use the same time interval.
@@ -217,16 +231,6 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
                     </td>
                     <td>
                       <input
-                        type="checkbox"
-                        role="switch"
-                        aria-label={`${days[row.dayOfWeek]} online booking`}
-                        disabled={!row.isAvailable}
-                        checked={row.onlineBookingEnabled}
-                        onChange={(e) => change(row.dayOfWeek, { onlineBookingEnabled: e.target.checked })}
-                      />
-                    </td>
-                    <td>
-                      <input
                         disabled={!row.isAvailable}
                         type="time"
                         value={row.endTime}
@@ -243,6 +247,9 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
                           })
                         }
                       />
+                    </td>
+                    <td>
+                      <input type="checkbox" role="switch" aria-label={`${days[row.dayOfWeek]} online booking`} disabled={!row.isAvailable} checked={row.onlineBookingEnabled} onChange={(e) => change(row.dayOfWeek, { onlineBookingEnabled: e.target.checked })} />
                     </td>
                   </tr>
                 ))}

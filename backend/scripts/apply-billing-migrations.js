@@ -14,6 +14,7 @@ const migrations = [
   '033_statement_download_links.sql',
   '034_quotes.sql',
   '035_weekly_online_booking.sql',
+  '036_weekly_schedule_templates.sql',
 ];
 
 try {

@@ -2494,8 +2494,10 @@ table input[type='radio'] {
 }
 .availability-duration-bar > div { display: grid; gap: 3px; }
 .availability-duration-bar select { min-height: 38px; }
+.weekly-template-library{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;padding:14px 16px;border:1px solid #cfe5da;border-radius:13px;background:linear-gradient(135deg,#f7fcf9,#edf8f2)}.weekly-template-copy{display:grid;gap:3px}.weekly-template-copy strong{color:#075f49}.weekly-template-copy span{color:var(--muted);font-size:12px}.weekly-template-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.weekly-template-controls select{min-width:210px;min-height:36px}
 @media (max-width: 720px) {
   .availability-duration-bar { grid-template-columns: 1fr; align-items: stretch; }
+  .weekly-template-library{align-items:stretch;flex-direction:column}.weekly-template-controls{justify-content:stretch}.weekly-template-controls select{width:100%}
 }
 .dashboard-primary-action {
   display: flex;
