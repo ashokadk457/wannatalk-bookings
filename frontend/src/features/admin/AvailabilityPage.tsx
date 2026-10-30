@@ -34,7 +34,11 @@ export default function AvailabilityPage() {
                   {p.full_name}
                   {p.professional_title ? ` — ${p.professional_title}` : ''}
                   {' · '}
-                  {!p.is_active ? 'Inactive' : 'Configured per day'}
+                  {!p.is_active
+                    ? 'Inactive'
+                    : p.is_online
+                      ? 'Online bookings enabled'
+                      : 'Online bookings disabled'}
                 </option>
               ))}
             </select>
@@ -53,9 +57,13 @@ export default function AvailabilityPage() {
                 </div>
               </div>
               <span
-                className={`status ${!provider.is_active ? 'cancelled' : 'confirmed'}`}
+                className={`status ${!provider.is_active ? 'cancelled' : provider.is_online ? 'confirmed' : 'completed'}`}
               >
-                {!provider.is_active ? 'Inactive' : 'Online settings are day-wise'}
+                {!provider.is_active
+                  ? 'Inactive'
+                  : provider.is_online
+                    ? 'Online bookings enabled'
+                    : 'Online bookings disabled'}
               </span>
             </div>
             <span className="pill">

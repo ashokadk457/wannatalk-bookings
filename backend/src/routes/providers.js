@@ -176,7 +176,7 @@ providersRouter.get('/', authRequired(), async (req, res) => {
 });
 
 providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
-  const [availabilityResult, blocksResult, busyResult, locationAvailabilityResult, unavailableDaysResult, unavailableSlotsResult, templatesResult] = await Promise.all([
+  const [availabilityResult, blocksResult, busyResult, locationAvailabilityResult, unavailableDaysResult, unavailableSlotsResult] = await Promise.all([
     query(
       `SELECT day_of_week, is_available, start_time, end_time
        FROM provider_availability
@@ -204,40 +204,8 @@ providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
     query(`SELECT pla.provider_id, pla.location_id, l.name AS location_name, pla.day_of_week, pla.is_available, pla.start_time, pla.end_time FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id WHERE pla.provider_id = $1 ORDER BY pla.location_id, pla.day_of_week`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, reason FROM provider_unavailable_days WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, start_time, end_time, reason FROM provider_unavailable_slots WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date, start_time`, [req.params.id]),
-    query(`SELECT id, name, weekly_availability, is_active, created_at, updated_at FROM provider_availability_templates WHERE provider_id = $1 ORDER BY name`, [req.params.id]),
   ]);
-  res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows, locationAvailability: locationAvailabilityResult.rows, unavailableDays: unavailableDaysResult.rows, unavailableSlots: unavailableSlotsResult.rows, templates: templatesResult.rows });
-});
-
-providersRouter.post('/:id/availability-templates', authRequired(['provider', 'admin']), async (req, res) => {
-  const name = String(req.body.name || '').trim().slice(0, 100);
-  const weeklyAvailability = req.body.weeklyAvailability;
-  if (!name || !Array.isArray(weeklyAvailability) || weeklyAvailability.length !== 7) return res.status(400).json({ error: 'Template name and seven weekly days are required' });
-  if (req.user.role === 'provider' && !(await query(`SELECT id FROM providers WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])).rows[0]) return res.status(403).json({ error: 'Not allowed' });
-  const result = await query(`INSERT INTO provider_availability_templates(provider_id,name,weekly_availability) VALUES($1,$2,$3::jsonb) RETURNING id,name,weekly_availability,is_active,created_at,updated_at`, [req.params.id, name, JSON.stringify(weeklyAvailability)]);
-  res.status(201).json({ template: result.rows[0] });
-});
-
-providersRouter.patch('/:id/availability-templates/:templateId/active', authRequired(['provider', 'admin']), async (req, res) => {
-  if (req.user.role === 'provider' && !(await query(`SELECT id FROM providers WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])).rows[0]) return res.status(403).json({ error: 'Not allowed' });
-  const result = await withTransaction(async (client) => {
-    const found = await client.query(`SELECT id, weekly_availability FROM provider_availability_templates WHERE id=$1 AND provider_id=$2`, [req.params.templateId, req.params.id]);
-    if (!found.rows[0]) return null;
-    await client.query(`UPDATE provider_availability_templates SET is_active=false, updated_at=now() WHERE provider_id=$1`, [req.params.id]);
-    await client.query(`UPDATE provider_availability_templates SET is_active=true, updated_at=now() WHERE id=$1`, [req.params.templateId]);
-    for (const item of (Array.isArray(found.rows[0].weekly_availability) ? found.rows[0].weekly_availability : [])) {
-      const day = Number(item.dayOfWeek ?? item.day_of_week);
-      const start = item.startTime ?? item.start_time;
-      const end = item.endTime ?? item.end_time;
-      await client.query(`INSERT INTO provider_availability(provider_id,day_of_week,is_available,start_time,end_time) VALUES($1,$2,$3,$4,$5) ON CONFLICT(provider_id,day_of_week) DO UPDATE SET is_available=EXCLUDED.is_available,start_time=EXCLUDED.start_time,end_time=EXCLUDED.end_time,updated_at=now()`, [req.params.id, day, Boolean(item.isAvailable ?? item.is_available), start, end]);
-      if (item.locationId) await client.query(`INSERT INTO provider_location_availability(provider_id,location_id,day_of_week,is_available,start_time,end_time) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(provider_id,location_id,day_of_week) DO UPDATE SET is_available=EXCLUDED.is_available,start_time=EXCLUDED.start_time,end_time=EXCLUDED.end_time`, [req.params.id, item.locationId, day, Boolean(item.isAvailable ?? item.is_available), start, end]);
-      const onlineLocation = await client.query(`SELECT id FROM locations WHERE lower(name)='online' AND is_active=true LIMIT 1`);
-      if (onlineLocation.rows[0]) await client.query(`INSERT INTO provider_location_availability(provider_id,location_id,day_of_week,is_available,start_time,end_time) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(provider_id,location_id,day_of_week) DO UPDATE SET is_available=EXCLUDED.is_available,start_time=EXCLUDED.start_time,end_time=EXCLUDED.end_time`, [req.params.id, onlineLocation.rows[0].id, day, Boolean(item.onlineAvailable), start, end]);
-    }
-    return found.rows[0];
-  });
-  if (!result) return res.status(404).json({ error: 'Template not found' });
-  res.json({ ok: true, template: result });
+  res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows, locationAvailability: locationAvailabilityResult.rows, unavailableDays: unavailableDaysResult.rows, unavailableSlots: unavailableSlotsResult.rows });
 });
 
 providersRouter.put('/:id/location-availability', authRequired(['provider', 'admin']), async (req, res) => {
@@ -248,6 +216,7 @@ providersRouter.put('/:id/location-availability', authRequired(['provider', 'adm
   await withTransaction(async (client) => {
     const location = await client.query(`SELECT id, name FROM locations WHERE id = $1 AND is_active = true`, [locationId]);
     if (!location.rows[0]) throw Object.assign(new Error('Active location not found'), { statusCode: 404 });
+    if (String(location.rows[0].name).toLowerCase() === 'online') throw Object.assign(new Error('Online booking is controlled by the provider-level switch'), { statusCode: 400 });
     if (availability.some((item) => Boolean(item.isAvailable))) {
       await client.query(`INSERT INTO provider_locations (provider_id, location_id) VALUES ($1, $2) ON CONFLICT (provider_id, location_id) DO NOTHING`, [req.params.id, locationId]);
     }

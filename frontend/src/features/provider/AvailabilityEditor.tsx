@@ -7,7 +7,7 @@ import type { Provider } from '../../types';
 
 export default function AvailabilityEditor({ provider }: { provider: Provider }) {
   const { data, run, refresh, notify } = useApp();
-  const locations = data.locations;
+  const locations = data.locations.filter((location) => location.name !== 'Online');
   const initialRows = useMemo(
     () =>
       days.map((_, day) => {
@@ -16,20 +16,19 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
             entry.day_of_week === day && entry.is_available && entry.location_name !== 'Online',
         );
         const fallback = provider.availability.find((entry) => entry.day_of_week === day);
-        const online = provider.locationAvailability?.find((entry) => entry.day_of_week === day && entry.location_name === 'Online');
         return {
           dayOfWeek: day,
           locationId: saved?.location_id || locations[0]?.id || '',
           isAvailable: saved?.is_available ?? fallback?.is_available ?? false,
           startTime: shortTime(saved?.start_time || fallback?.start_time || '09:00'),
           endTime: shortTime(saved?.end_time || fallback?.end_time || '17:00'),
-          onlineAvailable: Boolean(online?.is_available),
         };
       }),
     [locations, provider.availability, provider.locationAvailability],
   );
   const [tab, setTab] = useState<'weekly' | 'unavailable'>('weekly');
   const [duration, setDuration] = useState(provider.default_duration_minutes);
+  const [acceptOnline, setAcceptOnline] = useState(provider.is_online);
   const [rows, setRows] = useState(initialRows),
     [busy, setBusy] = useState(false);
   const [from, setFrom] = useState(''),
@@ -64,7 +63,7 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
             locationId: location.id,
             availability: rows.map((row) => ({
               dayOfWeek: row.dayOfWeek,
-              isAvailable: location.name === 'Online' ? row.onlineAvailable : row.isAvailable && row.locationId === location.id,
+              isAvailable: row.isAvailable && row.locationId === location.id,
               startTime: row.startTime,
               endTime: row.endTime,
             })),
@@ -75,13 +74,16 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
     }, 'Weekly schedule saved');
     setBusy(false);
   }
-  const [templateName, setTemplateName] = useState('');
-  async function saveTemplate() {
-    if (!templateName.trim()) return notify('Enter a template name');
-    await run(async () => { await mutate(`/providers/${provider.id}/availability-templates`, 'POST', { name: templateName.trim(), weeklyAvailability: rows }); await refresh(); setTemplateName(''); }, 'Weekly template created');
-  }
-  async function activateTemplate(id: string) {
-    await run(async () => { await mutate(`/providers/${provider.id}/availability-templates/${id}/active`, 'PATCH', {}); await refresh(); }, 'Weekly template activated');
+  async function toggleOnline(enabled: boolean) {
+    setAcceptOnline(enabled);
+    const ok = await run(
+      async () => {
+        await mutate(`/providers/${provider.id}/status`, 'PATCH', { isOnline: enabled });
+        await refresh();
+      },
+      enabled ? 'Online bookings enabled' : 'Online bookings disabled',
+    );
+    if (!ok) setAcceptOnline(provider.is_online);
   }
   async function saveDuration() {
     await run(async () => {
@@ -142,9 +144,23 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
   }
   return (
     <Card>
-      {/* Online booking is configured per weekday below. */}
-      <div className="availability-duration-bar"><div><strong>Weekly templates</strong><span className="sub">Save schedules and activate one template at a time.</span></div><input aria-label="Template name" placeholder="Template name" value={templateName} onChange={(e) => setTemplateName(e.target.value)} /><button type="button" className="btn secondary small" onClick={() => void saveTemplate()}>Create template</button></div>
-      {!!provider.templates?.length && <div className="template-list">{provider.templates.map((template) => <div className="detail-row" key={template.id}><span>{template.name}{template.is_active ? ' · Active' : ''}</span><button type="button" className="btn secondary small" disabled={template.is_active} onClick={() => void activateTemplate(template.id)}>{template.is_active ? 'Active' : 'Use template'}</button></div>)}</div>}
+      <label className="online-booking-control">
+        <span>
+          <strong>Accept online bookings</strong>
+          <small>
+            Enable Online as a bookable option. Practice-location schedules remain available when
+            this is off.
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Accept online bookings"
+          checked={acceptOnline}
+          onChange={(event) => void toggleOnline(event.target.checked)}
+        />
+        <span className="online-booking-switch" aria-hidden="true" />
+      </label>
       <div className="availability-duration-bar">
         <div>
           <strong>Default slot duration</strong>
@@ -182,7 +198,8 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
       {tab === 'weekly' ? (
         <form onSubmit={saveWeekly}>
           <div className="notice">
-            Select the physical location and whether online booking is accepted on each weekday.
+            Select the physical location where this provider works on each weekday. Online booking
+            is controlled separately above and uses these same weekly hours.
           </div>
           <div className="dashboard-table">
             <table>
@@ -192,7 +209,6 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
                   <th>Location</th>
                   <th>Start time</th>
                   <th>End time</th>
-                  <th>Online</th>
                   <th>Available</th>
                 </tr>
               </thead>
@@ -224,9 +240,6 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
                         value={row.startTime}
                         onChange={(e) => change(row.dayOfWeek, { startTime: e.target.value })}
                       />
-                    </td>
-                    <td>
-                      <input type="checkbox" role="switch" aria-label={`${days[row.dayOfWeek]} online bookings`} checked={row.onlineAvailable} onChange={(e) => change(row.dayOfWeek, { onlineAvailable: e.target.checked })} />
                     </td>
                     <td>
                       <input

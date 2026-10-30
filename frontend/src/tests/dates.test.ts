@@ -51,7 +51,7 @@ describe('Booking rules', () => {
     expect(slotProblem(twoHourProvider, '2027-01-04', '10:00', [appointment])).toContain('taken');
     expect(slotProblem(twoHourProvider, '2027-01-04', '12:00', [appointment])).toBeNull();
   });
-  it('uses the day-wise Online location schedule', () => {
+  it('uses shared weekly hours for Online instead of location-specific hours', () => {
     const p = {
       ...provider,
       is_online: true,
@@ -66,7 +66,7 @@ describe('Booking rules', () => {
         },
       ],
     };
-    expect(providerTimes(p, '2027-01-04', 'Online')).toEqual(['14:00', '15:00']);
+    expect(providerTimes(p, '2027-01-04', 'Online')).toEqual(['09:00', '10:00', '11:00']);
   });
   it('does not make an offline provider unavailable', () => {
     vi.setSystemTime(new Date('2027-01-01T10:00:00'));

@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, Empty, Field, Heading } from '../../components/ui';
 import { api } from '../../services/api';
@@ -35,12 +34,10 @@ const first = () =>
 const today = () => new Date().toLocaleDateString('en-CA');
 export default function StatementsPage() {
   const { data, notify, user } = useApp();
-  const location = useLocation();
-  const preset = (location.state || {}) as { providerId?: string; customerId?: string; customerType?: string };
   const providerMode = user?.role === 'provider';
-  const [providerId, setProvider] = useState(preset.providerId || (providerMode ? user?.entityId || '' : '')),
+  const [providerId, setProvider] = useState(providerMode ? user?.entityId || '' : ''),
     [type, setType] = useState('patient'),
-    [customerId, setCustomer] = useState(preset.customerId || ''),
+    [customerId, setCustomer] = useState(''),
     [from, setFrom] = useState(first()),
     [to, setTo] = useState(today()),
     [companies, setCompanies] = useState<Company[]>([]),

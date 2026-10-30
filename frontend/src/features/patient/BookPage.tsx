@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
 import { Card, Field, ProviderStatus } from '../../components/ui';
-import { formatDate, initials, onlineAvailableOn, slotProblem, today } from '../../lib/dates';
+import { formatDate, initials, slotProblem, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import SlotCalendar from '../appointments/SlotCalendar';
 import type { CalendarMode } from '../appointments/Calendar';
@@ -40,7 +40,7 @@ export default function BookPage() {
       (p) =>
         p.is_active &&
         Boolean(location) &&
-        (mode === 'Online' ? onlineAvailableOn(p, date) : mode === 'In-person' && p.locations.includes(location)),
+        (mode === 'Online' ? p.is_online : mode === 'In-person' && p.locations.includes(location)),
     ),
     selected = providers.find((p) => p.id === providerId),
     bookingProviders = providers.map((p) => ({ ...p, default_duration_minutes: durationMinutes })),
