@@ -791,7 +791,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
                         .filter((l) => {
                           const p = data.providers.find((provider) => provider.id === providerId);
                           return (
-                            p && (l.name === 'Online' ? p.is_online : p.locations.includes(l.name))
+                            p && l.name !== 'Online' && p.locations.includes(l.name)
                           );
                         })
                         .map((l) => (

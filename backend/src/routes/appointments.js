@@ -57,7 +57,7 @@ export async function assertProviderAvailable(client, { providerId, locationId =
   }
 
   const provider = await client.query(
-    `SELECT p.id, p.is_online
+    `SELECT p.id
      FROM providers p JOIN app_users u ON u.id = p.user_id
      WHERE p.id = $1 AND u.is_active = true
      FOR UPDATE OF p`,
@@ -68,46 +68,29 @@ export async function assertProviderAvailable(client, { providerId, locationId =
     error.statusCode = 404;
     throw error;
   }
-  if (isOnlineMode(mode) && !provider.rows[0].is_online) {
-    const error = new Error('This provider is not accepting online bookings');
-    error.statusCode = 409;
-    throw error;
+  if (!locationId) {
+    const error = new Error('Choose a physical location before booking'); error.statusCode = 400; throw error;
   }
-
-  let isOnlineLocation = false;
-  if (locationId) {
-    const location = await client.query(`SELECT name FROM locations WHERE id = $1`, [locationId]);
-    if (!location.rows[0]) {
-      const error = new Error('Location not found');
-      error.statusCode = 404;
-      throw error;
-    }
-    isOnlineLocation = String(location.rows[0].name).toLowerCase() === 'online';
-    if (isOnlineLocation && !provider.rows[0].is_online) {
-      const error = new Error('This provider is not accepting online bookings');
-      error.statusCode = 409;
-      throw error;
-    }
+  const location = await client.query(`SELECT name FROM locations WHERE id = $1`, [locationId]);
+  if (!location.rows[0] || String(location.rows[0].name).toLowerCase() === 'online') {
+    const error = new Error('Choose a physical practice location before booking'); error.statusCode = 400; throw error;
   }
-
-  const onlineBooking = isOnlineMode(mode) || isOnlineLocation;
-  const availabilityLocationId = onlineBooking ? null : locationId;
-  let hasLocationSchedule = false;
+  const onlineBooking = isOnlineMode(mode);
+  const availabilityLocationId = locationId;
+  const locationSchedule = await client.query(`SELECT is_available, online_booking_enabled, start_time, end_time,
+    (is_available = true AND start_time <= $4::time AND end_time >= ($4::time + ($5 * interval '1 minute'))::time) AS slot_allowed
+    FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
+  const hasLocationSchedule = Boolean(locationSchedule.rows[0]);
+  if (!locationSchedule.rows[0] || !locationSchedule.rows[0].slot_allowed) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
+  if (onlineBooking && !locationSchedule.rows[0].online_booking_enabled) { const error = new Error('This provider is not accepting online bookings for this location and time'); error.statusCode = 409; throw error; }
   if (locationId) {
-    if (!onlineBooking) {
-      const locationSchedule = await client.query(`SELECT is_available, start_time, end_time,
-        (is_available = true AND start_time <= $4::time AND end_time >= ($4::time + ($5 * interval '1 minute'))::time) AS slot_allowed
-        FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
-      hasLocationSchedule = Boolean(locationSchedule.rows[0]);
-      if (locationSchedule.rows[0] && !locationSchedule.rows[0].slot_allowed) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
-    }
     const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, availabilityLocationId, appointmentDate]);
     if (unavailableDay.rows[0]) { const error = new Error('The provider is unavailable at this location on that day'); error.statusCode = 409; throw error; }
     const unavailableSlot = await client.query(`SELECT 1 FROM provider_unavailable_slots WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3 AND start_time < ($4::time + ($5 * interval '1 minute'))::time AND end_time > $4::time LIMIT 1`, [providerId, availabilityLocationId, appointmentDate, appointmentTime, duration]);
     if (unavailableSlot.rows[0]) { const error = new Error('The provider is unavailable during that slot'); error.statusCode = 409; throw error; }
   }
 
-  // Location schedules override the general schedule, matching the patient calendar.
+  // Legacy providers without a location schedule still use the general schedule.
   if (!hasLocationSchedule) {
     const weeklyAvailability = await client.query(
       `SELECT 1 FROM provider_availability

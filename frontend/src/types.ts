@@ -37,7 +37,7 @@ export interface BusyTime {
   appointment_time: string;
   end_time: string;
 }
-export interface LocationAvailability extends Availability { location_id: string; location_name: string; }
+export interface LocationAvailability extends Availability { location_id: string; location_name: string; online_booking_enabled?: boolean; }
 export interface UnavailableDay { id: string; location_id: string | null; unavailable_date: string; reason: string | null; }
 export interface UnavailableSlot extends UnavailableDay { start_time: string; end_time: string; }
 export interface Provider {

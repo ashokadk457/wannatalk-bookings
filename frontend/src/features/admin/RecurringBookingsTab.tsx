@@ -78,7 +78,7 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
     locations = data.locations.filter(
       (l) =>
         provider &&
-        (l.name === 'Online' ? provider.is_online : provider.locations.includes(l.name)),
+        l.name !== 'Online' && provider.locations.includes(l.name),
     );
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((x) => ({ ...x, [key]: value }));

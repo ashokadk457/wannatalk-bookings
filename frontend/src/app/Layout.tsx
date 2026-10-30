@@ -3,7 +3,6 @@ import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from './AppContext';
 import { homePath, navigation } from './navigation';
 import { initials } from '../lib/dates';
-import { mutate } from '../services/api';
 import type { Role } from '../types';
 
 const mobileNavigation: Record<Role, { path: string; label: string; icon: string }[]> = {
@@ -162,12 +161,10 @@ function NavIcon({ path }: { path: string }) {
 }
 
 export default function Layout({ role }: { role: Role }) {
-  const { user, data, logout, run, refresh } = useApp(),
+  const { user, data, logout } = useApp(),
     location = useLocation(),
     navigate = useNavigate();
-  const [drawer, setDrawer] = useState(false),
-    [busy, setBusy] = useState(false);
-  const [pendingOnline, setPendingOnline] = useState<boolean | null>(null);
+  const [drawer, setDrawer] = useState(false);
   useEffect(() => {
     setDrawer(false);
     window.scrollTo(0, 0);
@@ -199,20 +196,6 @@ export default function Layout({ role }: { role: Role }) {
       ? `Good ${new Date().getHours() < 12 ? 'morning' : 'afternoon'}, ${user.fullName.split(' ')[0]}`
       : 'Practice dashboard'
     : current?.label || 'WannaTalk';
-  async function toggleOnline(online: boolean) {
-    if (!provider) return;
-    setPendingOnline(online);
-    setBusy(true);
-    await run(
-      async () => {
-        await mutate(`/providers/${provider.id}/status`, 'PATCH', { isOnline: online });
-        await refresh();
-      },
-      `Online bookings ${online ? 'enabled' : 'disabled'}`,
-    );
-    setBusy(false);
-    setPendingOnline(null);
-  }
   return (
     <div id={`${role}Shell`} className={`app ${drawer ? 'mobile-drawer-open' : ''}`}>
       <aside className="sidebar" id="app-navigation">
@@ -244,28 +227,6 @@ export default function Layout({ role }: { role: Role }) {
             </button>
           ))}
         </nav>
-        {provider && (
-          <label className="provider-status-toggle">
-            <span className="provider-status-heading">Availability</span>
-            <span className={`provider-status-pill ${provider.is_online ? 'online' : 'offline'}`}>
-              <span className="provider-status-dot" aria-hidden="true" />
-              {provider.is_online ? 'Online enabled' : 'Online disabled'}
-            </span>
-            <span className="provider-switch-row">
-              <span>
-                {provider.is_online ? 'Accepting online bookings' : 'Online bookings disabled'}
-              </span>
-              <input
-                type="checkbox"
-                aria-label="Accept online bookings"
-                checked={pendingOnline ?? provider.is_online}
-                disabled={busy}
-                onChange={(e) => void toggleOnline(e.target.checked)}
-              />
-            </span>
-            <small>Update your availability anytime.</small>
-          </label>
-        )}
         <div className="provider-card">
           <div className="avatar">{initials(user.fullName)}</div>
           <div>

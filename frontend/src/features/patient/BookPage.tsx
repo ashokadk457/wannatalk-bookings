@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
-import { Card, Field, ProviderStatus } from '../../components/ui';
-import { formatDate, initials, slotProblem, today } from '../../lib/dates';
+import { Card, Field } from '../../components/ui';
+import { formatDate, initials, onlineAllowedAtLocation, slotProblem, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import SlotCalendar from '../appointments/SlotCalendar';
 import type { CalendarMode } from '../appointments/Calendar';
@@ -40,7 +40,7 @@ export default function BookPage() {
       (p) =>
         p.is_active &&
         Boolean(location) &&
-        (mode === 'Online' ? p.is_online : mode === 'In-person' && p.locations.includes(location)),
+        (mode === 'Online' ? onlineAllowedAtLocation(p, date, location) : mode === 'In-person' && p.locations.includes(location)),
     ),
     selected = providers.find((p) => p.id === providerId),
     bookingProviders = providers.map((p) => ({ ...p, default_duration_minutes: durationMinutes })),
@@ -50,7 +50,7 @@ export default function BookPage() {
       return notify('Choose location, booking format, provider, date and time');
     if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480)
       return notify('Enter a custom duration between 15 and 480 minutes');
-    const availabilityLocation = mode === 'Online' ? 'Online' : location;
+    const availabilityLocation = location;
     const problem = slotProblem(
       bookingSelected,
       date,
@@ -142,7 +142,7 @@ export default function BookPage() {
                   </div>
                   <p className="sub">{p.bio || 'WannaTalk provider'}</p>
                   {mode === 'Online' ? (
-                    <ProviderStatus active={p.is_active} online={p.is_online} />
+                    <span className="status confirmed">Online available</span>
                   ) : (
                     <span className="status confirmed">Available</span>
                   )}
@@ -173,7 +173,7 @@ export default function BookPage() {
             {date < today()
               ? 'Past dates cannot be booked.'
               : selected
-                ? `${selected.full_name} selected. ${mode === 'Online' ? 'Provider is accepting online bookings.' : `Provider is available at ${location}.`}`
+                ? `${selected.full_name} selected. ${mode === 'Online' ? `Online booking is available for ${location}.` : `Provider is available at ${location}.`}`
                 : 'Select a green slot to choose a provider and time.'}
           </div>
         </Card>
@@ -212,7 +212,7 @@ export default function BookPage() {
             mode={calendarMode}
             selectedTime={time}
             selectedProvider={providerId}
-            location={mode === 'Online' ? 'Online' : location}
+            location={location}
             onNavigate={(d, m) => {
               setDate(d);
               setCalendarMode(m);

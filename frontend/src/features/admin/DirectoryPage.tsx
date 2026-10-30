@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
-import { Card, Empty, Field, Heading, ProviderStatus, StatusPill } from '../../components/ui';
+import { Card, Empty, Field, Heading, StatusPill } from '../../components/ui';
 import { mutate } from '../../services/api';
 import AccountEditor from './AccountEditor';
 import type { Patient, Provider } from '../../types';
@@ -140,7 +140,7 @@ export default function DirectoryPage({ providers = false }: { providers?: boole
                       </td>
                       <td>
                         {p ? (
-                          <ProviderStatus active={p.is_active} online={p.is_online} />
+                          <StatusPill status={p.is_active ? 'Active' : 'Inactive'} />
                         ) : (
                           <StatusPill status={account.is_active ? 'Active' : 'Inactive'} />
                         )}

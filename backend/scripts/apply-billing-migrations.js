@@ -13,6 +13,7 @@ const migrations = [
   '032_invoice_edit_history.sql',
   '033_statement_download_links.sql',
   '034_quotes.sql',
+  '035_weekly_online_booking.sql',
 ];
 
 try {

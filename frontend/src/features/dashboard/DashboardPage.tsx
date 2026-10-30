@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../app/AppContext';
-import { Card, ProviderStatus, Stat } from '../../components/ui';
+import { Card, Stat, StatusPill } from '../../components/ui';
 import { today } from '../../lib/dates';
 import Calendar from '../appointments/Calendar';
 import AppointmentTable from '../appointments/AppointmentTable';
@@ -18,7 +18,7 @@ export default function DashboardPage() {
   const todays = apps.filter((a) => a.appointment_date === today()),
     completed = apps.filter((a) => a.status === 'Completed'),
     cancelled = apps.filter((a) => ['Cancelled', 'No-show'].includes(a.status));
-  const online = data.providers.filter((p) => p.is_active && p.is_online).length;
+  const activeProviders = data.providers.filter((p) => p.is_active).length;
   const inactiveProviders = data.providers.filter((p) => !p.is_active).length;
   const providersWithoutAvailability = data.providers.filter(
     (p) => p.is_active && !p.availability.some((slot) => slot.is_available),
@@ -53,11 +53,11 @@ export default function DashboardPage() {
         <Stat
           icon="●"
           color="green"
-          label={admin ? 'Providers online' : 'Patients'}
-          value={admin ? online : new Set(apps.map((a) => a.patient_id)).size}
+          label={admin ? 'Active providers' : 'Patients'}
+          value={admin ? activeProviders : new Set(apps.map((a) => a.patient_id)).size}
           note={
             admin
-              ? `${data.providers.length - online} offline · ${data.providers.length} total`
+              ? `${inactiveProviders} inactive · ${data.providers.length} total`
               : 'Captured from bookings'
           }
         />
@@ -99,7 +99,7 @@ export default function DashboardPage() {
             {data.providers.map((p) => (
               <div className="detail-row" key={p.id}>
                 <strong>{p.full_name}</strong>
-                <ProviderStatus active={p.is_active} online={p.is_online} />
+                <StatusPill status={p.is_active ? 'Active' : 'Inactive'} />
               </div>
             ))}
             <div className="quick-list space-top">

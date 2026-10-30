@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useApp } from '../../app/AppContext';
 import { Field } from '../../components/ui';
 import Modal from '../../components/Modal';
-import { providerTimes, slotProblem, today } from '../../lib/dates';
+import { onlineAllowedAtLocation, providerTimes, slotProblem, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import { PatientSelect } from '../workflows/shared';
 export default function BookingCreator({ onClose }: { onClose: () => void }) {
@@ -27,7 +27,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
         p.is_active &&
         Boolean(location) &&
         (mode === 'Online'
-          ? p.is_online
+          ? onlineAllowedAtLocation(p, date, location!.name)
           : mode === 'In-person' && p.locations.includes(location!.name)),
     ),
     provider = eligibleProviders.find((p) => p.id === providerId);
@@ -44,7 +44,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
     ? { ...provider, default_duration_minutes: durationMinutes }
     : undefined;
   const slots = provider
-    ? providerTimes(slotProvider!, date, mode === 'Online' ? 'Online' : location?.name).filter(
+    ? providerTimes(slotProvider!, date, location?.name).filter(
         (t) =>
           !slotProblem(
             slotProvider!,
@@ -52,7 +52,7 @@ export default function BookingCreator({ onClose }: { onClose: () => void }) {
             t,
             data.appointments,
             undefined,
-            mode === 'Online' ? 'Online' : location?.name,
+            location?.name,
           ),
       )
     : [];

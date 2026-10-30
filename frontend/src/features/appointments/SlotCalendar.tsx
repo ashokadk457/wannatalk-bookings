@@ -66,7 +66,6 @@ export default function SlotCalendar({
             <small className="event-meta">
               {past ? 'Past time' : problem ? 'Not available' : chosen ? 'Selected' : 'Available'} ·{' '}
               {location}
-              {location === 'Online' && !p.is_online ? ' · Online booking disabled' : ''}
             </small>
           </button>
         );

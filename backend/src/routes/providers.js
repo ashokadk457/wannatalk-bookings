@@ -201,7 +201,7 @@ providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
        ORDER BY appointment_date, appointment_time`,
       [req.params.id, ['Booked', 'Confirmed', 'Arrived', 'Completed']]
     ),
-    query(`SELECT pla.provider_id, pla.location_id, l.name AS location_name, pla.day_of_week, pla.is_available, pla.start_time, pla.end_time FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id WHERE pla.provider_id = $1 ORDER BY pla.location_id, pla.day_of_week`, [req.params.id]),
+    query(`SELECT pla.provider_id, pla.location_id, l.name AS location_name, pla.day_of_week, pla.is_available, pla.online_booking_enabled, pla.start_time, pla.end_time FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id WHERE pla.provider_id = $1 ORDER BY pla.location_id, pla.day_of_week`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, reason FROM provider_unavailable_days WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, start_time, end_time, reason FROM provider_unavailable_slots WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date, start_time`, [req.params.id]),
   ]);
@@ -216,13 +216,13 @@ providersRouter.put('/:id/location-availability', authRequired(['provider', 'adm
   await withTransaction(async (client) => {
     const location = await client.query(`SELECT id, name FROM locations WHERE id = $1 AND is_active = true`, [locationId]);
     if (!location.rows[0]) throw Object.assign(new Error('Active location not found'), { statusCode: 404 });
-    if (String(location.rows[0].name).toLowerCase() === 'online') throw Object.assign(new Error('Online booking is controlled by the provider-level switch'), { statusCode: 400 });
+    if (String(location.rows[0].name).toLowerCase() === 'online') throw Object.assign(new Error('Choose a physical location; online booking is configured within its weekly schedule'), { statusCode: 400 });
     if (availability.some((item) => Boolean(item.isAvailable))) {
       await client.query(`INSERT INTO provider_locations (provider_id, location_id) VALUES ($1, $2) ON CONFLICT (provider_id, location_id) DO NOTHING`, [req.params.id, locationId]);
     }
     for (const item of availability) {
       if (!Number.isInteger(Number(item.dayOfWeek)) || Number(item.dayOfWeek) < 0 || Number(item.dayOfWeek) > 6 || !item.startTime || !item.endTime) throw Object.assign(new Error('Invalid availability entry'), { statusCode: 400 });
-      await client.query(`INSERT INTO provider_location_availability (provider_id, location_id, day_of_week, is_available, start_time, end_time) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (provider_id, location_id, day_of_week) DO UPDATE SET is_available=EXCLUDED.is_available,start_time=EXCLUDED.start_time,end_time=EXCLUDED.end_time`, [req.params.id, locationId, Number(item.dayOfWeek), Boolean(item.isAvailable), item.startTime, item.endTime]);
+      await client.query(`INSERT INTO provider_location_availability (provider_id, location_id, day_of_week, is_available, online_booking_enabled, start_time, end_time) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (provider_id, location_id, day_of_week) DO UPDATE SET is_available=EXCLUDED.is_available,online_booking_enabled=EXCLUDED.online_booking_enabled,start_time=EXCLUDED.start_time,end_time=EXCLUDED.end_time`, [req.params.id, locationId, Number(item.dayOfWeek), Boolean(item.isAvailable), Boolean(item.onlineBookingEnabled), item.startTime, item.endTime]);
     }
   });
   res.json({ ok: true });

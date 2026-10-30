@@ -33,12 +33,7 @@ export default function AvailabilityPage() {
                 <option key={p.id} value={p.id}>
                   {p.full_name}
                   {p.professional_title ? ` — ${p.professional_title}` : ''}
-                  {' · '}
-                  {!p.is_active
-                    ? 'Inactive'
-                    : p.is_online
-                      ? 'Online bookings enabled'
-                      : 'Online bookings disabled'}
+                  {!p.is_active ? ' · Inactive' : ''}
                 </option>
               ))}
             </select>
@@ -56,14 +51,8 @@ export default function AvailabilityPage() {
                   </div>
                 </div>
               </div>
-              <span
-                className={`status ${!provider.is_active ? 'cancelled' : provider.is_online ? 'confirmed' : 'completed'}`}
-              >
-                {!provider.is_active
-                  ? 'Inactive'
-                  : provider.is_online
-                    ? 'Online bookings enabled'
-                    : 'Online bookings disabled'}
+              <span className={`status ${provider.is_active ? 'confirmed' : 'cancelled'}`}>
+                {provider.is_active ? 'Weekly schedule controls online booking' : 'Inactive'}
               </span>
             </div>
             <span className="pill">
