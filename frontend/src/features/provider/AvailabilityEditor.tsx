@@ -39,6 +39,7 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
     [start, setStart] = useState(''),
     [end, setEnd] = useState(''),
     [reason, setReason] = useState('');
+  const [availabilityType, setAvailabilityType] = useState<'Available' | 'Unavailable'>('Unavailable');
   const change = (day: number, patch: Partial<(typeof rows)[number]>) =>
     setRows((value) => value.map((row) => (row.dayOfWeek === day ? { ...row, ...patch } : row)));
   const loadTemplates=async()=>{try{const result=await api<{templates:WeeklyTemplate[]}>(`/providers/${provider.id}/weekly-templates`);setTemplates(result.templates);}catch(error){notify(error instanceof Error?error.message:'Unable to load weekly templates');}};
@@ -119,9 +120,9 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
         d.setDate(d.getDate() + 1)
       ) {
         const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        await mutate(`/providers/${provider.id}/unavailable`, 'POST', {
-          locationId: null,
+        await mutate(`/providers/${provider.id}/availability-overrides`, 'POST', {
           date,
+          availabilityType,
           startTime: start || null,
           endTime: end || null,
           reason,
@@ -133,7 +134,11 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
       setStart('');
       setEnd('');
       setReason('');
-    }, 'Global unavailability saved');
+    }, `${availabilityType} date override saved`);
+  }
+  async function removeOverride(id: string, label: string) {
+    if (!window.confirm(`Remove date override for ${label}?`)) return;
+    await run(async () => { await mutate(`/providers/${provider.id}/availability-overrides/${id}`, 'DELETE'); await refresh(); }, 'Date override removed');
   }
   async function removeUnavailable(kind: 'day' | 'slot', id: string, label: string) {
     if (!window.confirm(`Remove unavailability for ${label}?`)) return;
@@ -175,7 +180,7 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
           className={`btn ${tab === 'unavailable' ? '' : 'secondary'}`}
           onClick={() => setTab('unavailable')}
         >
-          Manage unavailability
+          Date overrides
         </button>
       </div>
       {tab === 'weekly' ? (
@@ -262,11 +267,15 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
         </form>
       ) : (
         <>
-          <div className="notice">
-            Unavailable days and time slots apply to every location for this provider.
-          </div>
+          <div className="notice">A date override applies only to the selected date. Available opens an otherwise closed weekly day; Unavailable blocks a normally open day. These exceptions apply to every location.</div>
           <form onSubmit={saveUnavailable}>
             <div className="form-grid">
+              <Field label="Availability type">
+                <select value={availabilityType} onChange={(e) => setAvailabilityType(e.target.value as 'Available' | 'Unavailable')}>
+                  <option value="Unavailable">Unavailable - block bookings</option>
+                  <option value="Available">Available - open bookings</option>
+                </select>
+              </Field>
               <Field label="From date">
                 <input
                   required
@@ -290,17 +299,24 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
               <Field label="End time (optional)">
                 <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
               </Field>
-              <Field label="Reason / holiday name">
+              <Field label="Reason / note">
                 <input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Holiday, leave, unavailable…"
+                  placeholder={availabilityType === 'Available' ? 'Extra clinic hours…' : 'Holiday, leave, unavailable…'}
                 />
               </Field>
             </div>
-            <button className="btn space-top">Add unavailability</button>
+            <button className="btn space-top">Add date override</button>
           </form>
           <div className="space-top">
+            {(provider.availabilityOverrides || []).map((entry) => (
+              <div className="detail-row" key={entry.id}>
+                <span>{entry.override_date.slice(0, 10)} · {entry.start_time && entry.end_time ? `${shortTime(entry.start_time)}–${shortTime(entry.end_time)}` : 'Full day'}</span>
+                <strong>{entry.availability_type} {entry.reason ? `· ${entry.reason}` : ''}</strong>
+                <button type="button" className="btn danger small" aria-label={`Remove ${entry.availability_type.toLowerCase()} override ${entry.override_date.slice(0, 10)}`} onClick={() => void removeOverride(entry.id, entry.override_date.slice(0, 10))}>Remove</button>
+              </div>
+            ))}
             {(provider.unavailableDays || []).map((d) => (
               <div className="detail-row" key={d.id}>
                 <span>{d.unavailable_date.slice(0, 10)} · Full day</span>

@@ -15,6 +15,7 @@ const migrations = [
   '034_quotes.sql',
   '035_weekly_online_booking.sql',
   '036_weekly_schedule_templates.sql',
+  '037_provider_availability_overrides.sql',
 ];
 
 try {

@@ -5,18 +5,19 @@ import Modal from '../../components/Modal';
 import { onlineAllowedAtLocation, providerTimes, slotProblem, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import { PatientSelect } from '../workflows/shared';
-export default function BookingCreator({ onClose }: { onClose: () => void }) {
+export interface BookingDraft { providerId: string; locationId: string; date: string; time: string; durationMinutes: number; }
+export default function BookingCreator({ onClose, draft }: { onClose: () => void; draft?: BookingDraft }) {
   const { user, data, run, refresh, notify } = useApp();
   const [patientId, setPatient] = useState(''),
-    [providerId, setProvider] = useState(user?.role === 'provider' ? user.entityId || '' : ''),
-    [locationId, setLocation] = useState(''),
-    [date, setDate] = useState(today()),
-    [time, setTime] = useState(''),
+    [providerId, setProvider] = useState(draft?.providerId || (user?.role === 'provider' ? user.entityId || '' : '')),
+    [locationId, setLocation] = useState(draft?.locationId || ''),
+    [date, setDate] = useState(draft?.date || today()),
+    [time, setTime] = useState(draft?.time || ''),
     [type, setType] = useState('Individual counselling'),
     [mode, setMode] = useState(''),
     [note, setNote] = useState(''),
     [intake, setIntake] = useState(false),
-    [durationChoice, setDurationChoice] = useState('60'),
+    [durationChoice, setDurationChoice] = useState(String(draft?.durationMinutes || 60)),
     [customDuration, setCustomDuration] = useState(''),
     [accountOutstanding, setAccountOutstanding] = useState<number | null>(null),
     [busy, setBusy] = useState(false);

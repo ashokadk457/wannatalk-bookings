@@ -74,6 +74,17 @@ describe('Booking rules', () => {
     vi.setSystemTime(new Date('2027-01-01T10:00:00'));
     expect(slotProblem(provider, '2027-01-04', '10:00', [])).toBeNull();
   });
+
+  it('opens a normally closed day for a date-specific Available override', () => {
+    const p = {
+      ...provider,
+      availability: [{ day_of_week: 5, is_available: false, start_time: '09:00', end_time: '17:00' }],
+      availabilityOverrides: [{ id: 'extra-friday', location_id: null, override_date: '2027-01-08', availability_type: 'Available' as const, start_time: '09:00', end_time: '13:00', reason: 'Extra clinic' }],
+    };
+    expect(providerTimes(p, '2027-01-08')).toContain('10:00');
+    expect(slotProblem(p, '2027-01-08', '10:00', [])).toBeNull();
+    expect(slotProblem(p, '2027-01-08', '13:00', [])).toContain('Outside');
+  });
   it('blocks overlapping reservations with different start times', () => {
     vi.setSystemTime(new Date('2027-01-01T10:00:00'));
     const p = {

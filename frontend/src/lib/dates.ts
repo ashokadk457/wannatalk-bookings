@@ -46,6 +46,10 @@ export const joinAllowed = (a: Appointment) =>
 export const occupiesSlot = (a: Appointment) => !['Cancelled', 'No-show'].includes(a.status);
 export const statusClass = (status: string) => status.toLowerCase();
 export function onlineAllowedAtLocation(provider: Provider, date: string, locationName: string) {
+  const availableOverride = provider.availabilityOverrides?.some(
+    (entry) => entry.availability_type === 'Available' && entry.override_date.slice(0, 10) === date,
+  );
+  if (availableOverride) return true;
   const row = provider.locationAvailability?.find(
     (entry) => entry.location_name === locationName && entry.day_of_week === dateOf(date).getDay(),
   );
@@ -80,13 +84,21 @@ export function slotProblem(
     provider.availability.find((a) => a.day_of_week === dateOf(date).getDay());
   const start = minutes(time),
     end = start + provider.default_duration_minutes;
+  const locationId = locationAvailability?.location_id;
+  const relevantOverrides = provider.availabilityOverrides?.filter(
+    (entry) => entry.override_date.slice(0, 10) === date && (!entry.location_id || entry.location_id === locationId),
+  ) || [];
+  const isWithin = (entry: { start_time: string | null; end_time: string | null }) =>
+    !entry.start_time || (start >= minutes(entry.start_time) && end <= minutes(entry.end_time!));
+  if (relevantOverrides.some((entry) => entry.availability_type === 'Unavailable' && isWithin(entry)))
+    return 'Provider unavailable during this date override';
+  const availableOverride = relevantOverrides.find((entry) => entry.availability_type === 'Available' && isWithin(entry));
   if (
-    !availability?.is_available ||
+    !availableOverride && (!availability?.is_available ||
     start < minutes(availability.start_time) ||
-    end > minutes(availability.end_time)
+    end > minutes(availability.end_time))
   )
     return 'Outside provider availability';
-  const locationId = locationAvailability?.location_id;
   if (
     provider.unavailableDays?.some(
       (d) =>
@@ -155,12 +167,20 @@ export function providerTimes(provider: Provider, date: string, locationName?: s
     locationAvailability ||
     provider.availability.find((a) => a.day_of_week === dateOf(date).getDay());
   const duration = provider.default_duration_minutes;
-  if (!av?.is_available || duration <= 0) return [];
+  const locationId = locationAvailability?.location_id;
+  const availableOverrides = provider.availabilityOverrides?.filter(
+    (entry) => entry.availability_type === 'Available' && entry.override_date.slice(0, 10) === date && (!entry.location_id || entry.location_id === locationId),
+  ) || [];
+  if ((!av?.is_available && !availableOverrides.length) || duration <= 0) return [];
   const result: string[] = [];
   // Booking length and start-time interval are separate. Keep hourly starts for
   // two-hour bookings, then let slotProblem verify the full continuous gap.
   const startInterval = Math.min(duration, 60);
-  for (let m = minutes(av.start_time); m + duration <= minutes(av.end_time); m += startInterval)
-    result.push(timeString(m));
+  const windows = availableOverrides.length
+    ? availableOverrides.map((entry) => ({ start: entry.start_time || '00:00', end: entry.end_time || '23:59' }))
+    : [{ start: av!.start_time, end: av!.end_time }];
+  for (const window of windows)
+    for (let m = minutes(window.start); m + duration <= minutes(window.end); m += startInterval)
+      result.push(timeString(m));
   return result;
 }

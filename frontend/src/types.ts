@@ -40,6 +40,15 @@ export interface BusyTime {
 export interface LocationAvailability extends Availability { location_id: string; location_name: string; online_booking_enabled?: boolean; }
 export interface UnavailableDay { id: string; location_id: string | null; unavailable_date: string; reason: string | null; }
 export interface UnavailableSlot extends UnavailableDay { start_time: string; end_time: string; }
+export interface AvailabilityOverride {
+  id: string;
+  location_id: string | null;
+  override_date: string;
+  availability_type: 'Available' | 'Unavailable';
+  start_time: string | null;
+  end_time: string | null;
+  reason: string | null;
+}
 export interface Provider {
   id: string;
   full_name: string;
@@ -65,6 +74,7 @@ export interface Provider {
   locationAvailability?: LocationAvailability[];
   unavailableDays?: UnavailableDay[];
   unavailableSlots?: UnavailableSlot[];
+  availabilityOverrides?: AvailabilityOverride[];
 }
 export interface Patient {
   id: string;

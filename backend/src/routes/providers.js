@@ -176,7 +176,7 @@ providersRouter.get('/', authRequired(), async (req, res) => {
 });
 
 providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
-  const [availabilityResult, blocksResult, busyResult, locationAvailabilityResult, unavailableDaysResult, unavailableSlotsResult] = await Promise.all([
+  const [availabilityResult, blocksResult, busyResult, locationAvailabilityResult, unavailableDaysResult, unavailableSlotsResult, overridesResult] = await Promise.all([
     query(
       `SELECT day_of_week, is_available, start_time, end_time
        FROM provider_availability
@@ -204,8 +204,9 @@ providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
     query(`SELECT pla.provider_id, pla.location_id, l.name AS location_name, pla.day_of_week, pla.is_available, pla.online_booking_enabled, pla.start_time, pla.end_time FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id WHERE pla.provider_id = $1 ORDER BY pla.location_id, pla.day_of_week`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, reason FROM provider_unavailable_days WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, start_time, end_time, reason FROM provider_unavailable_slots WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date, start_time`, [req.params.id]),
+    query(`SELECT id, provider_id, location_id, override_date::text AS override_date, availability_type, start_time::text, end_time::text, reason FROM provider_availability_overrides WHERE provider_id = $1 AND override_date >= current_date ORDER BY override_date, start_time NULLS FIRST`, [req.params.id]),
   ]);
-  res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows, locationAvailability: locationAvailabilityResult.rows, unavailableDays: unavailableDaysResult.rows, unavailableSlots: unavailableSlotsResult.rows });
+  res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows, locationAvailability: locationAvailabilityResult.rows, unavailableDays: unavailableDaysResult.rows, unavailableSlots: unavailableSlotsResult.rows, availabilityOverrides: overridesResult.rows });
 });
 
 providersRouter.put('/:id/location-availability', authRequired(['provider', 'admin']), async (req, res) => {
@@ -274,6 +275,31 @@ providersRouter.post('/:id/unavailable', authRequired(['provider', 'admin']), as
     ? await query(`INSERT INTO provider_unavailable_slots (provider_id, location_id, unavailable_date, start_time, end_time, reason) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [req.params.id, locationId, date, startTime, endTime, reason || null])
     : await query(`INSERT INTO provider_unavailable_days (provider_id, location_id, unavailable_date, reason) VALUES ($1,$2,$3,$4) ON CONFLICT (provider_id, location_id, unavailable_date) DO UPDATE SET reason=EXCLUDED.reason RETURNING *`, [req.params.id, locationId, date, reason || null]);
   res.status(201).json({ unavailable: result.rows[0] });
+});
+
+providersRouter.post('/:id/availability-overrides', authRequired(['provider', 'admin']), async (req, res, next) => {
+  try {
+    await assertProviderScheduleAccess(req.user, req.params.id);
+    const date = String(req.body.date || '').slice(0, 10);
+    const type = req.body.availabilityType === 'Available' ? 'Available' : req.body.availabilityType === 'Unavailable' ? 'Unavailable' : null;
+    const startTime = req.body.startTime || null;
+    const endTime = req.body.endTime || null;
+    const reason = String(req.body.reason || '').trim().slice(0, 200) || null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !type) throw Object.assign(new Error('A date and availability type are required'), { statusCode: 400 });
+    if (Boolean(startTime) !== Boolean(endTime) || (startTime && endTime && String(endTime) <= String(startTime))) throw Object.assign(new Error('Enter both valid start and end times, or leave both blank for a full day'), { statusCode: 400 });
+    const result = await query(`INSERT INTO provider_availability_overrides(provider_id, override_date, availability_type, start_time, end_time, reason)
+      VALUES($1,$2,$3,$4,$5,$6) RETURNING id, provider_id, location_id, override_date::text AS override_date, availability_type, start_time::text, end_time::text, reason`, [req.params.id, date, type, startTime, endTime, reason]);
+    res.status(201).json({ override: result.rows[0] });
+  } catch (error) { next(error); }
+});
+
+providersRouter.delete('/:id/availability-overrides/:entryId', authRequired(['provider', 'admin']), async (req, res, next) => {
+  try {
+    await assertProviderScheduleAccess(req.user, req.params.id);
+    const result = await query(`DELETE FROM provider_availability_overrides WHERE id=$1 AND provider_id=$2 RETURNING id`, [req.params.entryId, req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Availability override not found' });
+    res.status(204).end();
+  } catch (error) { next(error); }
 });
 
 providersRouter.delete('/:id/unavailable/:kind/:entryId', authRequired(['provider', 'admin']), async (req, res) => {

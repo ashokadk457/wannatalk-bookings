@@ -9,6 +9,9 @@ import AppointmentTable from '../appointments/AppointmentTable';
 import Calendar from '../appointments/Calendar';
 import BookingCreator from './BookingCreator';
 import RecurringBookingsTab from './RecurringBookingsTab';
+import AvailableSlots from '../appointments/AvailableSlots';
+import type { BookingDraft } from './BookingCreator';
+import SlotCalendar from '../appointments/SlotCalendar';
 const providerFilterStorageKey = 'wannatalkAdminAppointmentProviders';
 
 function savedProviderFilters() {
@@ -106,7 +109,12 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
     [create, setCreate] = useState(false),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25);
-  const [tab, setTab] = useState<'appointments' | 'calendar' | 'recurring'>('appointments');
+  const [tab, setTab] = useState<'appointments' | 'calendar' | 'recurring' | 'available'>('appointments');
+  const [bookingDraft, setBookingDraft] = useState<BookingDraft | undefined>();
+  const [showAvailability, setShowAvailability] = useState(false);
+  const [availabilityDate, setAvailabilityDate] = useState(today());
+  const [availabilityMode, setAvailabilityMode] = useState<'day' | 'week' | 'month'>('week');
+  const [availabilityLocation, setAvailabilityLocation] = useState('');
   const apps = data.appointments
     .filter(
       (a) =>
@@ -177,6 +185,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
           <button className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>
             Calendar
           </button>
+          <button className={tab === 'available' ? 'active' : ''} onClick={() => setTab('available')}>Available slots</button>
           {admin && <button
               className={tab === 'recurring' ? 'active' : ''}
               onClick={() => setTab('recurring')}
@@ -187,6 +196,8 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
       )}
       {tab === 'recurring' && !cancellations ? (
         <RecurringBookingsTab createSingle={() => setCreate(true)} />
+      ) : tab === 'available' && !cancellations ? (
+        <AvailableSlots providerIds={providers} onBook={(draft) => { setBookingDraft(draft); setCreate(true); }} />
       ) : tab === 'calendar' && !cancellations ? (
         <Card className="appointments-admin-card">
           <div className="appointments-toolbar">
@@ -210,6 +221,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
                 Clear filters
               </button>
             )}
+            <button className="btn secondary small" onClick={() => setShowAvailability((current) => !current)}>{showAvailability ? 'Show appointments' : 'Show availability'}</button>
           </div>
           <div className="admin-filters calendar-filters">
             <Field label="Search appointments">
@@ -247,7 +259,12 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               onChange={(next) => setRange(next || { from: dateOf(today()) })}
             />
           </div>
-          <Calendar appointments={apps} title="Appointment calendar" />
+          {showAvailability ? (
+            <>
+              <div className="availability-location-picker"><Field label="Location"><select value={availabilityLocation} onChange={(e) => setAvailabilityLocation(e.target.value)}><option value="">Choose location</option>{data.locations.filter((location) => location.name !== 'Online').map((location) => <option key={location.id} value={location.name}>{location.name}</option>)}</select></Field><span className="sub">Green slots are bookable; grey slots are blocked or occupied.</span></div>
+              {availabilityLocation ? <SlotCalendar providers={data.providers.filter((provider) => !providers.length || providers.includes(provider.id))} date={availabilityDate} mode={availabilityMode} location={availabilityLocation} selectedTime="" selectedProvider="" onNavigate={(date, mode) => { setAvailabilityDate(date); setAvailabilityMode(mode); }} onSelect={(date, providerId, time) => { const location = data.locations.find((entry) => entry.name === availabilityLocation); if (!location) return; setBookingDraft({ date, providerId, time, locationId: location.id, durationMinutes: data.providers.find((provider) => provider.id === providerId)?.default_duration_minutes || 60 }); setCreate(true); }} /> : <div className="notice">Choose a physical location to view bookable slots.</div>}
+            </>
+          ) : <Calendar appointments={apps} title="Appointment calendar" />}
         </Card>
       ) : (
         <Card className="appointments-admin-card">
@@ -370,7 +387,7 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
           )}
         </Card>
       )}
-      {create && <BookingCreator onClose={() => setCreate(false)} />}
+      {create && <BookingCreator draft={bookingDraft} onClose={() => { setCreate(false); setBookingDraft(undefined); }} />}
     </section>
   );
 }
