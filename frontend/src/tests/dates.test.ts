@@ -79,7 +79,7 @@ describe('Booking rules', () => {
     const p = {
       ...provider,
       availability: [{ day_of_week: 5, is_available: false, start_time: '09:00', end_time: '17:00' }],
-      availabilityOverrides: [{ id: 'extra-friday', location_id: null, override_date: '2027-01-08', availability_type: 'Available' as const, start_time: '09:00', end_time: '13:00', reason: 'Extra clinic' }],
+      availabilityOverrides: [{ id: 'extra-friday', location_id: null, override_date: '2027-01-08', availability_type: 'Available' as const, online_booking_enabled: true, start_time: '09:00', end_time: '13:00', reason: 'Extra clinic' }],
     };
     expect(providerTimes(p, '2027-01-08')).toContain('10:00');
     expect(slotProblem(p, '2027-01-08', '10:00', [])).toBeNull();

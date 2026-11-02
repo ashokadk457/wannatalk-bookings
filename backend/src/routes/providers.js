@@ -204,7 +204,7 @@ providersRouter.get('/:id/availability', authRequired(), async (req, res) => {
     query(`SELECT pla.provider_id, pla.location_id, l.name AS location_name, pla.day_of_week, pla.is_available, pla.online_booking_enabled, pla.start_time, pla.end_time FROM provider_location_availability pla JOIN locations l ON l.id = pla.location_id WHERE pla.provider_id = $1 ORDER BY pla.location_id, pla.day_of_week`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, reason FROM provider_unavailable_days WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date`, [req.params.id]),
     query(`SELECT id, provider_id, location_id, unavailable_date::text AS unavailable_date, start_time, end_time, reason FROM provider_unavailable_slots WHERE provider_id = $1 AND unavailable_date >= current_date ORDER BY unavailable_date, start_time`, [req.params.id]),
-    query(`SELECT id, provider_id, location_id, override_date::text AS override_date, availability_type, start_time::text, end_time::text, reason FROM provider_availability_overrides WHERE provider_id = $1 AND override_date >= current_date ORDER BY override_date, start_time NULLS FIRST`, [req.params.id]),
+    query(`SELECT id, provider_id, location_id, override_date::text AS override_date, availability_type, online_booking_enabled, start_time::text, end_time::text, reason FROM provider_availability_overrides WHERE provider_id = $1 AND override_date >= current_date ORDER BY override_date, start_time NULLS FIRST`, [req.params.id]),
   ]);
   res.json({ availability: availabilityResult.rows, blocks: blocksResult.rows, busy: busyResult.rows, locationAvailability: locationAvailabilityResult.rows, unavailableDays: unavailableDaysResult.rows, unavailableSlots: unavailableSlotsResult.rows, availabilityOverrides: overridesResult.rows });
 });
@@ -284,11 +284,17 @@ providersRouter.post('/:id/availability-overrides', authRequired(['provider', 'a
     const type = req.body.availabilityType === 'Available' ? 'Available' : req.body.availabilityType === 'Unavailable' ? 'Unavailable' : null;
     const startTime = req.body.startTime || null;
     const endTime = req.body.endTime || null;
+    const locationId = req.body.locationId || null;
+    const onlineBookingEnabled = type === 'Available' && Boolean(req.body.onlineBookingEnabled);
     const reason = String(req.body.reason || '').trim().slice(0, 200) || null;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !type) throw Object.assign(new Error('A date and availability type are required'), { statusCode: 400 });
     if (Boolean(startTime) !== Boolean(endTime) || (startTime && endTime && String(endTime) <= String(startTime))) throw Object.assign(new Error('Enter both valid start and end times, or leave both blank for a full day'), { statusCode: 400 });
-    const result = await query(`INSERT INTO provider_availability_overrides(provider_id, override_date, availability_type, start_time, end_time, reason)
-      VALUES($1,$2,$3,$4,$5,$6) RETURNING id, provider_id, location_id, override_date::text AS override_date, availability_type, start_time::text, end_time::text, reason`, [req.params.id, date, type, startTime, endTime, reason]);
+    if (locationId) {
+      const location = await query(`SELECT id, name FROM locations WHERE id=$1 AND is_active=true`, [locationId]);
+      if (!location.rows[0] || String(location.rows[0].name).toLowerCase() === 'online') throw Object.assign(new Error('Choose an active physical location'), { statusCode: 400 });
+    }
+    const result = await query(`INSERT INTO provider_availability_overrides(provider_id, location_id, override_date, availability_type, online_booking_enabled, start_time, end_time, reason)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, provider_id, location_id, override_date::text AS override_date, availability_type, online_booking_enabled, start_time::text, end_time::text, reason`, [req.params.id, locationId, date, type, onlineBookingEnabled, startTime, endTime, reason]);
     res.status(201).json({ override: result.rows[0] });
   } catch (error) { next(error); }
 });

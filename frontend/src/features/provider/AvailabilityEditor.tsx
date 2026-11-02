@@ -40,6 +40,8 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
     [end, setEnd] = useState(''),
     [reason, setReason] = useState('');
   const [availabilityType, setAvailabilityType] = useState<'Available' | 'Unavailable'>('Unavailable');
+  const [overrideLocationId, setOverrideLocationId] = useState('');
+  const [overrideOnlineBooking, setOverrideOnlineBooking] = useState(false);
   const change = (day: number, patch: Partial<(typeof rows)[number]>) =>
     setRows((value) => value.map((row) => (row.dayOfWeek === day ? { ...row, ...patch } : row)));
   const loadTemplates=async()=>{try{const result=await api<{templates:WeeklyTemplate[]}>(`/providers/${provider.id}/weekly-templates`);setTemplates(result.templates);}catch(error){notify(error instanceof Error?error.message:'Unable to load weekly templates');}};
@@ -123,6 +125,8 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
         await mutate(`/providers/${provider.id}/availability-overrides`, 'POST', {
           date,
           availabilityType,
+          locationId: overrideLocationId || null,
+          onlineBookingEnabled: overrideOnlineBooking,
           startTime: start || null,
           endTime: end || null,
           reason,
@@ -134,6 +138,8 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
       setStart('');
       setEnd('');
       setReason('');
+      setOverrideLocationId('');
+      setOverrideOnlineBooking(false);
     }, `${availabilityType} date override saved`);
   }
   async function removeOverride(id: string, label: string) {
@@ -267,13 +273,19 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
         </form>
       ) : (
         <>
-          <div className="notice">A date override applies only to the selected date. Available opens an otherwise closed weekly day; Unavailable blocks a normally open day. These exceptions apply to every location.</div>
+          <div className="notice">A date override applies only to the selected date. Available opens an otherwise closed weekly day; Unavailable blocks a normally open day. Select a location to limit the exception, or leave it as all locations.</div>
           <form onSubmit={saveUnavailable}>
             <div className="form-grid">
               <Field label="Availability type">
                 <select value={availabilityType} onChange={(e) => setAvailabilityType(e.target.value as 'Available' | 'Unavailable')}>
                   <option value="Unavailable">Unavailable - block bookings</option>
                   <option value="Available">Available - open bookings</option>
+                </select>
+              </Field>
+              <Field label="Location">
+                <select value={overrideLocationId} onChange={(e) => setOverrideLocationId(e.target.value)}>
+                  <option value="">All physical locations</option>
+                  {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
                 </select>
               </Field>
               <Field label="From date">
@@ -306,6 +318,7 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
                   placeholder={availabilityType === 'Available' ? 'Extra clinic hours…' : 'Holiday, leave, unavailable…'}
                 />
               </Field>
+              {availabilityType === 'Available' && <label className="check-row"><input type="checkbox" role="switch" checked={overrideOnlineBooking} onChange={(e) => setOverrideOnlineBooking(e.target.checked)} /> Accept online bookings in this override</label>}
             </div>
             <button className="btn space-top">Add date override</button>
           </form>
@@ -313,7 +326,7 @@ export default function AvailabilityEditor({ provider }: { provider: Provider })
             {(provider.availabilityOverrides || []).map((entry) => (
               <div className="detail-row" key={entry.id}>
                 <span>{entry.override_date.slice(0, 10)} · {entry.start_time && entry.end_time ? `${shortTime(entry.start_time)}–${shortTime(entry.end_time)}` : 'Full day'}</span>
-                <strong>{entry.availability_type} {entry.reason ? `· ${entry.reason}` : ''}</strong>
+                <strong>{entry.availability_type}{entry.availability_type === 'Available' && entry.online_booking_enabled ? ' · Online enabled' : ''}{entry.reason ? ` · ${entry.reason}` : ''}</strong>
                 <button type="button" className="btn danger small" aria-label={`Remove ${entry.availability_type.toLowerCase()} override ${entry.override_date.slice(0, 10)}`} onClick={() => void removeOverride(entry.id, entry.override_date.slice(0, 10))}>Remove</button>
               </div>
             ))}

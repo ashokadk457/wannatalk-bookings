@@ -46,8 +46,11 @@ export const joinAllowed = (a: Appointment) =>
 export const occupiesSlot = (a: Appointment) => !['Cancelled', 'No-show'].includes(a.status);
 export const statusClass = (status: string) => status.toLowerCase();
 export function onlineAllowedAtLocation(provider: Provider, date: string, locationName: string) {
+  const locationId = provider.locationAvailability?.find(
+    (entry) => entry.location_name === locationName,
+  )?.location_id;
   const availableOverride = provider.availabilityOverrides?.some(
-    (entry) => entry.availability_type === 'Available' && entry.override_date.slice(0, 10) === date,
+    (entry) => entry.availability_type === 'Available' && entry.online_booking_enabled && entry.override_date.slice(0, 10) === date && (!entry.location_id || entry.location_id === locationId),
   );
   if (availableOverride) return true;
   const row = provider.locationAvailability?.find(

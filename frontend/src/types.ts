@@ -45,6 +45,7 @@ export interface AvailabilityOverride {
   location_id: string | null;
   override_date: string;
   availability_type: 'Available' | 'Unavailable';
+  online_booking_enabled: boolean;
   start_time: string | null;
   end_time: string | null;
   reason: string | null;

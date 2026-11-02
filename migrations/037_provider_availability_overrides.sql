@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS provider_availability_overrides (
   location_id uuid NULL REFERENCES locations(id) ON DELETE CASCADE,
   override_date date NOT NULL,
   availability_type text NOT NULL CHECK (availability_type IN ('Available', 'Unavailable')),
+  online_booking_enabled boolean NOT NULL DEFAULT false,
   start_time time NULL,
   end_time time NULL,
   reason text NULL,
@@ -15,3 +16,7 @@ CREATE TABLE IF NOT EXISTS provider_availability_overrides (
 
 CREATE INDEX IF NOT EXISTS provider_availability_overrides_lookup_idx
   ON provider_availability_overrides(provider_id, override_date);
+
+-- Safe when the initial version of this migration was already applied.
+ALTER TABLE provider_availability_overrides
+  ADD COLUMN IF NOT EXISTS online_booking_enabled boolean NOT NULL DEFAULT false;

@@ -77,12 +77,11 @@ export async function assertProviderAvailable(client, { providerId, locationId =
   }
   const onlineBooking = isOnlineMode(mode);
   const availabilityLocationId = locationId;
-  const overrides = await client.query(`SELECT availability_type, start_time, end_time
+  const overrides = await client.query(`SELECT availability_type, online_booking_enabled, start_time, end_time
     FROM provider_availability_overrides
     WHERE provider_id=$1 AND override_date=$2
       AND (location_id IS NULL OR location_id=$3)
     ORDER BY availability_type ASC, start_time NULLS FIRST`, [providerId, appointmentDate, locationId]);
-  const overlapsOverride = (row) => !row.start_time || (row.start_time < (appointmentTime + ':00') && row.end_time > (appointmentTime + ':00'));
   const appointmentEnd = await client.query(`SELECT ($1::time + ($2 * interval '1 minute'))::time::text AS end_time`, [appointmentTime, duration]);
   const requestedEnd = appointmentEnd.rows[0].end_time;
   const overrideBlocks = overrides.rows.some((row) => row.availability_type === 'Unavailable' && (!row.start_time || (row.start_time < requestedEnd && row.end_time > appointmentTime)));
@@ -93,7 +92,7 @@ export async function assertProviderAvailable(client, { providerId, locationId =
     FROM provider_location_availability WHERE provider_id = $1 AND location_id = $2 AND day_of_week = EXTRACT(DOW FROM $3::date)::integer`, [providerId, locationId, appointmentDate, appointmentTime, duration]);
   const hasLocationSchedule = Boolean(locationSchedule.rows[0]);
   if (!availableOverride && (!locationSchedule.rows[0] || !locationSchedule.rows[0].slot_allowed)) { const error = new Error('The provider is not available at this location and time'); error.statusCode = 409; throw error; }
-  if (onlineBooking && !availableOverride && !locationSchedule.rows[0].online_booking_enabled) { const error = new Error('This provider is not accepting online bookings for this location and time'); error.statusCode = 409; throw error; }
+  if (onlineBooking && ((availableOverride && !availableOverride.online_booking_enabled) || (!availableOverride && !locationSchedule.rows[0].online_booking_enabled))) { const error = new Error('This provider is not accepting online bookings for this location and time'); error.statusCode = 409; throw error; }
   if (locationId) {
     const unavailableDay = await client.query(`SELECT 1 FROM provider_unavailable_days WHERE provider_id = $1 AND (location_id IS NULL OR location_id = $2) AND unavailable_date = $3`, [providerId, availabilityLocationId, appointmentDate]);
     if (unavailableDay.rows[0]) { const error = new Error('The provider is unavailable at this location on that day'); error.statusCode = 409; throw error; }
