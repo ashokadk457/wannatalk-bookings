@@ -435,6 +435,15 @@
   border: 1px solid #f2dea1;
   padding: 12px;
   border-radius: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.followup-note-column {
+  width: 400px;
+  min-width: 300px;
+  max-width: 400px;
+  white-space: normal !important;
 }
 .month-event.available {
   background: #dff8ed;

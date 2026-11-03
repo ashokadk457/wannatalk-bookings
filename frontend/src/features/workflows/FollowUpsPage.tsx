@@ -148,7 +148,7 @@ export default function FollowUpsPage() {
                   <th>Patient</th>
                   <th>Provider</th>
                   <th>Due</th>
-                  <th>Internal note</th>
+                  <th className="followup-note-column">Internal note</th>
                   <th>Reminder</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -160,7 +160,7 @@ export default function FollowUpsPage() {
                     <td>{f.patient_name}</td>
                     <td>{f.provider_name}</td>
                     <td>{new Date(f.due_at).toLocaleString('en-ZA')}</td>
-                    <td>
+                    <td className="followup-note-column">
                       <div className="workflow-private-note">
                         {f.internal_note || 'No internal note'}
                       </div>
