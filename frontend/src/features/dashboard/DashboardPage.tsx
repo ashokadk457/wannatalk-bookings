@@ -43,38 +43,46 @@ export default function DashboardPage() {
         </div>
       )}
       <div className="grid stats">
-        <Stat
-          icon="▣"
-          color="blue"
-          label={admin ? "Today's bookings" : "Today's appointments"}
-          value={todays.length}
-          note={`${todays.filter((a) => a.status === 'Confirmed').length} confirmed · ${todays.filter((a) => a.status === 'Booked').length} booked`}
-        />
-        <Stat
-          icon="●"
-          color="green"
-          label={admin ? 'Active providers' : 'Patients'}
-          value={admin ? activeProviders : new Set(apps.map((a) => a.patient_id)).size}
-          note={
-            admin
-              ? `${inactiveProviders} inactive · ${data.providers.length} total`
-              : 'Captured from bookings'
-          }
-        />
-        <Stat
-          icon="✓"
-          color="purple"
-          label="Completed"
-          value={completed.length}
-          note="Sessions completed"
-        />
-        <Stat
-          icon="!"
-          color="red"
-          label="Cancelled / no-show"
-          value={cancelled.length}
-          note="Follow-up suggested"
-        />
+        <Link className="dashboard-stat-link" to={`/${user?.role}/appointments`}>
+          <Stat
+            icon="▣"
+            color="blue"
+            label={admin ? "Today's bookings" : "Today's appointments"}
+            value={todays.length}
+            note={`${todays.filter((a) => a.status === 'Confirmed').length} confirmed · ${todays.filter((a) => a.status === 'Booked').length} booked`}
+          />
+        </Link>
+        <Link className="dashboard-stat-link" to={admin ? '/admin/providers' : `/${user?.role}/patients`}>
+          <Stat
+            icon="●"
+            color="green"
+            label={admin ? 'Active providers' : 'Patients'}
+            value={admin ? activeProviders : new Set(apps.map((a) => a.patient_id)).size}
+            note={
+              admin
+                ? `${inactiveProviders} inactive · ${data.providers.length} total`
+                : 'Captured from bookings'
+            }
+          />
+        </Link>
+        <Link className="dashboard-stat-link" to={`/${user?.role}/appointments`}>
+          <Stat
+            icon="✓"
+            color="purple"
+            label="Completed"
+            value={completed.length}
+            note="Sessions completed"
+          />
+        </Link>
+        <Link className="dashboard-stat-link" to={`/${user?.role}/cancellations`}>
+          <Stat
+            icon="!"
+            color="red"
+            label="Cancelled / no-show"
+            value={cancelled.length}
+            note="Follow-up suggested"
+          />
+        </Link>
       </div>
       {admin ? (
         <div className="grid two space-top dashboard-overview-panel">
