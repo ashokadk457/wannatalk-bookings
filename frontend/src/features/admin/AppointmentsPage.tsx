@@ -355,7 +355,13 @@ export default function AppointmentsPage({ cancellations = false }: { cancellati
               </select>
             </Field>
           </div>
-          <AppointmentTable appointments={visibleApps} editable bulkMessaging fullInvoiceEditor />
+          <AppointmentTable
+            appointments={visibleApps}
+            editable
+            bulkMessaging
+            includeCancelledMessaging={cancellations}
+            fullInvoiceEditor
+          />
           {apps.length > 0 && (
             <div className="pagination-controls">
               <span>

@@ -16,7 +16,7 @@ export default function WaitingPage() {
     [dateFrom, setFrom] = useState(today()),
     [dateTo, setTo] = useState(addDays(today(), 14)),
     [timePreference, setPreference] = useState('any'),
-    [channels, setChannels] = useState(['email', 'sms']),
+    [channels, setChannels] = useState(['email', 'sms', 'whatsapp']),
     [busy, setBusy] = useState(false),
     [opening, setOpening] = useState(''),
     [matches, setMatches] = useState<WaitingEntry[] | null>(null);

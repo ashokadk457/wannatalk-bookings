@@ -158,11 +158,13 @@ export default function AppointmentTable({
   appointments,
   editable = false,
   bulkMessaging = false,
+  includeCancelledMessaging = false,
   fullInvoiceEditor = false,
 }: {
   appointments: Appointment[];
   editable?: boolean;
   bulkMessaging?: boolean;
+  includeCancelledMessaging?: boolean;
   fullInvoiceEditor?: boolean;
 }) {
   const { user, refresh } = useApp(),
@@ -429,7 +431,7 @@ export default function AppointmentTable({
             className="btn"
             onClick={() =>
               navigate(`/${user?.role}/appointment-messages`, {
-                state: { patientIds: selectedPatients },
+                state: { patientIds: selectedPatients, includeCancelled: includeCancelledMessaging },
               })
             }
           >

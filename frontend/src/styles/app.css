@@ -439,6 +439,11 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.date-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
 .followup-note-column {
   width: 400px;
   min-width: 300px;
@@ -938,6 +943,12 @@ button.month-event.unavailable {
     bottom: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom) + 16px) !important;
     left: 16px !important;
     border-radius: 16px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .date-range-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1610,7 +1621,26 @@ table input[type='radio'] {
 .searchable-select-options button:hover,.searchable-select-options button[aria-selected='true'] { background:#edf8f3; }
 .searchable-select-options button span,.searchable-select-empty { color:var(--muted);font-size:12px; }
 .searchable-select-empty { display:block;padding:10px; }
-.patient-create-toggle { margin-top:7px; }
+.patient-create-toggle {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  margin-top: 7px;
+  padding: 7px 11px;
+  border: 1px solid #a8d8c2;
+  border-radius: 8px;
+  background: #effaf5;
+  color: #08734f;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.patient-create-toggle:hover {
+  border-color: #54b98d;
+  background: #dcf5e9;
+  transform: translateY(-1px);
+}
 .inline-patient-create { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px;padding:12px;border:1px solid #cfe0d7;border-radius:11px;background:#f5fbf8; }
 .inline-patient-create>strong,.inline-patient-create>.actions { grid-column:1/-1; }
 @media(max-width:760px){.inline-patient-create{grid-template-columns:1fr}.appointments-admin-card .admin-filters{grid-template-columns:1fr}}

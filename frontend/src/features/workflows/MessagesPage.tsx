@@ -19,12 +19,14 @@ export default function MessagesPage({
   defaultPatientIds = [],
   defaultSubject,
   defaultMessage,
+  includeCancelled = false,
 }: {
   appointmentMode?: boolean;
   appointmentOptions?: Appointment[];
   defaultPatientIds?: string[];
   defaultSubject?: string;
   defaultMessage?: string;
+  includeCancelled?: boolean;
 }) {
   const { user, run, notify } = useApp(),
     resource = useResource<{ deliveries: Delivery[] }>('/communications');
@@ -150,6 +152,7 @@ export default function MessagesPage({
               }
             : {}),
           channels,
+          ...(appointmentMode ? { includeCancelled } : {}),
         },
       );
       notify(deliverySummary(result.deliveries));
@@ -163,7 +166,9 @@ export default function MessagesPage({
         title={appointmentMode ? 'Appointment reminders' : 'Messages'}
         subtitle={
           appointmentMode
-            ? 'Send a reminder to patients with tomorrow’s bookings.'
+            ? includeCancelled
+              ? 'Send a cancellation message to patients from the cancelled appointment list.'
+              : 'Send a reminder to patients with tomorrow’s bookings.'
             : 'Send patient communications by Email, SMS, or WhatsApp and review delivery history.'
         }
       />

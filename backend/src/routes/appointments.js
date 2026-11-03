@@ -5,6 +5,7 @@ import { authRequired } from '../middleware/authRequired.js';
 import { generateInvoicePdf, parseInvoiceAmount } from '../invoice.js';
 import { sendCommunicationEmail, sendInvoiceEmail } from '../mail.js';
 import { sendSms } from '../sms.js';
+import { sendPatientCommunication } from '../communications.js';
 
 export const appointmentsRouter = Router();
 
@@ -45,6 +46,102 @@ async function notifyProvider(appointmentId, event) {
     ]);
   } catch (error) {
     console.error('Provider appointment notification failed', error);
+  }
+}
+
+async function notifyPatient(appointmentId, event) {
+  try {
+    const result = await query(`SELECT a.appointment_date::date::text AS appointment_date, a.appointment_time::time::text AS appointment_time, a.appointment_type, a.mode, pu.full_name AS patient_name, pu.email AS patient_email, pu.mobile AS patient_mobile, pr.full_name AS provider_name FROM appointments a JOIN patients pat ON pat.id = a.patient_id JOIN app_users pu ON pu.id = pat.user_id JOIN providers pro ON pro.id = a.provider_id JOIN app_users pr ON pr.id = pro.user_id WHERE a.id = $1`, [appointmentId]);
+    const a = result.rows[0];
+    if (!a) return;
+    const subject = `Appointment ${event}`;
+    const message = `Your appointment has been ${event}.
+Provider: ${a.provider_name}
+Date: ${a.appointment_date}
+Time: ${a.appointment_time}
+Type: ${a.appointment_type}
+Mode: ${a.mode}`;
+    await Promise.allSettled([
+      a.patient_email ? sendCommunicationEmail({ email: a.patient_email, fullName: a.patient_name, subject, message }) : Promise.resolve(),
+      a.patient_mobile ? sendSms({ phoneNumber: a.patient_mobile, message }) : Promise.resolve(),
+    ]);
+  } catch (error) {
+    console.error('Patient appointment notification failed', error);
+  }
+}
+
+async function notifyWaitingListMatches(appointmentId, user) {
+  try {
+    const appointmentResult = await query(
+      `SELECT a.id, a.provider_id, a.patient_id, a.appointment_date::date::text AS appointment_date,
+              a.appointment_time::time::text AS appointment_time, a.status, a.mode,
+              u.full_name AS provider_name, l.name AS location_name
+       FROM appointments a
+       JOIN providers p ON p.id = a.provider_id
+       JOIN app_users u ON u.id = p.user_id
+       LEFT JOIN locations l ON l.id = a.location_id
+       WHERE a.id = $1`,
+      [appointmentId],
+    );
+    const appointment = appointmentResult.rows[0];
+    if (!appointment || !['Cancelled', 'No-show'].includes(appointment.status)) return;
+    if (appointment.appointment_date < new Date().toISOString().slice(0, 10)) return;
+    const matches = await query(
+      `SELECT w.id, w.patient_id, w.provider_id, w.notification_channels
+       FROM waiting_list_entries w
+       WHERE w.status = 'active'
+         AND (w.provider_id IS NULL OR w.provider_id = $1)
+         AND (w.location_id IS NULL OR w.location_id = (SELECT location_id FROM appointments WHERE id = $2))
+         AND $3::date BETWEEN w.date_from AND w.date_to
+         AND (w.time_preference = 'any'
+              OR (w.time_preference = 'morning' AND $4::time < time '12:00')
+              OR (w.time_preference = 'afternoon' AND $4::time >= time '12:00'))
+         AND NOT EXISTS (
+           SELECT 1 FROM communication_deliveries d
+           WHERE d.waiting_list_entry_id = w.id AND d.appointment_id = $2
+         )
+       ORDER BY w.created_at`,
+      [appointment.provider_id, appointment.id, appointment.appointment_date, appointment.appointment_time],
+    );
+    const date = new Date(`${appointment.appointment_date}T00:00:00`).toLocaleDateString('en-ZA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const message = `A WannaTalk cancellation appointment is available with ${appointment.provider_name} on ${date} at ${appointment.appointment_time.slice(0, 5)} (${appointment.location_name || appointment.mode}). Sign in to book it. Availability is not guaranteed.`;
+    for (const match of matches.rows) {
+      const delivery = await sendPatientCommunication({
+        patientId: match.patient_id,
+        providerId: appointment.provider_id,
+        appointmentId: appointment.id,
+        waitingListEntryId: match.id,
+        sentByUserId: user.id,
+        channels: match.notification_channels,
+        subject: 'WannaTalk cancellation appointment available',
+        message,
+      });
+      if (delivery.deliveries.some((item) => item.status === 'sent')) {
+        await query(
+          `UPDATE waiting_list_entries
+           SET notification_count = notification_count + 1, last_notified_at = now(), updated_at = now()
+           WHERE id = $1`,
+          [match.id],
+        );
+      }
+      await query(
+        `INSERT INTO audit_logs (user_id, user_name, user_role, action, appointment_id, details)
+         VALUES ($1,$2,$3,'Automatically sent cancellation waiting-list alert',$4,$5::jsonb)`,
+        [
+          user.id,
+          user.name || user.email || 'System',
+          user.role,
+          appointment.id,
+          JSON.stringify({ waitingListEntryId: match.id, deliveryStatuses: delivery.deliveries.map((item) => item.status) }),
+        ],
+      );
+    }
+  } catch (error) {
+    console.error('Automatic waiting-list cancellation notification failed', error);
   }
 }
 
@@ -164,15 +261,16 @@ async function audit(client, user, action, appointmentId, details = {}) {
 }
 
 const recurrenceUnits=new Set(['days','weeks','months']);
-function recurrenceDates(startDate,interval,unit,count){const result=[],start=new Date(`${startDate}T12:00:00Z`),day=start.getUTCDate();for(let i=0;i<count;i++){let date;if(unit==='months'){const month=start.getUTCMonth()+i*interval,year=start.getUTCFullYear()+Math.floor(month/12),normalized=((month%12)+12)%12,last=new Date(Date.UTC(year,normalized+1,0)).getUTCDate();date=new Date(Date.UTC(year,normalized,Math.min(day,last),12));}else{date=new Date(start);date.setUTCDate(date.getUTCDate()+i*interval*(unit==='weeks'?7:1));}result.push(date.toISOString().slice(0,10));}return result;}
-function recurringInput(body){const input={patientId:String(body.patientId||''),providerId:String(body.providerId||''),locationId:String(body.locationId||''),startDate:String(body.startDate||''),appointmentTime:String(body.appointmentTime||''),durationMinutes:Number(body.durationMinutes),recurrenceInterval:Number(body.recurrenceInterval),recurrenceUnit:String(body.recurrenceUnit||''),occurrenceCount:Number(body.occurrenceCount),appointmentType:String(body.appointmentType||'').trim(),mode:String(body.mode||'').trim(),note:String(body.note||'').trim().slice(0,2000),intakeRequested:body.intakeRequested===true};if(!input.patientId||!input.providerId||!input.locationId||!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.appointmentTime)||!Number.isInteger(input.durationMinutes)||input.durationMinutes<15||input.durationMinutes>480||!Number.isInteger(input.recurrenceInterval)||input.recurrenceInterval<1||input.recurrenceInterval>52||!recurrenceUnits.has(input.recurrenceUnit)||!Number.isInteger(input.occurrenceCount)||input.occurrenceCount<2||input.occurrenceCount>104||!input.appointmentType||!input.mode)throw Object.assign(new Error('Complete all recurring booking fields with valid values'),{statusCode:400});if(input.startDate<new Date().toISOString().slice(0,10))throw Object.assign(new Error('Recurring bookings must start today or later'),{statusCode:400});return input;}
-async function materializeRecurring(client,series,input){const occurrences=[];for(const [index,date] of recurrenceDates(input.startDate,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount).entries()){let appointmentId=null,status='booked',reason=null;try{await assertProviderAvailable(client,{providerId:input.providerId,locationId:input.locationId,appointmentDate:date,appointmentTime:input.appointmentTime,durationMinutes:input.durationMinutes,mode:input.mode});const meetingUrl=isOnlineMode(input.mode)?createMeetingUrl():null;const saved=await client.query(`INSERT INTO appointments(provider_id,patient_id,location_id,appointment_date,appointment_time,duration_minutes,appointment_type,mode,note,intake_requested,meeting_url,recurring_series_id,recurring_occurrence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,[input.providerId,input.patientId,input.locationId,date,input.appointmentTime,input.durationMinutes,input.appointmentType,input.mode,input.note||null,input.intakeRequested,meetingUrl,series.id,index+1]);appointmentId=saved.rows[0].id;}catch(error){if(error.statusCode!==409)throw error;status='conflict';reason=error.message;}const occurrence=(await client.query(`INSERT INTO recurring_booking_occurrences(series_id,occurrence_number,appointment_date,appointment_id,status,conflict_reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[series.id,index+1,date,appointmentId,status,reason])).rows[0];occurrences.push(occurrence);}return occurrences;}
+async function recurringLocation(client,input,date){const locations=await client.query(`SELECT pl.location_id FROM provider_locations pl JOIN locations l ON l.id=pl.location_id WHERE pl.provider_id=$1 AND l.is_active=true AND lower(l.name)<>'online' ORDER BY CASE WHEN pl.location_id=$2 THEN 0 ELSE 1 END,l.name`,[input.providerId,input.locationId]);let lastError=null;for(const row of locations.rows){try{await assertProviderAvailable(client,{providerId:input.providerId,locationId:row.location_id,appointmentDate:date,appointmentTime:input.appointmentTime,durationMinutes:input.durationMinutes,mode:input.mode});return row.location_id;}catch(error){if(error.statusCode!==409)throw error;lastError=error;}}throw lastError||Object.assign(new Error('The provider is not available at any location for this date and time'),{statusCode:409});}
+function recurrenceDates(startDate,interval,unit,count,endDate){const result=[],start=new Date(`${startDate}T12:00:00Z`),day=start.getUTCDate();for(let i=0;i<count;i++){let date;if(unit==='months'){const month=start.getUTCMonth()+i*interval,year=start.getUTCFullYear()+Math.floor(month/12),normalized=((month%12)+12)%12,last=new Date(Date.UTC(year,normalized+1,0)).getUTCDate();date=new Date(Date.UTC(year,normalized,Math.min(day,last),12));}else{date=new Date(start);date.setUTCDate(date.getUTCDate()+i*interval*(unit==='weeks'?7:1));}const value=date.toISOString().slice(0,10);if(value>endDate)break;result.push(value);}return result;}
+function recurringInput(body){const input={patientId:String(body.patientId||''),providerId:String(body.providerId||''),locationId:String(body.locationId||''),startDate:String(body.startDate||''),endDate:String(body.endDate||''),appointmentTime:String(body.appointmentTime||''),durationMinutes:Number(body.durationMinutes),recurrenceInterval:Number(body.recurrenceInterval),recurrenceUnit:String(body.recurrenceUnit||''),occurrenceCount:Number(body.occurrenceCount),appointmentType:String(body.appointmentType||'').trim(),mode:String(body.mode||'').trim(),note:String(body.note||'').trim().slice(0,2000),intakeRequested:body.intakeRequested===true};if(!input.patientId||!input.providerId||!input.locationId||!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.appointmentTime)||!Number.isInteger(input.durationMinutes)||input.durationMinutes<15||input.durationMinutes>480||!Number.isInteger(input.recurrenceInterval)||input.recurrenceInterval<1||input.recurrenceInterval>52||!recurrenceUnits.has(input.recurrenceUnit)||!Number.isInteger(input.occurrenceCount)||input.occurrenceCount<2||input.occurrenceCount>104||!input.appointmentType||!input.mode)throw Object.assign(new Error('Complete all recurring booking fields with valid values'),{statusCode:400});if(input.startDate<new Date().toISOString().slice(0,10))throw Object.assign(new Error('Recurring bookings must start today or later'),{statusCode:400});if(input.endDate<input.startDate)throw Object.assign(new Error('Recurring booking end date must be on or after the start date'),{statusCode:400});if(recurrenceDates(input.startDate,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.endDate).length<2)throw Object.assign(new Error('End date must include at least two recurring appointments'),{statusCode:400});return input;}
+async function materializeRecurring(client,series,input){const occurrences=[];for(const [index,date] of recurrenceDates(input.startDate,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.endDate).entries()){let appointmentId=null,status='booked',reason=null;try{const locationId=await recurringLocation(client,input,date);const meetingUrl=isOnlineMode(input.mode)?createMeetingUrl():null;const saved=await client.query(`INSERT INTO appointments(provider_id,patient_id,location_id,appointment_date,appointment_time,duration_minutes,appointment_type,mode,note,intake_requested,meeting_url,recurring_series_id,recurring_occurrence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,[input.providerId,input.patientId,locationId,date,input.appointmentTime,input.durationMinutes,input.appointmentType,input.mode,input.note||null,input.intakeRequested,meetingUrl,series.id,index+1]);appointmentId=saved.rows[0].id;}catch(error){if(error.statusCode!==409)throw error;status='conflict';reason=error.message;}const occurrence=(await client.query(`INSERT INTO recurring_booking_occurrences(series_id,occurrence_number,appointment_date,appointment_id,status,conflict_reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[series.id,index+1,date,appointmentId,status,reason])).rows[0];occurrences.push(occurrence);}return occurrences;}
 
 appointmentsRouter.get('/recurring',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const result=await query(`SELECT s.*,pu.full_name patient_name,pru.full_name provider_name,l.name location_name,COALESCE(json_agg(json_build_object('id',o.id,'occurrenceNumber',o.occurrence_number,'appointmentDate',o.appointment_date::text,'appointmentId',o.appointment_id,'status',o.status,'conflictReason',o.conflict_reason) ORDER BY o.occurrence_number) FILTER(WHERE o.id IS NOT NULL),'[]') occurrences FROM recurring_booking_series s JOIN patients p ON p.id=s.patient_id JOIN app_users pu ON pu.id=p.user_id JOIN providers pr ON pr.id=s.provider_id JOIN app_users pru ON pru.id=pr.user_id JOIN locations l ON l.id=s.location_id LEFT JOIN recurring_booking_occurrences o ON o.series_id=s.id WHERE ($1::uuid IS NULL OR s.provider_id=$1) GROUP BY s.id,pu.full_name,pru.full_name,l.name ORDER BY s.created_at DESC`,[req.user.role==='provider'?req.user.entityId:null]);res.json({series:result.rows});}));
 
-appointmentsRouter.post('/recurring',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const input=recurringInput(req.body);if(!ownsProviderRecord(req.user,input.providerId))return res.status(403).json({error:'Providers can only create recurring bookings for themselves'});const result=await withTransaction(async client=>{if(req.user.role==='provider'&&!(await client.query(`SELECT 1 FROM appointments WHERE provider_id=$1 AND patient_id=$2 LIMIT 1`,[input.providerId,input.patientId])).rows[0])throw Object.assign(new Error('You may only create bookings for your own patients'),{statusCode:403});const series=(await client.query(`INSERT INTO recurring_booking_series(patient_id,provider_id,location_id,created_by_user_id,start_date,appointment_time,duration_minutes,recurrence_interval,recurrence_unit,occurrence_count,appointment_type,mode,note,intake_requested) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,[input.patientId,input.providerId,input.locationId,req.user.id,input.startDate,input.appointmentTime,input.durationMinutes,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.appointmentType,input.mode,input.note||null,input.intakeRequested])).rows[0];const occurrences=await materializeRecurring(client,series,input);await audit(client,req.user,'Created recurring booking series',null,{seriesId:series.id,booked:occurrences.filter(x=>x.status==='booked').length,conflicts:occurrences.filter(x=>x.status==='conflict').length});return {series,occurrences};});res.status(201).json(result);}));
+appointmentsRouter.post('/recurring',authRequired(['admin','provider']),asyncHandler(async(req,res)=>{const input=recurringInput(req.body);if(!ownsProviderRecord(req.user,input.providerId))return res.status(403).json({error:'Providers can only create recurring bookings for themselves'});const result=await withTransaction(async client=>{if(req.user.role==='provider'&&!(await client.query(`SELECT 1 FROM appointments WHERE provider_id=$1 AND patient_id=$2 LIMIT 1`,[input.providerId,input.patientId])).rows[0])throw Object.assign(new Error('You may only create bookings for your own patients'),{statusCode:403});const series=(await client.query(`INSERT INTO recurring_booking_series(patient_id,provider_id,location_id,created_by_user_id,start_date,end_date,appointment_time,duration_minutes,recurrence_interval,recurrence_unit,occurrence_count,appointment_type,mode,note,intake_requested) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,[input.patientId,input.providerId,input.locationId,req.user.id,input.startDate,input.endDate,input.appointmentTime,input.durationMinutes,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.appointmentType,input.mode,input.note||null,input.intakeRequested])).rows[0];const occurrences=await materializeRecurring(client,series,input);await audit(client,req.user,'Created recurring booking series',null,{seriesId:series.id,endDate:input.endDate,booked:occurrences.filter(x=>x.status==='booked').length,conflicts:occurrences.filter(x=>x.status==='conflict').length});return {series,occurrences};});res.status(201).json(result);}));
 
-appointmentsRouter.patch('/recurring/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{const input=recurringInput(req.body);const result=await withTransaction(async client=>{const current=(await client.query(`SELECT * FROM recurring_booking_series WHERE id=$1 FOR UPDATE`,[req.params.id])).rows[0];if(!current)throw Object.assign(new Error('Recurring booking series not found'),{statusCode:404});await client.query(`UPDATE appointments SET status='Cancelled',updated_at=now() WHERE recurring_series_id=$1 AND appointment_date>=CURRENT_DATE AND status IN('Booked','Confirmed')`,[current.id]);await client.query(`DELETE FROM recurring_booking_occurrences WHERE series_id=$1`,[current.id]);const series=(await client.query(`UPDATE recurring_booking_series SET patient_id=$2,provider_id=$3,location_id=$4,start_date=$5,appointment_time=$6,duration_minutes=$7,recurrence_interval=$8,recurrence_unit=$9,occurrence_count=$10,appointment_type=$11,mode=$12,note=$13,intake_requested=$14,updated_at=now() WHERE id=$1 RETURNING *`,[current.id,input.patientId,input.providerId,input.locationId,input.startDate,input.appointmentTime,input.durationMinutes,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.appointmentType,input.mode,input.note||null,input.intakeRequested])).rows[0];const occurrences=await materializeRecurring(client,series,input);await audit(client,req.user,'Edited recurring booking series',null,{seriesId:series.id,booked:occurrences.filter(x=>x.status==='booked').length,conflicts:occurrences.filter(x=>x.status==='conflict').length});return {series,occurrences};});res.json(result);}));
+appointmentsRouter.patch('/recurring/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{const input=recurringInput(req.body);const result=await withTransaction(async client=>{const current=(await client.query(`SELECT * FROM recurring_booking_series WHERE id=$1 FOR UPDATE`,[req.params.id])).rows[0];if(!current)throw Object.assign(new Error('Recurring booking series not found'),{statusCode:404});await client.query(`UPDATE appointments SET status='Cancelled',updated_at=now() WHERE recurring_series_id=$1 AND appointment_date>=CURRENT_DATE AND status IN('Booked','Confirmed')`,[current.id]);await client.query(`DELETE FROM recurring_booking_occurrences WHERE series_id=$1`,[current.id]);const series=(await client.query(`UPDATE recurring_booking_series SET patient_id=$2,provider_id=$3,location_id=$4,start_date=$5,end_date=$6,appointment_time=$7,duration_minutes=$8,recurrence_interval=$9,recurrence_unit=$10,occurrence_count=$11,appointment_type=$12,mode=$13,note=$14,intake_requested=$15,updated_at=now() WHERE id=$1 RETURNING *`,[current.id,input.patientId,input.providerId,input.locationId,input.startDate,input.endDate,input.appointmentTime,input.durationMinutes,input.recurrenceInterval,input.recurrenceUnit,input.occurrenceCount,input.appointmentType,input.mode,input.note||null,input.intakeRequested])).rows[0];const occurrences=await materializeRecurring(client,series,input);await audit(client,req.user,'Edited recurring booking series',null,{seriesId:series.id,endDate:input.endDate,booked:occurrences.filter(x=>x.status==='booked').length,conflicts:occurrences.filter(x=>x.status==='conflict').length});return {series,occurrences};});res.json(result);}));
 
 appointmentsRouter.delete('/recurring/:id',authRequired(['admin']),asyncHandler(async(req,res)=>{await withTransaction(async client=>{const current=(await client.query(`SELECT id FROM recurring_booking_series WHERE id=$1 FOR UPDATE`,[req.params.id])).rows[0];if(!current)throw Object.assign(new Error('Recurring booking series not found'),{statusCode:404});await client.query(`UPDATE appointments SET status='Cancelled',updated_at=now() WHERE recurring_series_id=$1 AND appointment_date>=CURRENT_DATE AND status IN('Booked','Confirmed')`,[current.id]);await client.query(`DELETE FROM recurring_booking_series WHERE id=$1`,[current.id]);await audit(client,req.user,'Deleted recurring booking series',null,{seriesId:current.id});});res.status(204).end();}));
 
@@ -457,6 +555,7 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
   if (req.user.role === 'patient' && status !== 'Cancelled') return res.status(403).json({ error: 'Patients can only cancel their own appointments' });
 
   const params = [status, req.params.id];
+  const statusGuard = status === 'Cancelled' ? `AND status NOT IN ('Cancelled','No-show')` : '';
   let access = '';
   if (req.user.role === 'provider') {
     params.push(req.user.id);
@@ -468,7 +567,7 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
 
   const appointment = await withTransaction(async client => {
     const result = await client.query(
-      `UPDATE appointments SET status = $1, updated_at = now() WHERE id = $2 ${access} RETURNING *`,
+      `UPDATE appointments SET status = $1, updated_at = now() WHERE id = $2 ${statusGuard} ${access} RETURNING *`,
       params
     );
     if (!result.rows[0]) return null;
@@ -555,7 +654,11 @@ appointmentsRouter.patch('/:id/status', authRequired(['admin', 'provider', 'pati
   });
   if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
   res.json({ appointment });
-  if (status === 'Cancelled') void notifyProvider(appointment.id, 'cancelled');
+  if (status === 'Cancelled') {
+    void notifyProvider(appointment.id, 'cancelled');
+    void notifyPatient(appointment.id, 'cancelled');
+  }
+  if (status === 'Cancelled' || status === 'No-show') void notifyWaitingListMatches(appointment.id, req.user);
 }));
 
 appointmentsRouter.delete('/:id', authRequired(['admin', 'provider']), asyncHandler(async (req, res) => {

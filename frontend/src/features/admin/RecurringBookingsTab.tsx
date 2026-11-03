@@ -3,7 +3,7 @@ import { useApp } from '../../app/AppContext';
 import { Card, Empty, Field, StatusPill } from '../../components/ui';
 import Modal from '../../components/Modal';
 import { useResource } from '../../hooks/useResource';
-import { today } from '../../lib/dates';
+import { addDays, today } from '../../lib/dates';
 import { mutate } from '../../services/api';
 import { PatientSelect, ProviderSelect, ResourceState } from '../workflows/shared';
 
@@ -21,6 +21,7 @@ interface Series {
   provider_id: string;
   location_id: string;
   start_date: string;
+  end_date: string;
   appointment_time: string;
   duration_minutes: number;
   recurrence_interval: number;
@@ -40,6 +41,7 @@ interface FormState {
   providerId: string;
   locationId: string;
   startDate: string;
+  endDate: string;
   appointmentTime: string;
   durationMinutes: string;
   recurrenceInterval: string;
@@ -50,21 +52,25 @@ interface FormState {
   note: string;
   intakeRequested: boolean;
 }
-const initial = (): FormState => ({
-  patientId: '',
-  providerId: '',
-  locationId: '',
-  startDate: today(),
-  appointmentTime: '09:00',
-  durationMinutes: '60',
-  recurrenceInterval: '1',
-  recurrenceUnit: 'weeks',
-  occurrenceCount: '6',
-  appointmentType: 'Individual counselling',
-  mode: 'In-person',
-  note: '',
-  intakeRequested: false,
-});
+const initial = (): FormState => {
+  const startDate = today();
+  return {
+    patientId: '',
+    providerId: '',
+    locationId: '',
+    startDate,
+    endDate: addDays(startDate, 35),
+    appointmentTime: '09:00',
+    durationMinutes: '60',
+    recurrenceInterval: '1',
+    recurrenceUnit: 'weeks',
+    occurrenceCount: '6',
+    appointmentType: 'Individual counselling',
+    mode: 'In-person',
+    note: '',
+    intakeRequested: false,
+  };
+};
 const standardDurations = [30, 60, 90, 120, 150, 180];
 
 export default function RecurringBookingsTab({ createSingle }: { createSingle: () => void }) {
@@ -76,9 +82,7 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
     [busy, setBusy] = useState(false);
   const provider = data.providers.find((p) => p.id === form.providerId),
     locations = data.locations.filter(
-      (l) =>
-        provider &&
-        l.name !== 'Online' && provider.locations.includes(l.name),
+      (l) => provider && l.name !== 'Online' && provider.locations.includes(l.name),
     );
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((x) => ({ ...x, [key]: value }));
@@ -96,6 +100,7 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
       providerId: s.provider_id,
       locationId: s.location_id,
       startDate: nextStart,
+      endDate: s.end_date,
       appointmentTime: s.appointment_time.slice(0, 5),
       durationMinutes: String(s.duration_minutes),
       recurrenceInterval: String(s.recurrence_interval),
@@ -187,8 +192,8 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
                       {s.provider_name} · {s.location_name} · {s.appointment_time.slice(0, 5)}
                     </p>
                     <div className="sub">
-                      Every {s.recurrence_interval} {s.recurrence_unit}, {s.occurrence_count}{' '}
-                      occurrences from {s.start_date}
+                      Every {s.recurrence_interval} {s.recurrence_unit} from {s.start_date} through{' '}
+                      {s.end_date} (up to {s.occurrence_count} appointments)
                     </div>
                   </div>
                   <div className="actions">
@@ -252,7 +257,7 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
         >
           <form onSubmit={save}>
             <fieldset className="form-reset" disabled={busy}>
-              <div className="form-grid">
+              <div className="form-grid recurring-booking-form-grid">
                 <PatientSelect
                   value={form.patientId}
                   onChange={(x) => update('patientId', x)}
@@ -279,15 +284,51 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
                     ))}
                   </select>
                 </Field>
-                <Field label="Start date">
-                  <input
-                    required
-                    type="date"
-                    min={today()}
-                    value={form.startDate}
-                    onChange={(e) => update('startDate', e.target.value)}
-                  />
+                <Field label="Mode">
+                  <select
+                    disabled={locations.find((l) => l.id === form.locationId)?.name === 'Online'}
+                    value={
+                      locations.find((l) => l.id === form.locationId)?.name === 'Online'
+                        ? 'Online'
+                        : form.mode
+                    }
+                    onChange={(e) => update('mode', e.target.value)}
+                  >
+                    {['In-person', 'Telephone'].map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </select>
                 </Field>
+                <div className="date-range-fields full">
+                  <Field label="Start date">
+                    <input
+                      required
+                      type="date"
+                      min={today()}
+                      value={form.startDate}
+                      onChange={(e) => {
+                        const startDate = e.target.value;
+                        setForm((current) => ({
+                          ...current,
+                          startDate,
+                          endDate:
+                            current.endDate && current.endDate >= startDate
+                              ? current.endDate
+                              : startDate,
+                        }));
+                      }}
+                    />
+                  </Field>
+                  <Field label="End date">
+                    <input
+                      required
+                      type="date"
+                      min={form.startDate}
+                      value={form.endDate}
+                      onChange={(e) => update('endDate', e.target.value)}
+                    />
+                  </Field>
+                </div>
                 <Field label="Time">
                   <input
                     required
@@ -298,13 +339,34 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
                 </Field>
                 <Field label="Duration">
                   <select
-                    value={standardDurations.includes(Number(form.durationMinutes)) ? form.durationMinutes : 'custom'}
-                    onChange={(e) => update('durationMinutes', e.target.value === 'custom' ? '' : e.target.value)}
+                    value={
+                      standardDurations.includes(Number(form.durationMinutes))
+                        ? form.durationMinutes
+                        : 'custom'
+                    }
+                    onChange={(e) =>
+                      update('durationMinutes', e.target.value === 'custom' ? '' : e.target.value)
+                    }
                   >
-                    {standardDurations.map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+                    {standardDurations.map((minutes) => (
+                      <option key={minutes} value={minutes}>
+                        {minutes} minutes
+                      </option>
+                    ))}
                     <option value="custom">Custom duration</option>
                   </select>
-                  {!standardDurations.includes(Number(form.durationMinutes)) && <input required type="number" min="15" max="480" step="1" placeholder="Minutes (15–480)" value={form.durationMinutes} onChange={(e) => update('durationMinutes', e.target.value)} />}
+                  {!standardDurations.includes(Number(form.durationMinutes)) && (
+                    <input
+                      required
+                      type="number"
+                      min="15"
+                      max="480"
+                      step="1"
+                      placeholder="Minutes (15–480)"
+                      value={form.durationMinutes}
+                      onChange={(e) => update('durationMinutes', e.target.value)}
+                    />
+                  )}
                 </Field>
                 <Field label="Repeat">
                   <div className="recurrence-value">
@@ -350,21 +412,6 @@ export default function RecurringBookingsTab({ createSingle }: { createSingle: (
                       'Assessment',
                       'Follow-up',
                     ].map((x) => (
-                      <option key={x}>{x}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Mode">
-                  <select
-                    disabled={locations.find((l) => l.id === form.locationId)?.name === 'Online'}
-                    value={
-                      locations.find((l) => l.id === form.locationId)?.name === 'Online'
-                        ? 'Online'
-                        : form.mode
-                    }
-                    onChange={(e) => update('mode', e.target.value)}
-                  >
-                    {['In-person', 'Telephone'].map((x) => (
                       <option key={x}>{x}</option>
                     ))}
                   </select>
