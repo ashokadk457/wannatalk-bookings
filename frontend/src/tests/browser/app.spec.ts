@@ -365,6 +365,25 @@ test('waiting-list join, matching and notification', async ({ page }) => {
   expect(api.unexpected).toEqual([]);
 });
 
+test('admin dashboard renders database-backed values and provider availability', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2027-01-04T08:00:00'));
+  await mockApi(page, 'admin');
+  await page.goto('/admin/overview');
+
+  await expect(page.locator('.practice-stat').nth(0)).toContainText("Today's bookings");
+  await expect(page.locator('.practice-stat').nth(0)).toContainText('1');
+  await expect(page.locator('.practice-stat').nth(1)).toContainText('Completed');
+  await expect(page.locator('.practice-stat').nth(1)).toContainText('0');
+  await expect(page.locator('.practice-appointment')).toHaveCount(2);
+  await expect(page.locator('.practice-provider-panel')).toContainText('Dr Test Provider');
+  await expect(page.locator('.practice-provider-panel')).toContainText('Available');
+  await expect(page.locator('.practice-provider-panel')).toContainText('Today · 09:00');
+
+  await page.getByLabel('Period').selectOption('week');
+  await expect(page.getByRole('heading', { name: "This week's appointments" })).toBeVisible();
+  await expect(page.locator('.practice-appointment')).toHaveCount(2);
+});
+
 for (const mobileCase of [
   {
     role: 'provider' as const,
