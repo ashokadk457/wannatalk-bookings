@@ -1703,6 +1703,12 @@ table input[type='radio'] {
   height: 17px;
   flex: 0 0 17px;
 }
+.dashboard-table .appointment-icon-action > .action-icon-image {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: block;
+}
 
 /* Shared professional sidebar for patient, provider and admin workspaces. */
 .app .sidebar {
@@ -2124,7 +2130,8 @@ table input[type='radio'] {
   justify-content: center;
   padding: 0;
 }
-.followup-delete-action svg {
+.followup-delete-action svg,
+.followup-delete-action .action-icon-image {
   width: 17px;
   height: 17px;
 }

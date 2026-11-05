@@ -30,128 +30,19 @@ function ActionIcon({
   type: 'message' | 'invoice' | 'payment' | 'money' | 'followup' | 'statement';
   done?: boolean;
 }) {
-  const tone = done ? '#079b4b' : '#c52227';
-  if (type === 'money') {
-    return (
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="12" fill={tone} />
-        <path
-          d="M15.4 8.6c-.6-.7-1.7-1.1-3-1.1-1.6 0-2.7.8-2.7 2s1.1 1.8 2.7 2.2 2.7 1 2.7 2.2-1.1 2.2-2.8 2.2c-1.2 0-2.4-.5-3.1-1.2M12.3 5.8v12.4"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
-  if (type === 'message') {
-    return (
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="12" fill={tone} />
-        <path d="M6 7.5h12v8H11l-3.5 2v-2H6z" fill="white" />
-        <circle cx="9" cy="11.5" r=".8" fill={tone} />
-        <circle cx="12" cy="11.5" r=".8" fill={tone} />
-        <circle cx="15" cy="11.5" r=".8" fill={tone} />
-      </svg>
-    );
-  }
-  if (type === 'invoice') {
-    return (
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="12" fill={tone} />
-        <path
-          d="M7 4.5h7l3 3V19H7z"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M14 4.8v3h3M9.5 10h4M9.5 12h4"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-        <path
-          d="M12.2 13.4v4m1.2-3.3c-.3-.4-.7-.5-1.2-.5-.7 0-1.1.3-1.1.8s.4.7 1.1.9 1.1.4 1.1.9-.4.8-1.1.8c-.5 0-1-.2-1.3-.5"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
-  if (type === 'payment')
-    return (
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="12" fill={tone} />
-        <rect
-          x="4.5"
-          y="6"
-          width="14"
-          height="10"
-          rx="1.7"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.5"
-        />
-        <path
-          d="M5 9h13M7 13h3"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-        />
-        <circle cx="16.5" cy="16.5" r="4.5" fill="white" />
-        <path
-          d="m14.7 16.5 1.2 1.2 2.4-2.5"
-          fill="none"
-          stroke={tone}
-          strokeWidth="1.3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  if (type === 'statement')
-    return (
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="12" fill={tone} />
-        <path d="M7.5 5.5h6l3 3V18.5h-9zM13.5 5.8v3h2.8M9.5 12h5M9.5 14.8h5" fill="none" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="12" fill={tone} />
-      <path
-        d="M7 5.5h8l3 3V19H7z"
-        fill="none"
-        stroke="white"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10 11h5M10 14h5M10 17h3"
-        fill="none"
-        stroke="white"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-      {done && (
-        <path
-          d="m14.5 17 1.3 1.3 2.5-2.8"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
-    </svg>
-  );
+  const iconName = type === 'message'
+    ? 'message-patient'
+    : type === 'invoice'
+      ? 'view-invoice'
+      : type === 'payment'
+        ? 'view-payment-details'
+        : type === 'money'
+          ? 'record-payment'
+          : type === 'followup'
+            ? 'send-follow-up'
+            : 'view-patient-statement';
+  const color = type === 'statement' || done ? 'green' : 'orange';
+  return <img className="action-icon-image" src={`/assets/action-icons/${iconName}_${color}.svg`} alt="" aria-hidden="true" />;
 }
 
 export default function AppointmentTable({

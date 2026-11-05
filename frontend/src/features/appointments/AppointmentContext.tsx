@@ -75,9 +75,11 @@ const LOCAL_STYLES = `
     height: 32px;
     padding: 0;
   }
-  .app .appointment-icon-action > svg {
-    width: 17px;
-    height: 17px;
+  .app .appointment-icon-action > svg,
+  .app .appointment-icon-action > .action-icon-image {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
   }
   .app .appointment-icon-action::after {
     content: attr(data-tooltip);
@@ -419,6 +421,23 @@ const Icon = {
     </svg>
   ),
 };
+
+function AppointmentActionIcon({
+  name,
+  color,
+}: {
+  name: 'edit-appointment' | 'view-appointment' | 'cancel-appointment' | 'delete-appointment';
+  color: 'green' | 'orange' | 'red';
+}) {
+  return (
+    <img
+      className="action-icon-image"
+      src={`/assets/action-icons/${name}_${color}.svg`}
+      alt=""
+      aria-hidden="true"
+    />
+  );
+}
 
 /* =================================================================
    REUSABLE ROW — icon + label + value aligned
@@ -983,7 +1002,7 @@ export function AppointmentActions({
           aria-label="Edit appointment"
           onClick={() => actions.edit(a)}
         >
-          <Icon.Repeat />
+          <AppointmentActionIcon name="edit-appointment" color="orange" />
         </button>
       )}
       {!destructiveOnly && view && (
@@ -993,7 +1012,7 @@ export function AppointmentActions({
           aria-label="View appointment"
           onClick={() => actions.open(a)}
         >
-          <Icon.View />
+          <AppointmentActionIcon name="view-appointment" color="green" />
         </button>
       )}
       {!destructiveOnly && active(a) && (
@@ -1006,7 +1025,7 @@ export function AppointmentActions({
               aria-label="Reschedule appointment"
               onClick={() => actions.open(a, true)}
             >
-              <Icon.Repeat />
+              <AppointmentActionIcon name="edit-appointment" color="orange" />
             </button>
           )}
         </>
@@ -1019,7 +1038,7 @@ export function AppointmentActions({
           aria-label="Cancel appointment"
           onClick={() => void actions.cancel(a)}
         >
-          <Icon.Close />
+          <AppointmentActionIcon name="cancel-appointment" color="red" />
         </button>
       )}
       {includeDestructive && user?.role === 'admin' && (
@@ -1030,7 +1049,7 @@ export function AppointmentActions({
           aria-label="Delete appointment"
           onClick={() => void actions.remove(a)}
         >
-          <Icon.Delete />
+          <AppointmentActionIcon name="delete-appointment" color="red" />
         </button>
       )}
     </div>
